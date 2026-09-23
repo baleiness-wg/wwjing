@@ -1,0 +1,16 @@
+{
+  "name": "wwjing",
+  "private": true,
+  "description": "WWJ Vue frontend and Express API",
+  "scripts": {
+    "install": "npm install --prefix server && npm install --prefix web",
+    "dev": "npm run dev --prefix server",
+    "dev:server": "npm run dev --prefix server",
+    "dev:web": "npm run dev --prefix web",
+    "dev:all": "concurrently \"npm run dev:server\" \"npm run dev:web\"",
+    "start": "npm start --prefix server"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}
