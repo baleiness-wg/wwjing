@@ -1,6 +1,7 @@
 require("dotenv").config();
 
 module.exports = {
+  host: process.env.HOST || "0.0.0.0",
   port: Number(process.env.PORT) || 3000,
   jwtSecretKey: process.env.JWT_SECRET_KEY || "wwjing-development-secret",
   database: {
