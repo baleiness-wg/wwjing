@@ -1,0 +1,25 @@
+class Item {
+  const Item({
+    required this.id,
+    required this.title,
+    required this.nextAction,
+    required this.sourceUrl,
+    required this.status,
+  });
+
+  final int id;
+  final String title;
+  final String nextAction;
+  final String sourceUrl;
+  final String status;
+
+  factory Item.fromJson(Map<String, dynamic> json) {
+    return Item(
+      id: (json['id'] as num).toInt(),
+      title: json['title'] as String,
+      nextAction: json['nextAction'] as String? ?? '',
+      sourceUrl: json['sourceUrl'] as String? ?? '',
+      status: json['status'] as String? ?? 'inbox',
+    );
+  }
+}
