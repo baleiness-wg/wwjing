@@ -17,7 +17,7 @@ class Item {
 
   factory Item.fromJson(Map<String, dynamic> json) {
     return Item(
-      id: (json['id'] as num).toInt(),
+      id: int.parse(json['id'].toString()),
       title: json['title'] as String,
       nextAction: json['nextAction'] as String? ?? '',
       sourceUrl: json['sourceUrl'] as String? ?? '',

@@ -3,14 +3,16 @@ import 'package:flutter/services.dart';
 
 import '../../../core/network/api_client.dart';
 import '../../../models/item.dart';
+import '../../../models/folder.dart';
 import '../../../widgets/app_drawer.dart';
 
 String? _lastDetectedClipboardUrl;
 
 class ItemsPage extends StatefulWidget {
-  const ItemsPage({super.key, required this.token});
+  const ItemsPage({super.key, required this.token, this.folder});
 
   final String token;
+  final Folder? folder;
 
   @override
   State<ItemsPage> createState() => _ItemsPageState();
@@ -44,7 +46,10 @@ class _ItemsPageState extends State<ItemsPage> {
 
   Future<void> _loadItems() async {
     try {
-      final result = await _apiClient.get('/api/items', token: widget.token);
+      final path = widget.folder == null
+          ? '/api/items'
+          : '/api/items?folderId=${widget.folder!.id}';
+      final result = await _apiClient.get(path, token: widget.token);
       final rawItems = result['items'] as List<dynamic>;
       if (mounted) {
         setState(
@@ -66,6 +71,7 @@ class _ItemsPageState extends State<ItemsPage> {
         'nextAction': _nextActionController.text,
         'sourceUrl': _sourceUrlController.text,
         'category': _category,
+        'folderId': widget.folder?.id,
       }, token: widget.token);
       setState(() {
         _items = [Item.fromJson(result['item']), ..._items];
@@ -185,7 +191,7 @@ class _ItemsPageState extends State<ItemsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('鲸境收藏夹')),
+      appBar: AppBar(title: Text(widget.folder?.name ?? '收藏内容')),
       drawer: AppDrawer(token: widget.token, selected: DrawerSection.items),
       body: ListView(
         padding: const EdgeInsets.all(20),

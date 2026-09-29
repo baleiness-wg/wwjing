@@ -2,7 +2,7 @@ const itemsService = require("../services/items.service");
 
 async function list(req, res, next) {
   try {
-    res.json({ items: await itemsService.listItems(req.auth.sub) });
+    res.json({ items: await itemsService.listItems(req.auth.sub, req.query.folderId) });
   } catch (error) {
     next(error);
   }

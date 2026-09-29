@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../features/auth/presentation/auth_page.dart';
 import '../features/items/presentation/items_page.dart';
+import '../features/folders/presentation/folders_page.dart';
 import '../core/auth/session_store.dart';
 
 class AppDrawer extends StatelessWidget {
@@ -20,6 +21,11 @@ class AppDrawer extends StatelessWidget {
               accountName: Text('鲸境用户'),
               accountEmail: Text('把收藏变成行动'),
               currentAccountPicture: CircleAvatar(child: Text('鲸')),
+            ),
+            ListTile(
+              leading: const Icon(Icons.folder_copy_outlined),
+              title: const Text('我的收藏夹'),
+              onTap: () => _open(context, FoldersPage(token: token)),
             ),
             ListTile(
               leading: const Icon(Icons.home_outlined),
