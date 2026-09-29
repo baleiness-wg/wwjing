@@ -1,5 +1,12 @@
 allprojects {
     repositories {
+        // Flutter 引擎仓库放最前，io.flutter 的包只在这里
+        maven { url = uri("https://storage.googleapis.com/download.flutter.io") }
+        // 阿里云镜像
+        maven { url = uri("https://maven.aliyun.com/repository/google") }
+        maven { url = uri("https://maven.aliyun.com/repository/public") }
+        maven { url = uri("https://maven.aliyun.com/repository/gradle-plugin") }
+        
         google()
         mavenCentral()
     }
