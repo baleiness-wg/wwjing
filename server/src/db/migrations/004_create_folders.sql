@@ -10,6 +10,14 @@ INSERT INTO folders (user_id, name)
 SELECT id, '默认收藏夹' FROM users
 ON CONFLICT (user_id, name) DO NOTHING;
 
+INSERT INTO folders (user_id, name)
+SELECT users.id, folder_names.name
+FROM users
+CROSS JOIN (VALUES
+  ('购物收藏夹'), ('文章收藏夹'), ('视频收藏夹'), ('代码收藏夹')
+) AS folder_names(name)
+ON CONFLICT (user_id, name) DO NOTHING;
+
 ALTER TABLE items ADD COLUMN IF NOT EXISTS folder_id BIGINT REFERENCES folders(id) ON DELETE SET NULL;
 
 UPDATE items AS i

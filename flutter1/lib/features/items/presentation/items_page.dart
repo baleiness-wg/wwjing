@@ -26,12 +26,15 @@ class _ItemsPageState extends State<ItemsPage> {
   List<Item> _items = [];
   bool _loading = true;
   String _category = 'other';
+  List<Folder> _folders = [];
+  int? _folderId;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await _loadItems();
+      await _loadFolders();
       if (mounted) await _checkClipboardLink();
     });
   }
@@ -46,7 +49,7 @@ class _ItemsPageState extends State<ItemsPage> {
 
   Future<void> _loadItems() async {
     try {
-      final path = widget.folder == null
+      final path = widget.folder == null || widget.folder!.id <= 0
           ? '/api/items'
           : '/api/items?folderId=${widget.folder!.id}';
       final result = await _apiClient.get(path, token: widget.token);
@@ -63,6 +66,38 @@ class _ItemsPageState extends State<ItemsPage> {
     }
   }
 
+  Future<void> _loadFolders() async {
+    try {
+      final result = await _apiClient.get('/api/folders', token: widget.token);
+      final folders = (result['folders'] as List<dynamic>)
+          .map((item) => Folder.fromJson(item as Map<String, dynamic>))
+          .toList();
+      if (mounted) {
+        setState(() {
+          _folders = folders;
+          _folderId = widget.folder?.id ?? _folderForCategory(_category)?.id;
+        });
+      }
+    } catch (_) {
+      // Older servers do not expose folders; saving will use the server default.
+    }
+  }
+
+  Folder? _folderForCategory(String category) {
+    final names = {
+      'shopping': '购物收藏夹',
+      'article': '文章收藏夹',
+      'video': '视频收藏夹',
+      'code': '代码收藏夹',
+    };
+    final name = names[category];
+    if (name == null) return _folders.isEmpty ? null : _folders.first;
+    for (final folder in _folders) {
+      if (folder.name == name) return folder;
+    }
+    return _folders.isEmpty ? null : _folders.first;
+  }
+
   Future<void> _addItem() async {
     if (_titleController.text.trim().isEmpty) return;
     try {
@@ -71,7 +106,7 @@ class _ItemsPageState extends State<ItemsPage> {
         'nextAction': _nextActionController.text,
         'sourceUrl': _sourceUrlController.text,
         'category': _category,
-        'folderId': widget.folder?.id,
+        'folderId': widget.folder?.id ?? _folderId,
       }, token: widget.token);
       setState(() {
         _items = [Item.fromJson(result['item']), ..._items];
@@ -124,6 +159,7 @@ class _ItemsPageState extends State<ItemsPage> {
     _lastDetectedClipboardUrl = url;
 
     var dialogCategory = 'shopping';
+    var dialogFolderId = widget.folder?.id ?? _folderId;
     final category = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
@@ -147,9 +183,28 @@ class _ItemsPageState extends State<ItemsPage> {
                     )
                     .toList(),
                 onChanged: (value) => setDialogState(() {
-                  if (value != null) dialogCategory = value;
+                  if (value != null) {
+                    dialogCategory = value;
+                    dialogFolderId = _folderForCategory(value)?.id;
+                  }
                 }),
               ),
+              if (_folders.isNotEmpty)
+                DropdownButton<int>(
+                  value: dialogFolderId,
+                  hint: const Text('保存到收藏夹'),
+                  items: _folders
+                      .map(
+                        (folder) => DropdownMenuItem(
+                          value: folder.id,
+                          child: Text('收藏夹：${folder.name}'),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) => setDialogState(() {
+                    dialogFolderId = value;
+                  }),
+                ),
             ],
           ),
         ),
@@ -170,6 +225,7 @@ class _ItemsPageState extends State<ItemsPage> {
     _titleController.text = url;
     _sourceUrlController.text = url;
     _category = category;
+    _folderId = dialogFolderId ?? _folderForCategory(category)?.id;
     _nextActionController.text = '打开链接并整理重点';
     await _addItem();
   }
@@ -220,9 +276,28 @@ class _ItemsPageState extends State<ItemsPage> {
                     )
                     .toList(),
                 onChanged: (value) {
-                  if (value != null) setState(() => _category = value);
+                  if (value != null) {
+                    setState(() {
+                      _category = value;
+                      _folderId = _folderForCategory(value)?.id;
+                    });
+                  }
                 },
               ),
+              if (_folders.isNotEmpty)
+                DropdownButton<int>(
+                  value: _folderId,
+                  hint: const Text('选择收藏夹'),
+                  items: _folders
+                      .map(
+                        (folder) => DropdownMenuItem(
+                          value: folder.id,
+                          child: Text('收藏夹：${folder.name}'),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) => setState(() => _folderId = value),
+                ),
             ],
           ),
           const SizedBox(height: 12),
@@ -323,11 +398,33 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   final _apiClient = ApiClient();
+  List<Folder> _folders = [];
+  int? _folderId;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _checkClipboardLink());
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await _loadFolders();
+      if (mounted) await _checkClipboardLink();
+    });
+  }
+
+  Future<void> _loadFolders() async {
+    try {
+      final result = await _apiClient.get('/api/folders', token: widget.token);
+      final folders = (result['folders'] as List<dynamic>)
+          .map((item) => Folder.fromJson(item as Map<String, dynamic>))
+          .toList();
+      if (mounted) {
+        setState(() {
+          _folders = folders;
+          _folderId = folders.isEmpty ? null : folders.first.id;
+        });
+      }
+    } catch (_) {
+      // The old server will use its default folder.
+    }
   }
 
   Future<void> _checkClipboardLink() async {
@@ -337,6 +434,7 @@ class _HomePageState extends State<HomePage> {
     if (!mounted || url == null || url == _lastDetectedClipboardUrl) return;
     _lastDetectedClipboardUrl = url;
     var dialogCategory = 'shopping';
+    var dialogFolderId = _folderId;
     final shouldSave = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -363,6 +461,22 @@ class _HomePageState extends State<HomePage> {
                   if (value != null) dialogCategory = value;
                 }),
               ),
+              if (_folders.isNotEmpty)
+                DropdownButton<int>(
+                  value: dialogFolderId,
+                  hint: const Text('保存到收藏夹'),
+                  items: _folders
+                      .map(
+                        (folder) => DropdownMenuItem(
+                          value: folder.id,
+                          child: Text('收藏夹：${folder.name}'),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) => setDialogState(() {
+                    dialogFolderId = value;
+                  }),
+                ),
             ],
           ),
         ),
@@ -385,6 +499,7 @@ class _HomePageState extends State<HomePage> {
         'sourceUrl': url,
         'nextAction': '打开链接并整理重点',
         'category': dialogCategory,
+        'folderId': dialogFolderId,
       }, token: widget.token);
       if (mounted) {
         ScaffoldMessenger.of(context)

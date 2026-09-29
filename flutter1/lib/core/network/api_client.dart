@@ -44,8 +44,21 @@ class ApiClient {
     final body = await response.transform(utf8.decoder).join();
     final data = jsonDecode(body) as Map<String, dynamic>;
     if (response.statusCode >= 400) {
-      throw Exception(data['message'] ?? '请求失败');
+      throw ApiException(
+        data['message']?.toString() ?? '请求失败',
+        response.statusCode,
+      );
     }
     return data;
   }
+}
+
+class ApiException implements Exception {
+  const ApiException(this.message, this.statusCode);
+
+  final String message;
+  final int statusCode;
+
+  @override
+  String toString() => message;
 }

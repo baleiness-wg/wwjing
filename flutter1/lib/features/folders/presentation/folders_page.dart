@@ -39,9 +39,26 @@ class _FoldersPageState extends State<FoldersPage> {
             .toList(),
       );
     } catch (error) {
-      _showError(error);
+      if (error is ApiException && error.statusCode == 404) {
+        await _loadLegacyDefaultFolder();
+      } else {
+        _showError(error);
+      }
     } finally {
       if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _loadLegacyDefaultFolder() async {
+    try {
+      final result = await _apiClient.get('/api/items', token: widget.token);
+      final items = result['items'] as List<dynamic>;
+      if (!mounted) return;
+      setState(() {
+        _folders = [Folder(id: 0, name: '默认收藏夹', itemCount: items.length)];
+      });
+    } catch (error) {
+      _showError(error);
     }
   }
 
@@ -92,6 +109,13 @@ class _FoldersPageState extends State<FoldersPage> {
         ),
         const SizedBox(height: 20),
         if (_loading) const Center(child: CircularProgressIndicator()),
+        if (!_loading && _folders.isEmpty)
+          const Card(
+            child: Padding(
+              padding: EdgeInsets.all(20),
+              child: Text('暂时没有收藏夹目录。请先部署服务端收藏夹接口，或新建一个收藏夹。'),
+            ),
+          ),
         for (final folder in _folders)
           Card(
             child: ListTile(
