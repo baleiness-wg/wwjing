@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/network/api_client.dart';
+import '../../../core/auth/session_store.dart';
 import '../../items/presentation/items_page.dart';
 
 class AuthPage extends StatefulWidget {
@@ -12,6 +13,7 @@ class AuthPage extends StatefulWidget {
 
 class _AuthPageState extends State<AuthPage> {
   final _apiClient = ApiClient();
+  final _sessionStore = SessionStore();
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _registerMode = false;
@@ -35,6 +37,7 @@ class _AuthPageState extends State<AuthPage> {
         await _apiClient.post('/api/auth/register', credentials);
       }
       final result = await _apiClient.post('/api/auth/login', credentials);
+      await _sessionStore.saveToken(result['token'] as String);
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
@@ -43,9 +46,8 @@ class _AuthPageState extends State<AuthPage> {
       );
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(error.toString())),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(error.toString())));
       }
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -67,7 +69,10 @@ class _AuthPageState extends State<AuthPage> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Text('鲸境', style: Theme.of(context).textTheme.headlineMedium),
+                    Text(
+                      '鲸境',
+                      style: Theme.of(context).textTheme.headlineMedium,
+                    ),
                     const SizedBox(height: 8),
                     Text(_registerMode ? '创建账号' : '回来继续整理'),
                     const SizedBox(height: 24),
@@ -84,10 +89,17 @@ class _AuthPageState extends State<AuthPage> {
                     const SizedBox(height: 20),
                     FilledButton(
                       onPressed: _loading ? null : _submit,
-                      child: Text(_loading ? '处理中...' : _registerMode ? '注册并登录' : '登录'),
+                      child: Text(
+                        _loading
+                            ? '处理中...'
+                            : _registerMode
+                            ? '注册并登录'
+                            : '登录',
+                      ),
                     ),
                     TextButton(
-                      onPressed: () => setState(() => _registerMode = !_registerMode),
+                      onPressed: () =>
+                          setState(() => _registerMode = !_registerMode),
                       child: Text(_registerMode ? '已有账号，去登录' : '还没有账号，先注册'),
                     ),
                   ],

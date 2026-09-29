@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../features/auth/presentation/auth_page.dart';
 import '../features/items/presentation/items_page.dart';
+import '../core/auth/session_store.dart';
 
 class AppDrawer extends StatelessWidget {
   const AppDrawer({super.key, required this.token, required this.selected});
@@ -37,10 +38,14 @@ class AppDrawer extends StatelessWidget {
             ListTile(
               leading: const Icon(Icons.logout),
               title: const Text('退出登录'),
-              onTap: () => Navigator.of(context).pushAndRemoveUntil(
-                MaterialPageRoute(builder: (_) => const AuthPage()),
-                (route) => false,
-              ),
+              onTap: () async {
+                await SessionStore().clear();
+                if (!context.mounted) return;
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(builder: (_) => const AuthPage()),
+                  (route) => false,
+                );
+              },
             ),
           ],
         ),
@@ -49,7 +54,8 @@ class AppDrawer extends StatelessWidget {
   }
 
   void _open(BuildContext context, Widget page) {
-    Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => page));
+    Navigator.of(context)
+        .pushReplacement(MaterialPageRoute(builder: (_) => page));
   }
 }
 

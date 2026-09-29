@@ -7,7 +7,9 @@ class ApiClient {
   Future<Map<String, dynamic>> get(String path, {String? token}) async {
     final client = HttpClient();
     try {
-      final request = await client.getUrl(Uri.parse('${AppConfig.apiBaseUrl}$path'));
+      final request = await client.getUrl(
+        Uri.parse('${AppConfig.apiBaseUrl}$path'),
+      );
       if (token != null) {
         request.headers.set(HttpHeaders.authorizationHeader, token);
       }
@@ -24,7 +26,9 @@ class ApiClient {
   }) async {
     final client = HttpClient();
     try {
-      final request = await client.postUrl(Uri.parse('${AppConfig.apiBaseUrl}$path'));
+      final request = await client.postUrl(
+        Uri.parse('${AppConfig.apiBaseUrl}$path'),
+      );
       request.headers.contentType = ContentType.json;
       if (token != null) {
         request.headers.set(HttpHeaders.authorizationHeader, token);

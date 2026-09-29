@@ -4,6 +4,7 @@ class Item {
     required this.title,
     required this.nextAction,
     required this.sourceUrl,
+    required this.category,
     required this.status,
   });
 
@@ -11,6 +12,7 @@ class Item {
   final String title;
   final String nextAction;
   final String sourceUrl;
+  final String category;
   final String status;
 
   factory Item.fromJson(Map<String, dynamic> json) {
@@ -19,6 +21,7 @@ class Item {
       title: json['title'] as String,
       nextAction: json['nextAction'] as String? ?? '',
       sourceUrl: json['sourceUrl'] as String? ?? '',
+      category: json['category'] as String? ?? 'text',
       status: json['status'] as String? ?? 'inbox',
     );
   }

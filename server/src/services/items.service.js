@@ -14,7 +14,8 @@ function createItem(userId, input = {}) {
   return itemsModel.create(userId, {
     title: input.title.trim(),
     sourceUrl: input.sourceUrl || "",
-    nextAction: input.nextAction || ""
+    nextAction: input.nextAction || "",
+    category: input.category || "text"
   });
 }
 
