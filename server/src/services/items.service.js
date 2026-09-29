@@ -12,19 +12,10 @@ async function createItem(userId, input = {}) {
     throw error;
   }
 
-  const categoryFolderNames = {
-    shopping: "购物收藏夹",
-    article: "文章收藏夹",
-    video: "视频收藏夹",
-    code: "代码收藏夹"
-  };
   const selectedFolder = input.folderId
     ? { id: input.folderId }
-    : await foldersModel.findByName(
-        userId,
-        categoryFolderNames[input.category] || "默认收藏夹"
-      );
-  const folderId = selectedFolder?.id || (await foldersModel.getOrCreateDefault(userId)).id;
+    : await foldersModel.getOrCreateDefault(userId);
+  const folderId = selectedFolder.id;
   return itemsModel.create(userId, {
     title: input.title.trim(),
     sourceUrl: input.sourceUrl || "",

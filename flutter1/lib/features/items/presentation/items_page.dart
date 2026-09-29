@@ -79,7 +79,7 @@ class _ItemsPageState extends State<ItemsPage> {
         });
       }
     } catch (_) {
-      // Older servers do not expose folders; saving will use the server default.
+      if (mounted) _showError('收藏夹接口不可用，请先部署后端并执行数据库迁移');
     }
   }
 
@@ -106,7 +106,7 @@ class _ItemsPageState extends State<ItemsPage> {
         'nextAction': _nextActionController.text,
         'sourceUrl': _sourceUrlController.text,
         'category': _category,
-        'folderId': widget.folder?.id ?? _folderId,
+        'folderId': _realFolderId,
       }, token: widget.token);
       setState(() {
         _items = [Item.fromJson(result['item']), ..._items];
@@ -118,6 +118,11 @@ class _ItemsPageState extends State<ItemsPage> {
     } catch (error) {
       _showError(error);
     }
+  }
+
+  int? get _realFolderId {
+    final id = widget.folder?.id ?? _folderId;
+    return id;
   }
 
   Future<void> _readClipboard() async {

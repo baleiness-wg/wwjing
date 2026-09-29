@@ -33,32 +33,14 @@ class _FoldersPageState extends State<FoldersPage> {
   Future<void> _loadFolders() async {
     try {
       final result = await _apiClient.get('/api/folders', token: widget.token);
-      setState(
-        () => _folders = (result['folders'] as List<dynamic>)
-            .map((item) => Folder.fromJson(item as Map<String, dynamic>))
-            .toList(),
-      );
+      final folders = (result['folders'] as List<dynamic>)
+          .map((item) => Folder.fromJson(item as Map<String, dynamic>))
+          .toList();
+      if (mounted) setState(() => _folders = folders);
     } catch (error) {
-      if (error is ApiException && error.statusCode == 404) {
-        await _loadLegacyDefaultFolder();
-      } else {
-        _showError(error);
-      }
+      _showError('收藏夹接口不可用，请先部署后端并执行数据库迁移');
     } finally {
       if (mounted) setState(() => _loading = false);
-    }
-  }
-
-  Future<void> _loadLegacyDefaultFolder() async {
-    try {
-      final result = await _apiClient.get('/api/items', token: widget.token);
-      final items = result['items'] as List<dynamic>;
-      if (!mounted) return;
-      setState(() {
-        _folders = [Folder(id: 0, name: '默认收藏夹', itemCount: items.length)];
-      });
-    } catch (error) {
-      _showError(error);
     }
   }
 
@@ -87,7 +69,14 @@ class _FoldersPageState extends State<FoldersPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('我的收藏夹')),
+    appBar: AppBar(
+      leading: IconButton(
+        icon: const Icon(Icons.arrow_back),
+        tooltip: '返回',
+        onPressed: () => Navigator.of(context).maybePop(),
+      ),
+      title: const Text('我的收藏夹'),
+    ),
     body: ListView(
       padding: const EdgeInsets.all(20),
       children: [

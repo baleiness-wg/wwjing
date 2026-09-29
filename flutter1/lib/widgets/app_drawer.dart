@@ -25,7 +25,9 @@ class AppDrawer extends StatelessWidget {
             ListTile(
               leading: const Icon(Icons.folder_copy_outlined),
               title: const Text('我的收藏夹'),
-              onTap: () => _open(context, FoldersPage(token: token)),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => FoldersPage(token: token)),
+              ),
             ),
             ListTile(
               leading: const Icon(Icons.home_outlined),
