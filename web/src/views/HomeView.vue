@@ -1,12 +1,12 @@
 <script setup>
 import { onMounted, ref } from "vue";
-import { getItems } from "../api/items";
-import ItemCard from "../components/ItemCard.vue";
+import { getFavoriteDetails } from "../api/favorite-details";
+import FavoriteDetailCard from "../components/ItemCard.vue";
 
 const items = ref([]);
 
 onMounted(async () => {
-  items.value = (await getItems()).items;
+  items.value = (await getFavoriteDetails()).favoriteDetails;
 });
 </script>
 
@@ -30,7 +30,7 @@ onMounted(async () => {
         <el-link type="primary" @click="$router.push('/favorites')">全部收藏</el-link>
       </div>
       <div class="item-grid">
-        <ItemCard v-for="item in items.slice(0, 2)" :key="item.id" :item="item" />
+        <FavoriteDetailCard v-for="favoriteDetail in items.slice(0, 2)" :key="favoriteDetail.id" :favorite-detail="favoriteDetail" />
       </div>
     </section>
   </div>

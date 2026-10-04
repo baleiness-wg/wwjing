@@ -16,7 +16,7 @@ async function findAll(userId) {
   const result = await pool.query(
     `SELECT f.id, f.name, COUNT(i.id)::int AS "itemCount"
      FROM folders f
-     LEFT JOIN items i ON i.folder_id = f.id
+     LEFT JOIN favorite_details i ON i.folder_id = f.id
      WHERE f.user_id = $1
      GROUP BY f.id
      ORDER BY f.created_at ASC`,

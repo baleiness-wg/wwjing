@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../core/network/api_client.dart';
-import '../../../models/item.dart';
+import '../../../models/favorite_detail.dart';
 import '../../../models/folder.dart';
 import '../../../widgets/app_drawer.dart';
 
@@ -23,7 +23,7 @@ class _ItemsPageState extends State<ItemsPage> {
   final _titleController = TextEditingController();
   final _nextActionController = TextEditingController();
   final _sourceUrlController = TextEditingController();
-  List<Item> _items = [];
+  List<FavoriteDetail> _items = [];
   bool _loading = true;
   String _category = 'other';
   List<Folder> _folders = [];
@@ -50,13 +50,13 @@ class _ItemsPageState extends State<ItemsPage> {
   Future<void> _loadItems() async {
     try {
       final path = widget.folder == null || widget.folder!.id <= 0
-          ? '/api/items'
-          : '/api/items?folderId=${widget.folder!.id}';
+          ? '/api/favorite-details'
+          : '/api/favorite-details?folderId=${widget.folder!.id}';
       final result = await _apiClient.get(path, token: widget.token);
-      final rawItems = result['items'] as List<dynamic>;
+      final rawItems = result['favoriteDetails'] as List<dynamic>;
       if (mounted) {
         setState(
-          () => _items = rawItems.map((item) => Item.fromJson(item)).toList(),
+          () => _items = rawItems.map((item) => FavoriteDetail.fromJson(item)).toList(),
         );
       }
     } catch (error) {
@@ -99,17 +99,18 @@ class _ItemsPageState extends State<ItemsPage> {
   }
 
   Future<void> _addItem() async {
-    if (_titleController.text.trim().isEmpty) return;
+    if (_titleController.text.trim().isEmpty && _sourceUrlController.text.trim().isEmpty) return;
     try {
-      final result = await _apiClient.post('/api/items', {
+      final result = await _apiClient.post('/api/favorite-details', {
         'title': _titleController.text,
+        'description': '',
         'nextAction': _nextActionController.text,
         'sourceUrl': _sourceUrlController.text,
         'category': _category,
         'folderId': _realFolderId,
       }, token: widget.token);
       setState(() {
-        _items = [Item.fromJson(result['item']), ..._items];
+        _items = [FavoriteDetail.fromJson(result['favoriteDetail']), ..._items];
         _titleController.clear();
         _nextActionController.clear();
         _sourceUrlController.clear();
@@ -138,7 +139,7 @@ class _ItemsPageState extends State<ItemsPage> {
         text.contains('```') ||
         RegExp(r'(^|\n)\s*(class|const|function|import|def)\s').hasMatch(text);
     setState(() {
-      _titleController.text = isUrl ? url : text;
+      _titleController.text = isUrl ? '' : text;
       _sourceUrlController.text = url ?? '';
       _category = isUrl
           ? 'link'
@@ -227,7 +228,7 @@ class _ItemsPageState extends State<ItemsPage> {
     );
     if (category == null || !mounted) return;
 
-    _titleController.text = url;
+      _titleController.text = '';
     _sourceUrlController.text = url;
     _category = category;
     _folderId = dialogFolderId ?? _folderForCategory(category)?.id;
@@ -345,6 +346,12 @@ class _ItemsPageState extends State<ItemsPage> {
                       ],
                     ),
                     const SizedBox(height: 8),
+                    if (item.description.isNotEmpty)
+                      Text(
+                        item.description,
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     Text(
                       item.nextAction.isNotEmpty
                           ? '下一步：${item.nextAction}'
@@ -499,8 +506,9 @@ class _HomePageState extends State<HomePage> {
     );
     if (shouldSave != true || !mounted) return;
     try {
-      await _apiClient.post('/api/items', {
-        'title': url,
+      await _apiClient.post('/api/favorite-details', {
+        'title': '',
+        'description': '',
         'sourceUrl': url,
         'nextAction': '打开链接并整理重点',
         'category': dialogCategory,
