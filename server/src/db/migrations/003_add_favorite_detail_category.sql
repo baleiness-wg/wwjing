@@ -1,0 +1,1 @@
+ALTER TABLE favorite_details ADD COLUMN IF NOT EXISTS category VARCHAR(30) NOT NULL DEFAULT 'text';
