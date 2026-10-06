@@ -75,27 +75,12 @@ class _ItemsPageState extends State<ItemsPage> {
       if (mounted) {
         setState(() {
           _folders = folders;
-          _folderId = widget.folder?.id ?? _folderForCategory(_category)?.id;
+          _folderId = widget.folder?.id;
         });
       }
     } catch (_) {
       if (mounted) _showError('收藏夹接口不可用，请先部署后端并执行数据库迁移');
     }
-  }
-
-  Folder? _folderForCategory(String category) {
-    final names = {
-      'shopping': '购物收藏夹',
-      'article': '文章收藏夹',
-      'video': '视频收藏夹',
-      'code': '代码收藏夹',
-    };
-    final name = names[category];
-    if (name == null) return _folders.isEmpty ? null : _folders.first;
-    for (final folder in _folders) {
-      if (folder.name == name) return folder;
-    }
-    return _folders.isEmpty ? null : _folders.first;
   }
 
   Future<void> _addItem() async {
@@ -190,7 +175,6 @@ class _ItemsPageState extends State<ItemsPage> {
                 onChanged: (value) => setDialogState(() {
                   if (value != null) {
                     dialogCategory = value;
-                    dialogFolderId = _folderForCategory(value)?.id;
                   }
                 }),
               ),
@@ -230,7 +214,7 @@ class _ItemsPageState extends State<ItemsPage> {
     _titleController.text = url;
     _sourceUrlController.text = url;
     _category = category;
-    _folderId = dialogFolderId ?? _folderForCategory(category)?.id;
+    _folderId = dialogFolderId;
     _nextActionController.text = '打开链接并整理重点';
     await _addItem();
   }
@@ -284,7 +268,6 @@ class _ItemsPageState extends State<ItemsPage> {
                   if (value != null) {
                     setState(() {
                       _category = value;
-                      _folderId = _folderForCategory(value)?.id;
                     });
                   }
                 },

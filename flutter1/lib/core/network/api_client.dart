@@ -1,22 +1,16 @@
 import 'dart:convert';
-import 'dart:io';
+
+import 'package:http/http.dart' as http;
 
 import '../config/app_config.dart';
 
 class ApiClient {
   Future<Map<String, dynamic>> get(String path, {String? token}) async {
-    final client = HttpClient();
-    try {
-      final request = await client.getUrl(
-        Uri.parse('${AppConfig.apiBaseUrl}$path'),
-      );
-      if (token != null) {
-        request.headers.set(HttpHeaders.authorizationHeader, token);
-      }
-      return await _read(await request.close());
-    } finally {
-      client.close();
-    }
+    final response = await http.get(
+      Uri.parse('${AppConfig.apiBaseUrl}$path'),
+      headers: _headers(token),
+    );
+    return _read(response);
   }
 
   Future<Map<String, dynamic>> post(
@@ -24,24 +18,20 @@ class ApiClient {
     Map<String, dynamic> body, {
     String? token,
   }) async {
-    final client = HttpClient();
-    try {
-      final request = await client.postUrl(
-        Uri.parse('${AppConfig.apiBaseUrl}$path'),
-      );
-      request.headers.contentType = ContentType.json;
-      if (token != null) {
-        request.headers.set(HttpHeaders.authorizationHeader, token);
-      }
-      request.write(jsonEncode(body));
-      return await _read(await request.close());
-    } finally {
-      client.close();
-    }
+    final response = await http.post(
+      Uri.parse('${AppConfig.apiBaseUrl}$path'),
+      headers: {..._headers(token), 'Content-Type': 'application/json'},
+      body: jsonEncode(body),
+    );
+    return _read(response);
   }
 
-  Future<Map<String, dynamic>> _read(HttpClientResponse response) async {
-    final body = await response.transform(utf8.decoder).join();
+  Map<String, String> _headers(String? token) => {
+    'Authorization': ?token,
+  };
+
+  Map<String, dynamic> _read(http.Response response) {
+    final body = response.body;
     final data = jsonDecode(body) as Map<String, dynamic>;
     if (response.statusCode >= 400) {
       throw ApiException(
