@@ -1,5 +1,4 @@
 const favoriteDetailsModel = require("../models/favorite-details.model");
-const foldersModel = require("../models/folders.model");
 
 function listFavoriteDetails(userId, folderId) {
   return favoriteDetailsModel.findAll(userId, folderId || null);
@@ -16,17 +15,13 @@ async function createFavoriteDetail(userId, input = {}) {
     throw error;
   }
 
-  const selectedFolder = input.folderId
-    ? { id: input.folderId }
-    : await foldersModel.getOrCreateDefault(userId);
-
   return favoriteDetailsModel.create(userId, {
     title: title.slice(0, 200),
     description: (input.description || metadata.description || "").trim(),
     sourceUrl,
     nextAction: input.nextAction || "",
     category: input.category || "text",
-    folderId: selectedFolder.id
+    folderId: input.folderId || null
   });
 }
 

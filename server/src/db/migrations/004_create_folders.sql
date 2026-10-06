@@ -8,10 +8,5 @@ CREATE TABLE IF NOT EXISTS folders (
 
 ALTER TABLE favorite_details ADD COLUMN IF NOT EXISTS folder_id BIGINT REFERENCES folders(id) ON DELETE SET NULL;
 
-UPDATE favorite_details AS i
-SET folder_id = f.id
-FROM folders AS f
-WHERE f.user_id = i.user_id AND f.name = '默认收藏夹' AND i.folder_id IS NULL;
-
 CREATE INDEX IF NOT EXISTS folders_user_id_idx ON folders(user_id);
 CREATE INDEX IF NOT EXISTS favorite_details_folder_id_idx ON favorite_details(folder_id);
