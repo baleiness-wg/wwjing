@@ -38,7 +38,7 @@ class _FoldersPageState extends State<FoldersPage> {
           .toList();
       if (mounted) setState(() => _folders = folders);
     } catch (error) {
-      _showError('收藏夹接口不可用，请先部署后端并执行数据库迁移');
+      _showError('加载收藏夹失败：$error');
     } finally {
       if (mounted) setState(() => _loading = false);
     }

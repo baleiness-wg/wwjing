@@ -1,14 +1,14 @@
 {
   "name": "wwjing",
   "private": true,
-  "description": "WWJ Vue frontend and Express API",
+  "description": "WWJ Vue frontend with Node and Go APIs",
   "scripts": {
-    "install": "npm install --prefix server && npm install --prefix web",
+    "install": "npm install --prefix server-node && npm install --prefix web",
     "dev": "npm run dev:all",
-    "dev:server": "npm run dev --prefix server",
+    "dev:server": "npm run dev --prefix server-node",
     "dev:web": "npm run dev --prefix web",
     "dev:all": "concurrently \"npm run dev:server\" \"npm run dev:web\"",
-    "start": "npm start --prefix server",
+    "start": "npm start --prefix server-node",
     "pm2:start": "pm2 start ecosystem.config.cjs",
     "pm2:restart": "pm2 restart ecosystem.config.cjs",
     "pm2:stop": "pm2 stop ecosystem.config.cjs",

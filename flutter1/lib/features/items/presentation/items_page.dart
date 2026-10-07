@@ -78,8 +78,8 @@ class _ItemsPageState extends State<ItemsPage> {
           _folderId = widget.folder?.id;
         });
       }
-    } catch (_) {
-      if (mounted) _showError('收藏夹接口不可用，请先部署后端并执行数据库迁移');
+    } catch (error) {
+      if (mounted) _showError('加载收藏夹失败：$error');
     }
   }
 
