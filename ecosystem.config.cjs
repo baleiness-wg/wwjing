@@ -22,17 +22,17 @@ module.exports = {
       autorestart: true,
       watch: false,
       max_memory_restart: "300M"
-    },
-    {
-      name: "wwjing-server-go",
-      cwd: "./server-go",
-      script: "./server",
-      env: {
-        NODE_ENV: "production"
-      },
-      autorestart: true,
-      watch: false,
-      max_memory_restart: "300M"
     }
+    // {
+    //   name: "wwjing-server-go",
+    //   cwd: "./server-go",
+    //   script: "./server",
+    //   env: {
+    //     NODE_ENV: "production"
+    //   },
+    //   autorestart: true,
+    //   watch: false,
+    //   max_memory_restart: "300M"
+    // }
   ]
 };
