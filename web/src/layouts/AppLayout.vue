@@ -1,7 +1,7 @@
 <script setup>
 import { ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { Collection, House, Plus, User, SwitchButton } from "@element-plus/icons-vue";
+import { Collection, Folder, House, Plus, User, SwitchButton } from "@element-plus/icons-vue";
 
 const router = useRouter();
 const route = useRoute();
@@ -43,6 +43,10 @@ function logout() {
         <el-menu-item index="/favorites">
           <el-icon><Collection /></el-icon>
           <span>收藏夹</span>
+        </el-menu-item>
+        <el-menu-item index="/folders">
+          <el-icon><Folder /></el-icon>
+          <span>收藏夹目录</span>
         </el-menu-item>
       </el-menu>
     </el-aside>

@@ -16,7 +16,10 @@ defineProps({
         <p v-if="favoriteDetail.nextAction">下一步：{{ favoriteDetail.nextAction }}</p>
         <a v-if="favoriteDetail.sourceUrl" :href="favoriteDetail.sourceUrl" target="_blank" rel="noreferrer">打开来源</a>
       </div>
-      <el-tag effect="plain">{{ favoriteDetail.status === "inbox" ? "待处理" : favoriteDetail.status }}</el-tag>
+       <div class="item-card__tags">
+         <el-tag v-if="favoriteDetail.category" effect="plain">{{ favoriteDetail.category }}</el-tag>
+         <el-tag type="info" effect="plain">{{ favoriteDetail.status === "inbox" ? "待处理" : favoriteDetail.status }}</el-tag>
+       </div>
     </div>
   </el-card>
 </template>
