@@ -15,7 +15,7 @@ type FavoriteHandler struct {
 func (h FavoriteHandler) List(c *gin.Context) {
 	uid, ok := userID(c)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"message": "鐧诲綍宸插け鏁?})
+		c.JSON(http.StatusUnauthorized, gin.H{"message": "unauthorized"})
 		return
 	}
 	folder := c.Query("folderId")
@@ -25,9 +25,10 @@ func (h FavoriteHandler) List(c *gin.Context) {
 		WHERE user_id = $1 AND ($2 = '' OR folder_id = $2::bigint)
 		ORDER BY created_at DESC`, uid, folder)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"message": "鏈嶅姟鍣ㄥ唴閮ㄩ敊璇?})
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "internal server error"})
 		return
-	}
+	} 
+	
 	defer rows.Close()
 
 	result := make([]gin.H, 0)
@@ -55,7 +56,7 @@ func (h FavoriteHandler) List(c *gin.Context) {
 func (h FavoriteHandler) Create(c *gin.Context) {
 	uid, ok := userID(c)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"message": "鐧诲綍宸插け鏁?})
+		c.JSON(http.StatusUnauthorized, gin.H{"message": "unauthorized"})
 		return
 	}
 	var input struct {
@@ -67,7 +68,7 @@ func (h FavoriteHandler) Create(c *gin.Context) {
 		FolderID    *int64 `json:"folderId"`
 	}
 	if c.ShouldBindJSON(&input) != nil || strings.TrimSpace(input.Title) == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"message": "鏍囬鎴栭摼鎺ヤ笉鑳戒负绌?})
+		c.JSON(http.StatusBadRequest, gin.H{"message": "title is required"})
 		return
 	}
 	if input.Category == "" {
@@ -83,7 +84,7 @@ func (h FavoriteHandler) Create(c *gin.Context) {
 		RETURNING id, status`, uid, strings.TrimSpace(input.Title), input.Description,
 		input.SourceURL, input.NextAction, input.Category, input.FolderID).Scan(&id, &status)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"message": "鏈嶅姟鍣ㄥ唴閮ㄩ敊璇?})
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "internal server error"})
 		return
 	}
 	c.JSON(http.StatusCreated, gin.H{"favoriteDetail": gin.H{
