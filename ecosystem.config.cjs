@@ -5,8 +5,7 @@ module.exports = {
       cwd: "./server-node",
       script: "server.js",
       env: {
-        NODE_ENV: "production",
-        PORT: "3002"
+        NODE_ENV: "production"
       },
       autorestart: true,
       watch: false,
