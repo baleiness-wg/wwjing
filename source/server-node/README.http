@@ -1,0 +1,34 @@
+### Read current content
+GET http://localhost:3000/api/transfer/content
+Authorization: Bearer {{TOKEN}}
+
+### Save text content
+POST http://localhost:3000/api/transfer/content/text
+Authorization: Bearer {{TOKEN}}
+Content-Type: application/json
+
+{
+  "text": "内容将在同一账号的其他设备上可见"
+}
+
+### Upload a file (maximum 100 MB)
+POST http://localhost:3000/api/transfer/content/file
+Authorization: Bearer {{TOKEN}}
+Content-Type: multipart/form-data; boundary=boundary
+
+--boundary
+Content-Disposition: form-data; name="file"; filename="example.txt"
+Content-Type: text/plain
+
+example file content
+--boundary--
+
+### Download current file
+GET http://localhost:3000/api/transfer/content/file
+Authorization: Bearer {{TOKEN}}
+
+### Errors
+# 401: missing or invalid token
+# 404: no content found
+# 409: current content is text
+# 413: uploaded file is larger than 100 MB

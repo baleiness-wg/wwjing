@@ -1,2 +1,0 @@
--- Folder names and item types are user data. Do not seed, rename, or delete
--- any values here. Migration 004 already added items.folder_id.
