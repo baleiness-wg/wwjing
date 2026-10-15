@@ -1,6 +1,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const pool = require("./index");
+const logger = require("../logger");
 
 const migrationsDir = path.join(__dirname, "migrations");
 
@@ -37,7 +38,7 @@ async function migrate() {
         [filename]
       );
       await client.query("COMMIT");
-      console.log(`Applied migration: ${filename}`);
+      logger.info({ migration: filename, result: "applied" }, "database migration completed");
     }
   } catch (error) {
     await client.query("ROLLBACK");
@@ -49,6 +50,6 @@ async function migrate() {
 }
 
 migrate().catch((error) => {
-  console.error("Database migration failed:", error.message);
+  logger.error({ err: error }, "database migration failed");
   process.exitCode = 1;
 });
