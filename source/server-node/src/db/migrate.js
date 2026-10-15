@@ -38,7 +38,7 @@ async function migrate() {
         [filename]
       );
       await client.query("COMMIT");
-      logger.info({ migration: filename, result: "applied" }, "database migration completed");
+      logger.info({ filename }, "migration applied");
     }
   } catch (error) {
     await client.query("ROLLBACK");

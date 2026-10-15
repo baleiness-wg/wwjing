@@ -2,13 +2,12 @@ const pino = require("pino");
 
 const isDevelopment = (process.env.NODE_ENV || "development") !== "production";
 const serviceName = process.env.SERVICE_NAME || "wwjing-server";
-const environment = process.env.NODE_ENV || "development";
 
-const loggerOptions = {
+const options = {
   level: process.env.LOG_LEVEL || (isDevelopment ? "debug" : "info"),
   base: {
     service: serviceName,
-    environment
+    environment: process.env.NODE_ENV || "development"
   },
   timestamp: pino.stdTimeFunctions.isoTime,
   redact: {
@@ -17,21 +16,20 @@ const loggerOptions = {
       "req.headers.cookie",
       "req.body.password",
       "req.body.token",
-      "req.body.accessToken",
+      "req.body.text",
+      "req.body.file",
       "password",
       "token",
       "accessToken",
-      "jwt",
-      "database.password",
-      "databasePassword",
-      "secret"
+      "refreshToken",
+      "authorization"
     ],
     censor: "[REDACTED]"
   }
 };
 
 if (isDevelopment) {
-  loggerOptions.transport = {
+  options.transport = {
     target: "pino-pretty",
     options: {
       colorize: true,
@@ -41,4 +39,4 @@ if (isDevelopment) {
   };
 }
 
-module.exports = pino(loggerOptions);
+module.exports = pino(options);

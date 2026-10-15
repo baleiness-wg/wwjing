@@ -1,38 +1,34 @@
 const express = require("express");
 const cors = require("cors");
 const crypto = require("node:crypto");
+const pinoHttp = require("pino-http");
 const apiRoutes = require("./routes");
 const notFound = require("./middlewares/not-found");
 const errorHandler = require("./middlewares/error-handler");
 const logger = require("./logger");
-const pinoHttp = require("pino-http");
 
 const app = express();
 
-app.use(
-  pinoHttp({
-    logger,
-    genReqId: (req, res) => {
-      const requestId = crypto.randomUUID();
-      res.setHeader("X-Request-Id", requestId);
-      return requestId;
-    },
-    customLogLevel: (req, res, error) => {
-      if (error || res.statusCode >= 500) return "error";
-      if (res.statusCode >= 400) return "warn";
-      return "info";
-    },
-    serializers: {
-      req: (req) => ({
+app.use(pinoHttp({
+  logger,
+  genReqId(req, res) {
+    const requestId = req.headers["x-request-id"] || crypto.randomUUID();
+    res.setHeader("x-request-id", requestId);
+    return requestId;
+  },
+  serializers: {
+    req(req) {
+      return {
         id: req.id,
         method: req.method,
-        url: req.originalUrl || req.url,
-        remoteAddress: req.socket?.remoteAddress
-      }),
-      res: (res) => ({ statusCode: res.statusCode })
+        url: new URL(req.url, "http://localhost").pathname
+      };
+    },
+    res(res) {
+      return { statusCode: res.statusCode };
     }
-  })
-);
+  }
+}));
 
 app.use(
   cors({
