@@ -8,7 +8,7 @@ async function register({ username, password }) {
 
   const existingUser = await usersModel.findByUsername(username);
   if (existingUser) {
-    const error = new Error("用户名已存在");
+    const error = new Error("用户名已存在zzzzzzzz");
     error.status = 409;
     throw error;
   }
