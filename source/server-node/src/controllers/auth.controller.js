@@ -4,7 +4,7 @@ const logger = require("../logger");
 async function register(req, res, next) {
   try {
     const user = await authService.register(req.body);
-    (req.log || logger).info({ userId: user.id }, "user registered");
+    (req.log || logger).info({ userId: user.id }, "user registeredd");
     res.status(201).json({ user });
   } catch (error) {
     next(error);
