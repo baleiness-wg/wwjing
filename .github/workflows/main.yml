@@ -15,10 +15,28 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  changes:
+    name: Detect changed components
+    runs-on: ubuntu-latest
+    outputs:
+      server: ${{ steps.filter.outputs.server }}
+      web: ${{ steps.filter.outputs.web }}
+    steps:
+      - name: Check changed paths
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            server:
+              - 'source/server-node/**'
+            web:
+              - 'source/web/**'
+
   ci:
     name: Test and build server-node
     runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch' || contains(toJSON(github.event.commits), 'source/server-node/')
+    needs: changes
+    if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.server == 'true'
 
     defaults:
       run:
@@ -48,7 +66,7 @@ jobs:
     name: Deploy server-node
     needs: ci
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    if: always() && needs.ci.result == 'success' && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
 
     steps:
       - name: Deploy through SSH
@@ -76,7 +94,8 @@ jobs:
   web-ci:
     name: Build web frontend
     runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch' || contains(toJSON(github.event.commits), 'source/web/')
+    needs: changes
+    if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.web == 'true'
 
     defaults:
       run:
@@ -112,7 +131,7 @@ jobs:
     name: Deploy web frontend
     needs: web-ci
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    if: always() && needs.web-ci.result == 'success' && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
 
     steps:
       - name: Download frontend artifact
