@@ -1,4 +1,4 @@
-name: WWJ CI/CD
+name: server-node CI/CD
 
 on:
   push:
@@ -6,7 +6,6 @@ on:
       - main
     paths:
       - "source/server-node/**"
-      - "source/web/**"
       - ".github/workflows/main.yml"
   workflow_dispatch:
 
@@ -15,33 +14,9 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  changes:
-    name: Detect changed components
-    runs-on: ubuntu-latest
-    outputs:
-      server: ${{ steps.filter.outputs.server }}
-      web: ${{ steps.filter.outputs.web }}
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Check changed paths
-        uses: dorny/paths-filter@v3
-        id: filter
-        with:
-          filters: |
-            server:
-              - 'source/server-node/**'
-            web:
-              - 'source/web/**'
-
   ci:
     name: Test and build server-node
     runs-on: ubuntu-latest
-    needs: changes
-    if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.server == 'true'
 
     defaults:
       run:
@@ -71,7 +46,7 @@ jobs:
     name: Deploy server-node
     needs: ci
     runs-on: ubuntu-latest
-    if: always() && needs.ci.result == 'success' && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
 
     steps:
       - name: Deploy through SSH
@@ -94,90 +69,4 @@ jobs:
             docker compose --env-file .env.production build --pull server-node
             docker compose --env-file .env.production run --rm server-node npm run db:migrate
             docker compose --env-file .env.production up -d --force-recreate server-node
-            docker compose ps
-
-  web-ci:
-    name: Build web frontend
-    runs-on: ubuntu-latest
-    needs: changes
-    if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.web == 'true'
-
-    defaults:
-      run:
-        working-directory: source/web
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: source/web/package-lock.json
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build frontend
-        run: npm run build
-
-      - name: Package frontend artifact
-        run: tar -czf ../../web-dist.tar.gz -C dist .
-
-      - name: Upload frontend artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: web-dist
-          path: web-dist.tar.gz
-
-  web-cd:
-    name: Deploy web frontend
-    needs: web-ci
-    runs-on: ubuntu-latest
-    if: always() && needs.web-ci.result == 'success' && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
-
-    steps:
-      - name: Download frontend artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: web-dist
-          path: deploy-artifact
-
-      - name: Upload frontend artifact to server
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SERVER_SSH_KEY }}
-          port: ${{ secrets.SERVER_PORT || 22 }}
-          source: deploy-artifact/web-dist.tar.gz
-          target: /tmp
-
-      - name: Deploy through SSH
-        uses: appleboy/ssh-action@v1.2.2
-        with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SERVER_SSH_KEY }}
-          port: ${{ secrets.SERVER_PORT || 22 }}
-          command_timeout: 15m
-          script: |
-            set -eu
-
-            cd /root/baleine/wwjing
-            git pull --ff-only origin main
-
-            cd source/web
-            rm -rf nginx/html-next
-            mkdir -p nginx/html-next
-            tar -xzf /tmp/web-dist.tar.gz -C nginx/html-next
-            rm -rf nginx/html
-            mkdir -p nginx/html
-            cp -r nginx/html-next/. nginx/html/
-            rm -rf nginx/html-next
-            rm -f /tmp/web-dist.tar.gz
-
-            docker compose up -d --pull always
             docker compose ps
