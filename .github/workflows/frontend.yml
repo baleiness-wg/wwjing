@@ -1,4 +1,4 @@
-name: web CI/CD
+name: Frontend Deploy
 
 on:
   push:
@@ -6,22 +6,16 @@ on:
       - main
     paths:
       - "source/web/**"
-      - ".github/workflows/web.yml"
+      - ".github/workflows/frontend.yml"
   workflow_dispatch:
-
-concurrency:
-  group: web-production
-  cancel-in-progress: false
 
 jobs:
   build:
-    name: Build web frontend
+    name: Build frontend
     runs-on: ubuntu-latest
-
     defaults:
       run:
         working-directory: source/web
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -42,26 +36,24 @@ jobs:
       - name: Package frontend
         run: tar -czf ../../web-dist.tar.gz -C dist .
 
-      - name: Upload frontend artifact
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: web-dist
           path: web-dist.tar.gz
 
   deploy:
-    name: Deploy web to Nginx
+    name: Deploy frontend to Nginx
     needs: build
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
-
     steps:
-      - name: Download frontend artifact
+      - name: Download artifact
         uses: actions/download-artifact@v4
         with:
           name: web-dist
           path: deploy-artifact
 
-      - name: Upload frontend to server
+      - name: Upload artifact to server
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.SERVER_HOST }}
@@ -71,7 +63,7 @@ jobs:
           source: deploy-artifact/web-dist.tar.gz
           target: /tmp
 
-      - name: Publish frontend and reload Nginx
+      - name: Publish artifact
         uses: appleboy/ssh-action@v1.2.2
         with:
           host: ${{ secrets.SERVER_HOST }}
@@ -86,13 +78,11 @@ jobs:
             staging=/root/baleine/wwjing/source/web/nginx/html.next
 
             rm -rf "$staging"
-            mkdir -p "$staging"
+            mkdir -p "$staging" "$target"
             tar -xzf /tmp/web-dist.tar.gz -C "$staging"
-            mkdir -p "$target"
             find "$target" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
             cp -a "$staging"/. "$target"/
-            rm -rf "$staging"
-            rm -f /tmp/web-dist.tar.gz
+            rm -rf "$staging" /tmp/web-dist.tar.gz
 
             if docker ps --format '{{.Names}}' | grep -qx 'wwjing-nginx'; then
               docker exec wwjing-nginx nginx -t
@@ -100,4 +90,3 @@ jobs:
             fi
 
             test -f "$target/index.html"
-            echo "Frontend deployed to $target"
