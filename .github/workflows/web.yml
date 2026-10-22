@@ -1,0 +1,103 @@
+name: web CI/CD
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "source/web/**"
+      - ".github/workflows/web.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: web-production
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build web frontend
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: source/web
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: source/web/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Package frontend
+        run: tar -czf ../../web-dist.tar.gz -C dist .
+
+      - name: Upload frontend artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-dist
+          path: web-dist.tar.gz
+
+  deploy:
+    name: Deploy web to Nginx
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+
+    steps:
+      - name: Download frontend artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: web-dist
+          path: deploy-artifact
+
+      - name: Upload frontend to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: ${{ secrets.SERVER_PORT || 22 }}
+          source: deploy-artifact/web-dist.tar.gz
+          target: /tmp
+
+      - name: Publish frontend and reload Nginx
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: ${{ secrets.SERVER_PORT || 22 }}
+          command_timeout: 15m
+          script: |
+            set -eu
+
+            target=/root/baleine/wwjing/source/web/nginx/html
+            staging=/root/baleine/wwjing/source/web/nginx/html.next
+
+            rm -rf "$staging"
+            mkdir -p "$staging"
+            tar -xzf /tmp/web-dist.tar.gz -C "$staging"
+            mkdir -p "$target"
+            find "$target" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+            cp -a "$staging"/. "$target"/
+            rm -rf "$staging"
+            rm -f /tmp/web-dist.tar.gz
+
+            if docker ps --format '{{.Names}}' | grep -qx 'wwjing-nginx'; then
+              docker exec wwjing-nginx nginx -t
+              docker exec wwjing-nginx nginx -s reload
+            fi
+
+            test -f "$target/index.html"
+            echo "Frontend deployed to $target"
