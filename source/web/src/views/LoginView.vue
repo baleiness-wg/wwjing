@@ -32,7 +32,7 @@ async function submit() {
     <el-card class="login-card" shadow="never">
       <p class="eyebrow">WWJ / 鲸境</p>
       <h1>{{ isRegister ? "创建账号" : "回来继续整理" }}</h1>
-      <p class="lead">把常用工具集中到一个属于你的工作台。</p>
+      <p class="lead">把常用工具集中到一个属于你的工作台。。</p>
       <el-form label-position="top" @submit.prevent="submit">
         <el-form-item label="用户名">
           <el-input v-model="form.username" autocomplete="username" />
