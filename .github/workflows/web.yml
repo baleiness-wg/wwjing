@@ -6,7 +6,7 @@ on:
       - main
     paths:
       - "source/web/**"
-      - ".github/workflows/frontend.yml"
+      - ".github/workflows/web.yml"
   workflow_dispatch:
 
 jobs:
