@@ -51,7 +51,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: web-dist
-          path: deploy-artifact
+          path: .
 
       - name: Upload artifact to server
         uses: appleboy/scp-action@v0.1.7
@@ -60,7 +60,7 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           port: ${{ secrets.SERVER_PORT || 22 }}
-          source: deploy-artifact/web-dist.tar.gz
+          source: web-dist.tar.gz
           target: /tmp
 
       - name: Publish artifact
@@ -74,11 +74,12 @@ jobs:
           script: |
             set -eu
 
-            target=/root/baleine/wwjing/source/web/nginx/html
-            staging=/root/baleine/wwjing/source/web/nginx/html.next
+            target=/root/baleine/dev/nginx/html
+            staging=/root/baleine/dev/nginx/html.next
 
             rm -rf "$staging"
             mkdir -p "$staging" "$target"
+            test -f /tmp/web-dist.tar.gz
             tar -xzf /tmp/web-dist.tar.gz -C "$staging"
             find "$target" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
             cp -a "$staging"/. "$target"/
