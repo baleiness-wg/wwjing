@@ -66,7 +66,7 @@ jobs:
           script: |
             set -eu
 
-            cd /root/baleine/wwjing
+            cd /home/baleine/rdapp/wwjing
             git pull --ff-only origin main
 
             cd source/server-node
