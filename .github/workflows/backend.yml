@@ -1,18 +1,79 @@
-name: Docker Image CI
+name: Backend CI/CD
 
 on:
   push:
-    branches: [ "main" ]
+    branches:
+      - main
+    paths:
+      - "source/server-node/**"
+      - ".github/workflows/backend.yml"
   pull_request:
-    branches: [ "main" ]
+    branches:
+      - main
+    paths:
+      - "source/server-node/**"
+      - ".github/workflows/backend.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: backend-production
+  cancel-in-progress: false
 
 jobs:
-
-  build:
-
+  ci:
+    name: Test and build server-node
     runs-on: ubuntu-latest
 
+    defaults:
+      run:
+        working-directory: source/server-node
+
     steps:
-    - uses: actions/checkout@v4
-    - name: Build the Docker image
-      run: docker build . --file Dockerfile --tag my-image-name:$(date +%s)
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: source/server-node/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build Docker image
+        run: docker build --tag wwjing-server-node:ci .
+
+  cd:
+    name: Deploy server-node
+    needs: ci
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+
+    steps:
+      - name: Deploy through SSH
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: ${{ secrets.SERVER_PORT || 22 }}
+          command_timeout: 15m
+          script: |
+            set -eu
+
+            cd /root/baleine/wwjing
+            git pull --ff-only origin main
+
+            cd source/server-node
+            test -f .env
+
+            docker compose build --pull server-node
+            docker compose up -d server-node
+            docker compose run --rm server-node npm run db:migrate
+            docker compose restart server-node
+            docker compose ps
