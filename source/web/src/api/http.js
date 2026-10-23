@@ -15,7 +15,7 @@ export async function request(url, options = {}) {
     if (response.status === 401) {
       localStorage.removeItem("wwjing_token");
       localStorage.removeItem("wwjing_user");
-      window.location.href = "/login";
+      window.location.href = `${import.meta.env.BASE_URL}login`;
     }
 
     throw new Error(error.message || "请求失败");

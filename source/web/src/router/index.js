@@ -5,7 +5,7 @@ import HomeView from "../views/HomeView.vue";
 import TransferView from "../views/TransferView.vue";
 
 const router = createRouter({
-  history: createWebHistory(),
+  history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
     { path: "/", name: "home", component: HomeView, meta: { requiresAuth: true } },
     { path: "/tools", name: "tools", component: ToolsView, meta: { requiresAuth: true } },
