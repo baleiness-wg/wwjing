@@ -15,46 +15,44 @@ concurrency:
 
 jobs:
   deploy:
-    name: Sync public directory
+    name: Deploy public directory
     runs-on: ubuntu-latest
-    environment: production
     permissions:
       contents: read
 
     steps:
-      - name: Check out repository
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Configure SSH
-        env:
-          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
-          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
-        run: |
-          install -m 700 -d ~/.ssh
-          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
-          chmod 600 ~/.ssh/known_hosts
+      - name: Package public files
+        run: tar -czf public-files.tar.gz -C source/public .
 
-      - name: Verify deployment settings
-        env:
-          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
-          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
-          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
-        run: |
-          test -n "$DEPLOY_HOST"
-          test -n "$DEPLOY_USER"
-          test -n "$DEPLOY_PORT"
-          test -d source/public
+      - name: Upload public files to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: ${{ secrets.SERVER_PORT || 22 }}
+          source: public-files.tar.gz
+          target: /tmp
 
-      - name: Sync public files
-        env:
-          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
-          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
-          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
-        run: |
-          rsync -az \
-            --itemize-changes \
-            -e "ssh -i ~/.ssh/deploy_key -p $DEPLOY_PORT -o BatchMode=yes" \
-            source/public/ \
-            "$DEPLOY_USER@$DEPLOY_HOST:/home/baleine/development/nginx/html/"
+      - name: Publish files to Nginx directory
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: ${{ secrets.SERVER_PORT || 22 }}
+          command_timeout: 5m
+          script: |
+            set -eu
+
+            archive=/tmp/public-files.tar.gz
+            target=/home/baleine/development/nginx/html
+
+            test -f "$archive"
+            mkdir -p "$target"
+            tar -xzf "$archive" -C "$target"
+            rm -f "$archive"
+            test -f "$target/halloween/index.html"
