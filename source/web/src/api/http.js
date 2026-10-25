@@ -10,7 +10,7 @@ export async function request(url, options = {}) {
   const response = await fetch(url, { ...options, headers });
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({}));
+    const payload = await response.json().catch(() => ({}));
 
     if (response.status === 401) {
       localStorage.removeItem("wwjing_token");
@@ -18,8 +18,14 @@ export async function request(url, options = {}) {
       window.location.href = `${import.meta.env.BASE_URL}login`;
     }
 
-    throw new Error(error.message || "请求失败");
+    const details = payload.error || payload;
+    const error = new Error(details.message || "请求失败");
+    error.status = response.status;
+    error.code = details.code;
+    Object.assign(error, details);
+    throw error;
   }
 
+  if (response.status === 204) return null;
   return response.json();
 }

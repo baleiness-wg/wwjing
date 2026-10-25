@@ -4,6 +4,7 @@ import { useRoute, useRouter } from "vue-router";
 import {
   ArrowLeft,
   ArrowRight,
+  CollectionTag,
   Close,
   Folder,
   FolderOpened,
@@ -28,7 +29,8 @@ const navigationItems = [
     icon: Folder,
     children: [
       { path: "/tools", label: "工具首页", icon: FolderOpened },
-      { path: "/tools/transfer", label: "数据传输", icon: Tools }
+      { path: "/tools/transfer", label: "数据传输", icon: Tools },
+      { path: "/tools/bookmarks", label: "收藏夹", icon: CollectionTag }
     ]
   }
 ];

@@ -1,3 +1,25 @@
+@baseUrl = http://localhost:3000/api
+@username = bookmark-demo
+@password = replace-with-password
+
+### Register a bookmark test account (run once)
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "username": "{{username}}",
+  "password": "{{password}}"
+}
+
+### Log in, then copy the response token without its leading "Bearer " into TOKEN
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{username}}",
+  "password": "{{password}}"
+}
+
 ### Read current content
 GET http://localhost:3000/api/transfer/content
 Authorization: Bearer {{TOKEN}}
@@ -32,3 +54,79 @@ Authorization: Bearer {{TOKEN}}
 # 404: no content found
 # 409: current content is text
 # 413: uploaded file is larger than 100 MB
+
+### List the flat folder tree
+GET {{baseUrl}}/bookmarks/folders
+Authorization: Bearer {{TOKEN}}
+
+### Create a root folder; copy folder.id into ROOT_FOLDER_ID
+POST {{baseUrl}}/bookmarks/folders
+Authorization: Bearer {{TOKEN}}
+Content-Type: application/json
+
+{
+  "name": "稍后阅读",
+  "position": 0
+}
+
+### Create a child folder; copy folder.id into CHILD_FOLDER_ID
+POST {{baseUrl}}/bookmarks/folders
+Authorization: Bearer {{TOKEN}}
+Content-Type: application/json
+
+{
+  "name": "技术文章",
+  "parentId": "{{ROOT_FOLDER_ID}}",
+  "position": 0
+}
+
+### Save a categorized link
+POST {{baseUrl}}/bookmarks/items
+Authorization: Bearer {{TOKEN}}
+Content-Type: application/json
+
+{
+  "folderId": "{{CHILD_FOLDER_ID}}",
+  "sourceUrl": "https://example.com/article/?utm_source=demo#section",
+  "title": "示例文章",
+  "description": "仅响应返回描述；服务端日志不会记录正文"
+}
+
+### Trigger duplicate detection (returns 409 and existing item summary)
+POST {{baseUrl}}/bookmarks/items
+Authorization: Bearer {{TOKEN}}
+Content-Type: application/json
+
+{
+  "sourceUrl": "https://EXAMPLE.com/article?utm_medium=share",
+  "title": "重复示例"
+}
+
+### Explicitly allow the duplicate
+POST {{baseUrl}}/bookmarks/items
+Authorization: Bearer {{TOKEN}}
+Content-Type: application/json
+
+{
+  "sourceUrl": "https://example.com/article",
+  "title": "保留不同上下文",
+  "allowDuplicate": true
+}
+
+### Save an uncategorized link
+POST {{baseUrl}}/bookmarks/items
+Authorization: Bearer {{TOKEN}}
+Content-Type: application/json
+
+{
+  "sourceUrl": "https://example.org/unclassified",
+  "description": "未指定 folderId"
+}
+
+### List uncategorized bookmarks with stable pagination
+GET {{baseUrl}}/bookmarks/items?uncategorized=true&page=1&pageSize=20
+Authorization: Bearer {{TOKEN}}
+
+### Search title, description, or source URL
+GET {{baseUrl}}/bookmarks/items?query=示例&page=1&pageSize=20
+Authorization: Bearer {{TOKEN}}

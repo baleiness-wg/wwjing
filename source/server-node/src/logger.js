@@ -18,6 +18,8 @@ const options = {
       "req.body.token",
       "req.body.text",
       "req.body.file",
+      "req.body.description",
+      "description",
       "password",
       "token",
       "accessToken",

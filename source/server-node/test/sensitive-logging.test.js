@@ -14,6 +14,8 @@ test("request-facing source does not write directly to the console", () => {
     "app.js",
     "controllers/auth.controller.js",
     "controllers/transfer.controller.js",
+    "controllers/bookmark-folder.controller.js",
+    "controllers/bookmark-item.controller.js",
     "services/auth.service.js",
     "middlewares/auth.js"
   ];
@@ -31,7 +33,8 @@ test("logger redacts authentication and content fields", () => {
     "req.body.password",
     "req.body.token",
     "req.body.text",
-    "req.body.file"
+    "req.body.file",
+    "req.body.description"
   ]) {
     assert.ok(loggerSource.includes(`"${field}"`));
   }
