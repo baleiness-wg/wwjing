@@ -1,6 +1,6 @@
 # bookmark-management 模块规格说明
 
-- 版本：202610260111
+- 版本：202610260209
 - 最后更新：2026-10-26
 - 模块名称：bookmark-management（跨端私人收藏夹）
 
@@ -20,6 +20,8 @@ bookmark-management 模块为同一账号提供跨 Android 与 Web 的私人链�
 - 系统保存原始链接、规范化链接和来源主机；检测到同一用户已有相同规范化链接时提示原收藏位置，用户仍可明确选择重复保存。
 - Web 用户从“工具 / 收藏夹”进入管理页面，可按目录或未分类状态浏览，通过标题、描述或链接搜索，并创建、编辑、移动、批量移动或删除收藏。
 - Android 与 Web 修改同一服务端数据，任一客户端刷新后均显示最新目录和收藏内容。
+- 用户可通过收藏条目的明确按钮打开原始链接；Android 优先交给可处理链接的外部应用或浏览器，Web 在新标签页打开。
+- 每条收藏可保存封面 URL；Android 在接收分享或剪贴板链接时尝试识别公开页面标题、描述和封面，Web 与 Android 均允许重新识别或手动修改封面。
 
 ### 页面布局约束
 
@@ -29,6 +31,9 @@ bookmark-management 模块为同一账号提供跨 Android 与 Web 的私人链�
 - Web 收藏夹页采用左侧目录树、右侧搜索和收藏列表的布局；窄屏时改为纵向排列且不得产生页面级横向滚动。
 - 每个目录均提供新增子目录和添加收藏入口；目录移动候选项不得包含自身及其后代。
 - 收藏保存或更新失败时，客户端必须保留用户已输入的链接、标题和描述。
+- Android 收藏列表中的每条收藏必须显示“打开链接”按钮；无法交给系统打开时必须保留当前页面并提示失败。
+- Android 收藏表单的链接输入框最右侧必须显示“打开链接”按钮，允许用户在保存前验证当前输入链接。
+- Android 和 Web 收藏列表应显示封面缩略图；没有封面或图片加载失败时显示来源域名占位，不得影响打开、编辑或删除操作。
 
 ## 接口说明
 
@@ -126,7 +131,7 @@ bookmark-management 模块为同一账号提供跨 Android 与 Web 的私人链�
 
 - **接口路径**：`/api/bookmarks/items`
 - **请求方式**：POST
-- **请求参数**：`sourceUrl` 为必填 HTTP/HTTPS 链接；`folderId`、`title` 和 `description` 可为空；检测到重复后可提交 `allowDuplicate: true` 明确继续保存。
+- **请求参数**：`sourceUrl` 为必填 HTTP/HTTPS 链接；`folderId`、`title`、`description` 和 `coverUrl` 可为空；检测到重复后可提交 `allowDuplicate: true` 明确继续保存。
 - **返回参数**：创建后的收藏条目；未确认的重复链接返回 HTTP 409、错误码 `DUPLICATE_BOOKMARK` 及已有条目摘要。
 
 ```json
@@ -134,6 +139,7 @@ bookmark-management 模块为同一账号提供跨 Android 与 Web 的私人链�
   "sourceUrl": "https://example.com/flutter?utm_source=share",
   "title": "Flutter 布局说明",
   "description": "稍后整理",
+  "coverUrl": "https://example.com/cover.jpg",
   "folderId": "1",
   "allowDuplicate": false
 }
@@ -167,8 +173,36 @@ bookmark-management 模块为同一账号提供跨 Android 与 Web 的私人链�
 - **请求参数**：路径参数 `id` 为收藏条目标识。
 - **返回参数**：成功时返回 HTTP 204。
 
+### 识别链接公开元数据
+
+- **接口路径**：`/api/bookmarks/metadata`
+- **请求方式**：POST
+- **请求参数**：`sourceUrl` 为待识别的公开 HTTP/HTTPS 页面链接。
+- **返回参数**：重定向后的最终链接、页面标题、描述和绝对封面 URL；无对应元数据的字段返回 `null`。接口拒绝私网目标并限制超时、重定向和响应大小。
+
+```json
+{
+  "sourceUrl": "https://example.com/article"
+}
+```
+
+```json
+{
+  "metadata": {
+    "finalUrl": "https://example.com/article",
+    "title": "示例文章",
+    "description": "文章摘要",
+    "coverUrl": "https://example.com/cover.jpg"
+  }
+}
+```
+
 ## 版本记录
 
 | 日期 | 版本 | 变更说明 |
 |------|------|----------|
 | 2026-10-26 | 202610260111 | 新增 Android 与 Web 共用的嵌套收藏夹、链接收藏、搜索、重复提示和跨端管理规格 |
+| 2026-10-26 | 202610260152 | 增加收藏原链接跳转行为，Android 使用外部应用或浏览器打开并提供失败提示 |
+| 2026-10-26 | 202610260156 | 在 Android 收藏表单链接输入框右侧增加保存前跳转按钮 |
+| 2026-10-26 | 202610260200 | 增加公开网页元数据与封面识别、手动封面编辑、跨端缩略图和 SSRF 防护要求 |
+| 2026-10-26 | 202610260209 | 完成 Node 安全元数据抓取、Android 自动识别和 Web/Android 封面编辑与缩略图展示 |

@@ -80,6 +80,7 @@ class BookmarkItem {
     this.title,
     this.description,
     this.sourceHost,
+    this.coverUrl,
   });
 
   factory BookmarkItem.fromJson(Map<String, dynamic> json) => BookmarkItem(
@@ -92,6 +93,7 @@ class BookmarkItem {
     title: json['title'] as String?,
     description: json['description'] as String?,
     sourceHost: json['sourceHost'] as String? ?? json['source_host'] as String?,
+    coverUrl: json['coverUrl'] as String? ?? json['cover_url'] as String?,
   );
 
   final String id;
@@ -100,6 +102,29 @@ class BookmarkItem {
   final String? title;
   final String? description;
   final String? sourceHost;
+  final String? coverUrl;
+}
+
+class BookmarkMetadata {
+  const BookmarkMetadata({
+    this.finalUrl,
+    this.title,
+    this.description,
+    this.coverUrl,
+  });
+
+  factory BookmarkMetadata.fromJson(Map<String, dynamic> json) =>
+      BookmarkMetadata(
+        finalUrl: json['finalUrl'] as String?,
+        title: json['title'] as String?,
+        description: json['description'] as String?,
+        coverUrl: json['coverUrl'] as String?,
+      );
+
+  final String? finalUrl;
+  final String? title;
+  final String? description;
+  final String? coverUrl;
 }
 
 class BookmarkDraft {
@@ -108,10 +133,14 @@ class BookmarkDraft {
     this.title = '',
     this.description = '',
     this.folderId,
+    this.coverUrl = '',
+    this.fetchMetadataOnOpen = false,
   });
 
   final String sourceUrl;
   final String title;
   final String description;
   final String? folderId;
+  final String coverUrl;
+  final bool fetchMetadataOnOpen;
 }

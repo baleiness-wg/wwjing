@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../models/bookmark.dart';
+import '../services/link_launcher.dart';
 import '../state/app_state.dart';
+import 'bookmark_cover.dart';
 import 'folder_navigation.dart';
 
 class HomePage extends StatefulWidget {
@@ -46,6 +48,10 @@ class _HomePageState extends State<HomePage> {
     if (folderId != null && context.mounted) {
       await state.moveItem(item.id, folderId.isEmpty ? null : folderId);
     }
+  }
+
+  Future<void> _openLink(BuildContext context, BookmarkItem item) async {
+    await openExternalLink(context, item.sourceUrl);
   }
 
   @override
@@ -121,6 +127,13 @@ class _HomePageState extends State<HomePage> {
                             final item = state.items[index];
                             return Card(
                               child: ListTile(
+                                leading: BookmarkCover(
+                                  sourceUrl: item.sourceUrl,
+                                  sourceHost: item.sourceHost,
+                                  coverUrl: item.coverUrl,
+                                  width: 58,
+                                  height: 58,
+                                ),
                                 title: Text(
                                   item.title?.isNotEmpty == true
                                       ? item.title!
@@ -132,26 +145,40 @@ class _HomePageState extends State<HomePage> {
                                   overflow: TextOverflow.ellipsis,
                                 ),
                                 onTap: () => state.openDraft(item),
-                                trailing: PopupMenuButton<String>(
-                                  onSelected: (action) {
-                                    if (action == 'edit') state.openDraft(item);
-                                    if (action == 'move') _move(context, item);
-                                    if (action == 'delete') {
-                                      state.deleteItem(item.id);
-                                    }
-                                  },
-                                  itemBuilder: (_) => const [
-                                    PopupMenuItem(
-                                      value: 'edit',
-                                      child: Text('编辑'),
+                                trailing: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    IconButton(
+                                      onPressed: () => _openLink(context, item),
+                                      tooltip: '打开链接',
+                                      icon: const Icon(Icons.open_in_new),
                                     ),
-                                    PopupMenuItem(
-                                      value: 'move',
-                                      child: Text('移动'),
-                                    ),
-                                    PopupMenuItem(
-                                      value: 'delete',
-                                      child: Text('删除'),
+                                    PopupMenuButton<String>(
+                                      onSelected: (action) {
+                                        if (action == 'edit') {
+                                          state.openDraft(item);
+                                        }
+                                        if (action == 'move') {
+                                          _move(context, item);
+                                        }
+                                        if (action == 'delete') {
+                                          state.deleteItem(item.id);
+                                        }
+                                      },
+                                      itemBuilder: (_) => const [
+                                        PopupMenuItem(
+                                          value: 'edit',
+                                          child: Text('编辑'),
+                                        ),
+                                        PopupMenuItem(
+                                          value: 'move',
+                                          child: Text('移动'),
+                                        ),
+                                        PopupMenuItem(
+                                          value: 'delete',
+                                          child: Text('删除'),
+                                        ),
+                                      ],
                                     ),
                                   ],
                                 ),

@@ -2,10 +2,12 @@ const express = require("express");
 const auth = require("../middlewares/auth");
 const folderController = require("../controllers/bookmark-folder.controller");
 const itemController = require("../controllers/bookmark-item.controller");
+const metadataController = require("../controllers/bookmark-metadata.controller");
 
 const router = express.Router();
 
 router.use(auth);
+router.post("/metadata", metadataController.fetchMetadata);
 router.get("/folders", folderController.list);
 router.post("/folders", folderController.create);
 router.patch("/folders/:id", folderController.update);

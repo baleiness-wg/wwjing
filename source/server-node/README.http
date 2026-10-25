@@ -89,7 +89,17 @@ Content-Type: application/json
   "folderId": "{{CHILD_FOLDER_ID}}",
   "sourceUrl": "https://example.com/article/?utm_source=demo#section",
   "title": "示例文章",
-  "description": "仅响应返回描述；服务端日志不会记录正文"
+  "description": "仅响应返回描述；服务端日志不会记录正文",
+  "coverUrl": "https://example.com/cover.jpg"
+}
+
+### Fetch public page metadata (private and local network targets are rejected)
+POST {{baseUrl}}/bookmarks/metadata
+Authorization: Bearer {{TOKEN}}
+Content-Type: application/json
+
+{
+  "sourceUrl": "https://example.com/article"
 }
 
 ### Trigger duplicate detection (returns 409 and existing item summary)

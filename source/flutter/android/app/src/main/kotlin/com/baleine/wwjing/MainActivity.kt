@@ -35,7 +35,7 @@ class MainActivity : FlutterActivity() {
     }
 
     private fun shareText(source: Intent?): String? {
-        if (source?.action != Intent.ACTION_SEND || source.type != "text/plain") return null
+        if (source?.action != Intent.ACTION_SEND) return null
         return source.getStringExtra(Intent.EXTRA_TEXT)?.takeIf { it.isNotBlank() }
     }
 }

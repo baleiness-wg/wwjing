@@ -4,7 +4,9 @@ import 'package:provider/provider.dart';
 
 import '../models/bookmark.dart';
 import '../models/shared_link.dart';
+import '../services/link_launcher.dart';
 import '../state/app_state.dart';
+import 'bookmark_cover.dart';
 
 class BookmarkForm extends StatefulWidget {
   const BookmarkForm({super.key});
@@ -18,7 +20,9 @@ class _BookmarkFormState extends State<BookmarkForm> {
   late final TextEditingController _url;
   late final TextEditingController _title;
   late final TextEditingController _description;
+  late final TextEditingController _coverUrl;
   String? _folderId;
+  bool _recognizing = false;
 
   @override
   void initState() {
@@ -27,7 +31,11 @@ class _BookmarkFormState extends State<BookmarkForm> {
     _url = TextEditingController(text: draft.sourceUrl);
     _title = TextEditingController(text: draft.title);
     _description = TextEditingController(text: draft.description);
+    _coverUrl = TextEditingController(text: draft.coverUrl);
     _folderId = draft.folderId;
+    if (draft.fetchMetadataOnOpen && draft.sourceUrl.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _recognizeMetadata());
+    }
   }
 
   @override
@@ -35,7 +43,47 @@ class _BookmarkFormState extends State<BookmarkForm> {
     _url.dispose();
     _title.dispose();
     _description.dispose();
+    _coverUrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _recognizeMetadata() async {
+    final uri = Uri.tryParse(_url.text.trim());
+    if (uri == null ||
+        !uri.hasAuthority ||
+        (uri.scheme != 'http' && uri.scheme != 'https')) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('请先输入有效的 HTTP/HTTPS 链接')));
+      return;
+    }
+    setState(() => _recognizing = true);
+    final state = context.read<AppState>();
+    final metadata = await state.fetchBookmarkMetadata(uri.toString());
+    if (!mounted) return;
+    setState(() {
+      _recognizing = false;
+      if (metadata != null) {
+        if (_title.text.trim().isEmpty &&
+            metadata.title?.trim().isNotEmpty == true) {
+          _title.text = metadata.title!.trim();
+        }
+        if (_description.text.trim().isEmpty &&
+            metadata.description?.trim().isNotEmpty == true) {
+          _description.text = metadata.description!.trim();
+        }
+        if (_coverUrl.text.trim().isEmpty &&
+            metadata.coverUrl?.trim().isNotEmpty == true) {
+          _coverUrl.text = metadata.coverUrl!.trim();
+        }
+        if (metadata.finalUrl?.trim().isNotEmpty == true) {
+          _url.text = metadata.finalUrl!.trim();
+        }
+      }
+    });
+    if (metadata == null && state.metadataMessage != null) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(state.metadataMessage!)));
+    }
   }
 
   Future<void> _paste() async {
@@ -62,6 +110,7 @@ class _BookmarkFormState extends State<BookmarkForm> {
       title: _title.text.trim(),
       description: _description.text.trim(),
       folderId: _folderId,
+      coverUrl: _coverUrl.text.trim(),
     );
     final saved = await state.saveDraft(value, allowDuplicate: allowDuplicate);
     if (!mounted || saved) return;
@@ -130,11 +179,17 @@ class _BookmarkFormState extends State<BookmarkForm> {
               TextFormField(
                 controller: _url,
                 autofocus: _url.text.isEmpty,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: '链接',
-                  prefixIcon: Icon(Icons.link),
+                  prefixIcon: const Icon(Icons.link),
+                  suffixIcon: IconButton(
+                    onPressed: () => openExternalLink(context, _url.text),
+                    tooltip: '打开链接',
+                    icon: const Icon(Icons.open_in_new),
+                  ),
                 ),
                 keyboardType: TextInputType.url,
+                onChanged: (_) => setState(() {}),
                 validator: (value) {
                   final uri = Uri.tryParse(value?.trim() ?? '');
                   return uri != null &&
@@ -158,6 +213,44 @@ class _BookmarkFormState extends State<BookmarkForm> {
                 ),
                 minLines: 3,
                 maxLines: 6,
+              ),
+              const SizedBox(height: 14),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  BookmarkCover(
+                    sourceUrl: _url.text,
+                    coverUrl: _coverUrl.text,
+                    width: 88,
+                    height: 88,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextField(
+                      controller: _coverUrl,
+                      decoration: const InputDecoration(
+                        labelText: '封面 URL（可选）',
+                        prefixIcon: Icon(Icons.image_outlined),
+                      ),
+                      keyboardType: TextInputType.url,
+                      onChanged: (_) => setState(() {}),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerRight,
+                child: OutlinedButton.icon(
+                  onPressed: _recognizing ? null : _recognizeMetadata,
+                  icon: _recognizing
+                      ? const SizedBox.square(
+                          dimension: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.auto_awesome_outlined),
+                  label: const Text('识别封面'),
+                ),
               ),
               const SizedBox(height: 14),
               DropdownButtonFormField<String?>(

@@ -24,6 +24,7 @@ class AppState extends ChangeNotifier {
   bool busy = false;
   String? error;
   String? errorCode;
+  String? metadataMessage;
   BookmarkDraft? draft;
   String? editingItemId;
   List<BookmarkFolder> folders = [];
@@ -109,6 +110,7 @@ class AppState extends ChangeNotifier {
         sourceUrl: shared.url,
         title: shared.title,
         description: shared.originalText,
+        fetchMetadataOnOpen: true,
       );
       editingItemId = null;
       error = null;
@@ -125,6 +127,7 @@ class AppState extends ChangeNotifier {
             title: item.title ?? '',
             description: item.description ?? '',
             folderId: item.folderId,
+            coverUrl: item.coverUrl ?? '',
           );
     notifyListeners();
   }
@@ -139,6 +142,20 @@ class AppState extends ChangeNotifier {
     draft = null;
     editingItemId = null;
     notifyListeners();
+  }
+
+  Future<BookmarkMetadata?> fetchBookmarkMetadata(String sourceUrl) async {
+    metadataMessage = null;
+    notifyListeners();
+    try {
+      return await api.getBookmarkMetadata(sourceUrl);
+    } on ApiException catch (exception) {
+      metadataMessage = '封面识别失败：${exception.message}';
+    } catch (_) {
+      metadataMessage = '封面识别失败，请检查连接后重试';
+    }
+    notifyListeners();
+    return null;
   }
 
   Future<bool> saveDraft(
@@ -158,6 +175,9 @@ class AppState extends ChangeNotifier {
               ? null
               : value.description.trim(),
           'folderId': value.folderId,
+          'coverUrl': value.coverUrl.trim().isEmpty
+              ? null
+              : value.coverUrl.trim(),
         });
       }
       if (value.folderId != null) {

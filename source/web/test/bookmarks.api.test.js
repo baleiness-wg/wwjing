@@ -17,7 +17,13 @@ globalThis.fetch = async (url, options = {}) => {
   });
 };
 
-const { createBookmarkItem, getBookmarkItems, updateBookmarkFolder } = await import("../src/api/bookmarks.js");
+const {
+  createBookmarkItem,
+  detectBookmarkMetadata,
+  getBookmarkItems,
+  updateBookmarkFolder,
+  updateBookmarkItem
+} = await import("../src/api/bookmarks.js");
 
 test("收藏查询序列化筛选和分页参数并携带登录令牌", async () => {
   await getBookmarkItems({ folderId: "8", query: "Flutter", page: 2, pageSize: 12 });
@@ -36,9 +42,11 @@ test("收藏和目录写请求符合服务端 JSON 契约", async () => {
     sourceUrl: "https://example.com",
     title: null,
     description: null,
+    coverUrl: null,
     folderId: null,
     allowDuplicate: true
   });
+  await updateBookmarkItem("9", { coverUrl: "https://example.com/cover.jpg" });
   await updateBookmarkFolder("3", { parentId: null, position: 2 });
 
   const createRequest = requests.shift();
@@ -47,12 +55,28 @@ test("收藏和目录写请求符合服务端 JSON 契约", async () => {
     sourceUrl: "https://example.com",
     title: null,
     description: null,
+    coverUrl: null,
     folderId: null,
     allowDuplicate: true
   });
 
-  const updateRequest = requests.shift();
-  assert.equal(updateRequest.url, "/api/bookmarks/folders/3");
-  assert.equal(updateRequest.options.method, "PATCH");
-  assert.deepEqual(JSON.parse(updateRequest.options.body), { parentId: null, position: 2 });
+  const itemUpdateRequest = requests.shift();
+  assert.equal(itemUpdateRequest.url, "/api/bookmarks/items/9");
+  assert.equal(itemUpdateRequest.options.method, "PATCH");
+  assert.deepEqual(JSON.parse(itemUpdateRequest.options.body), { coverUrl: "https://example.com/cover.jpg" });
+
+  const folderUpdateRequest = requests.shift();
+  assert.equal(folderUpdateRequest.url, "/api/bookmarks/folders/3");
+  assert.equal(folderUpdateRequest.options.method, "PATCH");
+  assert.deepEqual(JSON.parse(folderUpdateRequest.options.body), { parentId: null, position: 2 });
+});
+
+test("网页元数据检测请求符合服务端契约", async () => {
+  await detectBookmarkMetadata("https://example.com/article");
+  const request = requests.shift();
+
+  assert.equal(request.url, "/api/bookmarks/metadata");
+  assert.equal(request.options.method, "POST");
+  assert.equal(request.options.headers.get("Content-Type"), "application/json");
+  assert.deepEqual(JSON.parse(request.options.body), { sourceUrl: "https://example.com/article" });
 });

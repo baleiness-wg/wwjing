@@ -15,6 +15,7 @@ import {
 import {
   createBookmarkFolder,
   createBookmarkItem,
+  detectBookmarkMetadata,
   deleteBookmarkFolder,
   deleteBookmarkItem,
   getBookmarkFolders,
@@ -39,9 +40,12 @@ const itemDialogVisible = ref(false);
 const itemDialogMode = ref("create");
 const moveItemsVisible = ref(false);
 const saving = ref(false);
+const detectingMetadata = ref(false);
+const previewCoverFailed = ref(false);
+const failedCoverUrls = ref(new Set());
 
 const folderForm = reactive({ id: null, name: "", parentId: null, position: 0 });
-const itemForm = reactive({ id: null, sourceUrl: "", title: "", description: "", folderId: null });
+const itemForm = reactive({ id: null, sourceUrl: "", title: "", description: "", coverUrl: "", folderId: null });
 const bulkFolderId = ref(null);
 
 const folderMap = computed(() => new Map(folders.value.map((folder) => [String(folder.id), folder])));
@@ -65,6 +69,27 @@ const activeTitle = computed(() => {
   return "全部收藏";
 });
 const selectedItems = computed(() => items.value.filter((item) => selectedIds.value.includes(String(item.id))));
+const previewHost = computed(() => sourceHost(itemForm.sourceUrl));
+
+function sourceHost(url) {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "") || "网页收藏";
+  } catch {
+    return "网页收藏";
+  }
+}
+
+function itemHost(item) {
+  return item.sourceHost || sourceHost(item.sourceUrl);
+}
+
+function hasCover(item) {
+  return Boolean(item.coverUrl) && !failedCoverUrls.value.has(item.coverUrl);
+}
+
+function markCoverFailed(url) {
+  failedCoverUrls.value = new Set([...failedCoverUrls.value, url]);
+}
 
 function folderPath(folderId) {
   if (folderId === null || folderId === undefined) return "未分类";
@@ -235,8 +260,10 @@ function openCreateItem() {
     sourceUrl: "",
     title: "",
     description: "",
+    coverUrl: "",
     folderId: activeFolderId.value === undefined ? null : activeFolderId.value
   });
+  previewCoverFailed.value = false;
   itemDialogVisible.value = true;
 }
 
@@ -247,9 +274,33 @@ function openEditItem(item) {
     sourceUrl: item.sourceUrl,
     title: item.title || "",
     description: item.description || "",
+    coverUrl: item.coverUrl || "",
     folderId: item.folderId
   });
+  previewCoverFailed.value = false;
   itemDialogVisible.value = true;
+}
+
+async function detectMetadata() {
+  const sourceUrl = itemForm.sourceUrl.trim();
+  if (!sourceUrl) return ElMessage.warning("请先输入链接");
+  detectingMetadata.value = true;
+  try {
+    const result = await detectBookmarkMetadata(sourceUrl);
+    const metadata = result.metadata || {};
+    if (metadata.finalUrl) itemForm.sourceUrl = metadata.finalUrl;
+    if (!itemForm.title.trim() && metadata.title) itemForm.title = metadata.title;
+    if (!itemForm.description.trim() && metadata.description) itemForm.description = metadata.description;
+    if (!itemForm.coverUrl.trim() && metadata.coverUrl) {
+      itemForm.coverUrl = metadata.coverUrl;
+      previewCoverFailed.value = false;
+    }
+    ElMessage.success("已获取网页信息");
+  } catch (error) {
+    ElMessage.error(error.message);
+  } finally {
+    detectingMetadata.value = false;
+  }
 }
 
 async function submitItem(allowDuplicate = false) {
@@ -257,6 +308,7 @@ async function submitItem(allowDuplicate = false) {
     sourceUrl: itemForm.sourceUrl.trim(),
     title: itemForm.title.trim() || null,
     description: itemForm.description.trim() || null,
+    coverUrl: itemForm.coverUrl.trim() || null,
     folderId: itemForm.folderId || null
   };
   if (!data.sourceUrl) return ElMessage.warning("请输入链接");
@@ -440,12 +492,19 @@ onMounted(async () => {
             <el-checkbox
               class="bookmark-check"
               :model-value="selectedIds.includes(String(item.id))"
-              :aria-label="`选择${item.title || item.sourceHost}`"
+              :aria-label="`选择${item.title || itemHost(item)}`"
               @change="(checked) => toggleItem(item.id, checked)"
             />
+            <a class="bookmark-cover" :href="item.sourceUrl" target="_blank" rel="noopener noreferrer" tabindex="-1" aria-hidden="true">
+              <img v-if="hasCover(item)" :src="item.coverUrl" alt="" @error="markCoverFailed(item.coverUrl)" />
+              <span v-else class="bookmark-cover__fallback">
+                <strong>{{ itemHost(item).slice(0, 1).toUpperCase() }}</strong>
+                <small>{{ itemHost(item) }}</small>
+              </span>
+            </a>
             <div class="bookmark-body">
               <div class="bookmark-meta">
-                <span class="host-chip">{{ item.sourceHost }}</span>
+                <span class="host-chip">{{ itemHost(item) }}</span>
                 <span>{{ folderPath(item.folderId) }}</span>
                 <time :datetime="item.updatedAt">{{ formatDate(item.updatedAt) }}</time>
               </div>
@@ -509,7 +568,11 @@ onMounted(async () => {
     <el-dialog v-model="itemDialogVisible" :title="itemDialogMode === 'create' ? '添加收藏' : '编辑收藏'" width="min(620px, 94vw)" :close-on-click-modal="false">
       <el-form label-position="top" @submit.prevent="submitItem()">
         <el-form-item label="链接" required>
-          <el-input v-model="itemForm.sourceUrl" type="url" placeholder="https://example.com" />
+          <el-input v-model="itemForm.sourceUrl" type="url" placeholder="https://example.com">
+            <template #append>
+              <el-button :loading="detectingMetadata" @click="detectMetadata">检测网页信息</el-button>
+            </template>
+          </el-input>
         </el-form-item>
         <el-form-item label="标题">
           <el-input v-model="itemForm.title" placeholder="可留空" />
@@ -517,6 +580,23 @@ onMounted(async () => {
         <el-form-item label="描述">
           <el-input v-model="itemForm.description" type="textarea" :rows="4" placeholder="记录为什么收藏这个链接" />
         </el-form-item>
+        <el-form-item label="封面图片 URL">
+          <el-input
+            v-model="itemForm.coverUrl"
+            type="url"
+            clearable
+            placeholder="https://example.com/cover.jpg"
+            @input="previewCoverFailed = false"
+          />
+        </el-form-item>
+        <div v-if="itemForm.coverUrl" class="bookmark-cover-preview">
+          <img v-if="!previewCoverFailed" :src="itemForm.coverUrl" alt="封面预览" @error="previewCoverFailed = true" />
+          <div v-else class="bookmark-cover__fallback">
+            <strong>{{ previewHost.slice(0, 1).toUpperCase() }}</strong>
+            <small>{{ previewHost }}</small>
+            <span>图片无法加载，将显示站点占位图</span>
+          </div>
+        </div>
         <el-form-item label="收藏目录">
           <el-select v-model="itemForm.folderId" class="full-width" clearable placeholder="未分类">
             <el-option label="未分类" :value="null" />

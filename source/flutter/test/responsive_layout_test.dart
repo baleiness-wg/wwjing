@@ -8,6 +8,8 @@ import 'package:wwjing_bookmarks/services/api_client.dart';
 import 'package:wwjing_bookmarks/state/app_state.dart';
 import 'package:wwjing_bookmarks/widgets/folder_navigation.dart';
 import 'package:wwjing_bookmarks/widgets/home_page.dart';
+import 'package:wwjing_bookmarks/widgets/bookmark_form.dart';
+import 'package:wwjing_bookmarks/widgets/bookmark_cover.dart';
 
 import 'test_fakes.dart';
 
@@ -28,7 +30,15 @@ void main() {
           )
           ..initialized = true
           ..authenticated = true
-          ..folders = const [BookmarkFolder(id: '1', name: '阅读')];
+          ..folders = const [BookmarkFolder(id: '1', name: '阅读')]
+          ..items = const [
+            BookmarkItem(
+              id: '9',
+              sourceUrl: 'https://example.com/article',
+              title: '示例收藏',
+              sourceHost: 'example.com',
+            ),
+          ];
   });
 
   Future<void> pumpHome(WidgetTester tester, Size size) async {
@@ -58,5 +68,23 @@ void main() {
     expect(find.byType(Drawer), findsNothing);
     expect(find.byType(FolderNavigation), findsOneWidget);
     expect(find.byTooltip('目录操作'), findsOneWidget);
+    expect(find.byTooltip('打开链接'), findsOneWidget);
+    expect(find.byType(BookmarkCover), findsOneWidget);
+    expect(find.byKey(const Key('bookmark-cover-placeholder')), findsOneWidget);
+    expect(find.text('example.com'), findsWidgets);
+  });
+
+  testWidgets('收藏表单链接框右侧显示打开按钮', (tester) async {
+    state.draft = const BookmarkDraft(sourceUrl: 'https://example.com');
+    await tester.pumpWidget(
+      ChangeNotifierProvider.value(
+        value: state,
+        child: const MaterialApp(home: BookmarkForm()),
+      ),
+    );
+    expect(find.byTooltip('打开链接'), findsOneWidget);
+    expect(find.text('识别封面'), findsOneWidget);
+    expect(find.widgetWithText(TextField, '封面 URL（可选）'), findsOneWidget);
+    expect(find.byKey(const Key('bookmark-cover-placeholder')), findsOneWidget);
   });
 }

@@ -10,6 +10,59 @@ import 'package:wwjing_bookmarks/state/app_state.dart';
 import 'test_fakes.dart';
 
 void main() {
+  test('解析收藏封面并保留可空值', () {
+    final withCover = BookmarkItem.fromJson({
+      'id': 1,
+      'sourceUrl': 'https://example.com/article',
+      'coverUrl': 'https://cdn.example.com/cover.jpg',
+    });
+    final withoutCover = BookmarkItem.fromJson({
+      'id': 2,
+      'source_url': 'https://example.com/other',
+      'cover_url': null,
+    });
+
+    expect(withCover.coverUrl, 'https://cdn.example.com/cover.jpg');
+    expect(withoutCover.coverUrl, isNull);
+  });
+
+  test('元数据接口发送 sourceUrl 并解析响应', () async {
+    final tokens = MemoryTokenStore('Bearer token');
+    final client = MockClient((request) async {
+      expect(request.method, 'POST');
+      expect(request.url.path, '/api/bookmarks/metadata');
+      expect(jsonDecode(request.body), {
+        'sourceUrl': 'https://example.com/start',
+      });
+      return http.Response.bytes(
+        utf8.encode(
+          jsonEncode({
+            'metadata': {
+              'finalUrl': 'https://example.com/final',
+              'title': '示例文章',
+              'description': '文章摘要',
+              'coverUrl': 'https://example.com/cover.jpg',
+            },
+          }),
+        ),
+        200,
+        headers: {'content-type': 'application/json; charset=utf-8'},
+      );
+    });
+    final api = ApiClient(
+      baseUrl: 'https://api.example/api',
+      tokenStore: tokens,
+      httpClient: client,
+    );
+
+    final metadata = await api.getBookmarkMetadata('https://example.com/start');
+
+    expect(metadata.finalUrl, 'https://example.com/final');
+    expect(metadata.title, '示例文章');
+    expect(metadata.description, '文章摘要');
+    expect(metadata.coverUrl, 'https://example.com/cover.jpg');
+  });
+
   test('登录令牌只写入安全存储且 Bearer 请求头格式正确', () async {
     final tokens = MemoryTokenStore();
     final preferences = MemoryPreferencesStore();
@@ -108,13 +161,15 @@ void main() {
         );
       }
       return http.Response.bytes(
-        utf8.encode(jsonEncode({
-          'error': {
-            'code': 'DUPLICATE_BOOKMARK',
-            'message': '该链接已收藏',
-            'duplicate': {'id': '9'},
-          },
-        })),
+        utf8.encode(
+          jsonEncode({
+            'error': {
+              'code': 'DUPLICATE_BOOKMARK',
+              'message': '该链接已收藏',
+              'duplicate': {'id': '9'},
+            },
+          }),
+        ),
         409,
         headers: {'content-type': 'application/json; charset=utf-8'},
       );

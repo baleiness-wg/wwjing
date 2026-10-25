@@ -1,7 +1,7 @@
 const pool = require("../db");
 
 const selectFields = `id, folder_id AS "folderId", item_type AS "itemType", title,
-  description, source_url AS "sourceUrl", normalized_url AS "normalizedUrl",
+  description, cover_url AS "coverUrl", source_url AS "sourceUrl", normalized_url AS "normalizedUrl",
   source_host AS "sourceHost", metadata, created_at AS "createdAt", updated_at AS "updatedAt"`;
 
 async function findById(userId, id, client = pool) {
@@ -58,11 +58,11 @@ async function list(userId, filters) {
 
 async function create(userId, values) {
   const result = await pool.query(
-    `INSERT INTO bookmark_items
-       (user_id, folder_id, title, description, source_url, normalized_url, source_host)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
+     `INSERT INTO bookmark_items
+       (user_id, folder_id, title, description, cover_url, source_url, normalized_url, source_host)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
      RETURNING ${selectFields}`,
-    [userId, values.folderId, values.title, values.description, values.sourceUrl,
+    [userId, values.folderId, values.title, values.description, values.coverUrl, values.sourceUrl,
       values.normalizedUrl, values.sourceHost]
   );
   return result.rows[0];
@@ -70,11 +70,11 @@ async function create(userId, values) {
 
 async function update(userId, id, values) {
   const result = await pool.query(
-    `UPDATE bookmark_items SET folder_id = $3, title = $4, description = $5,
-       source_url = $6, normalized_url = $7, source_host = $8, updated_at = NOW()
+     `UPDATE bookmark_items SET folder_id = $3, title = $4, description = $5,
+       cover_url = $6, source_url = $7, normalized_url = $8, source_host = $9, updated_at = NOW()
      WHERE user_id = $1 AND id = $2
      RETURNING ${selectFields}`,
-    [userId, id, values.folderId, values.title, values.description, values.sourceUrl,
+    [userId, id, values.folderId, values.title, values.description, values.coverUrl, values.sourceUrl,
       values.normalizedUrl, values.sourceHost]
   );
   return result.rows[0] || null;

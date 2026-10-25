@@ -50,6 +50,18 @@ function optionalText(value, field) {
   return value.trim() || null;
 }
 
+function optionalUrl(value, field) {
+  const text = optionalText(value, field);
+  if (text === null) return null;
+  try {
+    const url = new URL(text);
+    if (!["http:", "https:"].includes(url.protocol) || !url.hostname) throw new Error();
+    return url.toString();
+  } catch {
+    throw new BookmarkError(400, "INVALID_URL", `${field} 必须是有效的 HTTP 或 HTTPS URL`);
+  }
+}
+
 async function validateFolder(userId, folderId) {
   if (folderId === null || folderId === undefined) return null;
   const id = parseId(folderId, "folderId");
@@ -98,6 +110,7 @@ async function create(userId, input = {}) {
     folderId,
     title: optionalText(input.title, "title"),
     description: optionalText(input.description, "description"),
+    coverUrl: optionalUrl(input.coverUrl, "coverUrl"),
     sourceUrl,
     ...normalized
   });
@@ -116,6 +129,8 @@ async function update(userId, idValue, input = {}) {
     title: Object.hasOwn(input, "title") ? optionalText(input.title, "title") : current.title,
     description: Object.hasOwn(input, "description")
       ? optionalText(input.description, "description") : current.description,
+    coverUrl: Object.hasOwn(input, "coverUrl")
+      ? optionalUrl(input.coverUrl, "coverUrl") : current.coverUrl,
     sourceUrl: sourceUrl.trim(),
     ...normalized
   });

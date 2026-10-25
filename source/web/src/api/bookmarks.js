@@ -32,6 +32,13 @@ export function getBookmarkItems(filters = {}) {
   return request(`${baseUrl}/items?${query.toString()}`);
 }
 
+export function detectBookmarkMetadata(sourceUrl) {
+  return request(`${baseUrl}/metadata`, {
+    method: "POST",
+    body: JSON.stringify({ sourceUrl })
+  });
+}
+
 export function createBookmarkItem(data) {
   return request(`${baseUrl}/items`, {
     method: "POST",

@@ -101,3 +101,24 @@ test("create rejects another user's folder without creating an item", async () =
     itemModel.create = originalCreate;
   }
 });
+
+test("create and update validate and expose coverUrl values", async () => {
+  const originalDuplicate = itemModel.findDuplicate;
+  const originalCreate = itemModel.create;
+  itemModel.findDuplicate = async () => null;
+  itemModel.create = async (userId, values) => ({ id: "12", userId, ...values });
+  try {
+    const item = await itemService.create("7", {
+      sourceUrl: "https://example.com/article",
+      coverUrl: "https://cdn.example.com/cover image.jpg"
+    });
+    assert.equal(item.coverUrl, "https://cdn.example.com/cover%20image.jpg");
+    await assert.rejects(
+      itemService.create("7", { sourceUrl: "https://example.com", coverUrl: "file:///secret" }),
+      (error) => error.code === "INVALID_URL" && error.status === 400
+    );
+  } finally {
+    itemModel.findDuplicate = originalDuplicate;
+    itemModel.create = originalCreate;
+  }
+});

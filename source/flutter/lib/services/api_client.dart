@@ -84,7 +84,8 @@ class ApiClient {
         : <String, dynamic>{'items': data};
     final raw = map['items'] as List? ?? map['data'] as List? ?? const [];
     final pagination = map['pagination'] as Map<String, dynamic>? ?? map;
-    final totalPages = (pagination['totalPages'] as num?)?.toInt() ??
+    final totalPages =
+        (pagination['totalPages'] as num?)?.toInt() ??
         (((pagination['total'] as num?)?.toInt() ?? 0) / pageSize).ceil();
     return (
       items: raw
@@ -109,10 +110,22 @@ class ApiClient {
             ? null
             : draft.description.trim(),
         'folderId': draft.folderId,
+        'coverUrl': draft.coverUrl.trim().isEmpty
+            ? null
+            : draft.coverUrl.trim(),
         'allowDuplicate': allowDuplicate,
       },
     );
     return BookmarkItem.fromJson(_unwrap(data, 'item'));
+  }
+
+  Future<BookmarkMetadata> getBookmarkMetadata(String sourceUrl) async {
+    final data = await _request(
+      'POST',
+      '/bookmarks/metadata',
+      body: {'sourceUrl': sourceUrl},
+    );
+    return BookmarkMetadata.fromJson(_unwrap(data, 'metadata'));
   }
 
   Future<void> updateItem(String id, Map<String, Object?> changes) async {

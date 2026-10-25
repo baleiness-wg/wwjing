@@ -6,6 +6,7 @@ const app = require("../src/app");
 const config = require("../src/config");
 const folderService = require("../src/services/bookmark-folder.service");
 const itemService = require("../src/services/bookmark-item.service");
+const metadataService = require("../src/services/bookmark-metadata.service");
 
 async function withServer(callback) {
   const server = http.createServer(app);
@@ -19,9 +20,42 @@ async function withServer(callback) {
 
 test("bookmark routes reject unauthenticated requests", async () => {
   await withServer(async (baseUrl) => {
-    const response = await fetch(`${baseUrl}/api/bookmarks/folders`);
-    assert.equal(response.status, 401);
+    for (const path of ["/api/bookmarks/folders", "/api/bookmarks/metadata"]) {
+      const response = await fetch(`${baseUrl}${path}`, { method: path.endsWith("metadata") ? "POST" : "GET" });
+      assert.equal(response.status, 401, path);
+    }
   });
+});
+
+test("metadata route returns the authenticated response contract", async () => {
+  const originalFetchMetadata = metadataService.fetchMetadata;
+  let received;
+  metadataService.fetchMetadata = async (input) => {
+    received = input;
+    return { finalUrl: input.sourceUrl, title: "Example", description: null, coverUrl: null };
+  };
+  const token = jwt.sign({ sub: "42" }, config.jwtSecretKey, { algorithm: "HS256" });
+  try {
+    await withServer(async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/api/bookmarks/metadata`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ sourceUrl: "https://example.com/page" })
+      });
+      assert.equal(response.status, 200);
+      assert.deepEqual(await response.json(), {
+        metadata: {
+          finalUrl: "https://example.com/page",
+          title: "Example",
+          description: null,
+          coverUrl: null
+        }
+      });
+      assert.deepEqual(received, { sourceUrl: "https://example.com/page" });
+    });
+  } finally {
+    metadataService.fetchMetadata = originalFetchMetadata;
+  }
 });
 
 test("bookmark CRUD routes use JWT subject rather than request data", async () => {
