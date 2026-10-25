@@ -1,21 +1,59 @@
 <script setup>
-import { ref } from "vue";
+import { computed, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { Close, Menu, User, SwitchButton, Tools, House } from "@element-plus/icons-vue";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Close,
+  Folder,
+  FolderOpened,
+  House,
+  SwitchButton,
+  Tools,
+  User
+} from "@element-plus/icons-vue";
 
 const router = useRouter();
 const route = useRoute();
-const menuVisible = ref(!window.matchMedia("(max-width: 640px)").matches);
+const isMobile = () => window.matchMedia("(max-width: 640px)").matches;
+const menuVisible = ref(!isMobile());
+const toolsExpanded = ref(route.path.startsWith("/tools"));
 const user = JSON.parse(localStorage.getItem("wwjing_user") || "null");
-const sideItems = [{ path: "/", label: "首页", icon: House, when: (path) => path === "/" }, { path: "/tools/transfer", label: "数据传输", icon: Tools, when: (path) => path.startsWith("/tools") }];
+
+const navigationItems = [
+  { path: "/", label: "首页", icon: House },
+  {
+    path: "/tools",
+    label: "工具",
+    icon: Folder,
+    children: [
+      { path: "/tools", label: "工具首页", icon: FolderOpened },
+      { path: "/tools/transfer", label: "数据传输", icon: Tools }
+    ]
+  }
+];
+
+const isHomeActive = computed(() => route.path === "/");
+const isToolsActive = computed(() => route.path.startsWith("/tools"));
+
+watch(
+  () => route.path,
+  (path) => {
+    if (path.startsWith("/tools")) toolsExpanded.value = true;
+  }
+);
 
 function go(path) {
   router.push(path);
-  if (window.matchMedia("(max-width: 640px)").matches) menuVisible.value = false;
+  if (isMobile()) menuVisible.value = false;
 }
 
 function toggleMenu() {
   menuVisible.value = !menuVisible.value;
+}
+
+function toggleTools() {
+  toolsExpanded.value = !toolsExpanded.value;
 }
 
 function logout() {
@@ -27,34 +65,88 @@ function logout() {
 
 <template>
   <el-container class="app-shell" :class="{ 'menu-open': menuVisible }">
-    <div v-if="menuVisible" class="menu-backdrop" @click="menuVisible = false"></div>
-     <el-aside :width="menuVisible ? '220px' : '0px'" class="app-aside">
-       <el-button class="mobile-close" text circle :icon="Close" aria-label="关闭菜单" @click="menuVisible = false" />
-       <el-menu
-        :default-active="route.path"
-        class="side-menu"
-      >
-         <el-menu-item v-for="item in sideItems.filter((entry) => entry.when(route.path))" :key="item.path" :index="item.path" @click="go(item.path)">
-           <el-icon><component :is="item.icon" /></el-icon>
-           <span>{{ item.label }}</span>
-         </el-menu-item>
-      </el-menu>
+    <div v-if="menuVisible && isMobile()" class="menu-backdrop" @click="menuVisible = false"></div>
+
+    <el-aside :width="menuVisible ? '220px' : '64px'" class="app-aside">
+      <div class="aside-brand" :class="{ 'is-collapsed': !menuVisible }">
+        <span class="brand-mark">鲸</span>
+        <div v-if="menuVisible" class="aside-brand-copy">
+          <strong>鲸境</strong>
+          <small>工作空间</small>
+        </div>
+        <el-button
+          v-if="isMobile()"
+          class="mobile-close"
+          text
+          circle
+          :icon="Close"
+          aria-label="关闭菜单"
+          @click="menuVisible = false"
+        />
+      </div>
+
+      <nav class="side-menu" aria-label="主导航">
+        <template v-for="item in navigationItems" :key="item.path">
+          <button
+            v-if="!item.children"
+            class="side-menu-item"
+            :class="{ 'is-active': route.path === item.path }"
+            :title="item.label"
+            @click="go(item.path)"
+          >
+            <el-icon><component :is="item.icon" /></el-icon>
+            <span v-if="menuVisible">{{ item.label }}</span>
+          </button>
+
+          <button
+            v-else
+            class="side-menu-item side-menu-group"
+            :class="{ 'is-active': isToolsActive }"
+            :title="item.label"
+            :aria-expanded="toolsExpanded"
+            aria-controls="tools-submenu"
+            @click="toggleTools"
+          >
+            <el-icon><component :is="toolsExpanded ? FolderOpened : item.icon" /></el-icon>
+            <span v-if="menuVisible">{{ item.label }}</span>
+            <el-icon v-if="menuVisible" class="group-chevron"><ArrowLeft v-if="toolsExpanded" /><ArrowRight v-else /></el-icon>
+          </button>
+
+          <div v-if="item.children && menuVisible && toolsExpanded" id="tools-submenu" class="side-submenu">
+            <button
+              v-for="child in item.children"
+              :key="child.path"
+              class="side-menu-item side-submenu-item"
+              :class="{ 'is-active': route.path === child.path }"
+              @click="go(child.path)"
+            >
+              <el-icon><component :is="child.icon" /></el-icon>
+              <span>{{ child.label }}</span>
+            </button>
+          </div>
+        </template>
+      </nav>
     </el-aside>
 
     <el-container>
-         <el-header class="app-header">
-           <div class="header-brand">
-             <span class="brand-mark">鲸</span>
-             <strong>鲸境</strong>
-           </div>
-           <el-button text class="menu-toggle" :icon="menuVisible ? Close : Menu" @click="toggleMenu">
-            {{ menuVisible ? "收起菜单" : "展开菜单" }}
-          </el-button>
-         <nav class="top-nav">
-           <el-button text :class="{ active: route.path === '/' }" @click="go('/')">首页</el-button>
-           <el-button text :class="{ active: route.path.startsWith('/tools') }" @click="go('/tools')">工具</el-button>
-         </nav>
-         <div class="header-actions">
+      <el-header class="app-header">
+        <div class="header-brand">
+          <el-button
+            text
+            circle
+            class="menu-toggle"
+            :icon="menuVisible ? ArrowLeft : ArrowRight"
+            :aria-label="menuVisible ? '收起菜单' : '展开菜单'"
+            :title="menuVisible ? '收起菜单' : '展开菜单'"
+            @click="toggleMenu"
+          />
+          <span class="header-brand-mark">鲸</span>
+          <strong>鲸境</strong>
+        </div>
+        <nav class="top-nav" aria-label="快捷导航">
+          <el-button text :class="{ active: isHomeActive }" @click="go('/')">首页</el-button>
+        </nav>
+        <div class="header-actions">
           <el-dropdown @command="logout">
             <el-button text class="user-button">
               <el-icon><User /></el-icon>

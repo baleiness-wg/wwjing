@@ -1,6 +1,8 @@
 :root {
   color: #25343a;
   background: #f5f7f4;
+  --brand-green: #155e56;
+  --brand-green-soft: #e5f2ed;
   font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
   font-synthesis: none;
 }
@@ -9,17 +11,28 @@
 body { margin: 0; min-width: 320px; }
 .app-shell { min-height: 100vh; background: #f5f7f4; }
 .app-aside { overflow: hidden; flex: 0 0 auto; border-right: 1px solid #e3e9e4; background: #fbfcfa; transition: width .2s, flex-basis .2s; }
-.brand { display: flex; align-items: center; gap: 10px; height: 80px; padding: 0 24px; }
-.brand-mark { display: grid; width: 34px; height: 34px; place-items: center; border-radius: 10px; background: #155e56; color: white; font-weight: 700; }
-.brand strong, .brand small { display: block; }
-.brand small { margin-top: 3px; color: #8a9893; font-size: 11px; }
-.side-menu { border-right: 0; background: transparent; }
+.aside-brand { display: flex; align-items: center; gap: 10px; height: 80px; padding: 0 18px; }
+.aside-brand.is-collapsed { justify-content: center; padding: 0; }
+.aside-brand-copy strong, .aside-brand-copy small { display: block; }
+.aside-brand-copy small { margin-top: 3px; color: #8a9893; font-size: 11px; }
+.brand-mark, .header-brand-mark { display: grid; width: 34px; height: 34px; flex: 0 0 auto; place-items: center; border-radius: 10px; background: var(--brand-green); color: white; font-weight: 700; }
+.side-menu { display: grid; gap: 6px; padding: 12px; }
+.side-menu-item { display: flex; width: 100%; min-height: 44px; align-items: center; gap: 12px; border: 0; border-radius: 10px; background: transparent; color: #526360; cursor: pointer; font: inherit; padding: 0 12px; text-align: left; }
+.side-menu-item:hover, .side-menu-item:focus-visible { background: var(--brand-green-soft); color: var(--brand-green); outline: none; }
+.side-menu-item.is-active { background: var(--brand-green-soft); color: var(--brand-green); font-weight: 700; }
+.side-menu-item .el-icon { flex: 0 0 auto; font-size: 18px; }
+.side-menu-group { position: relative; }
+.group-chevron { margin-left: auto; font-size: 14px !important; }
+.side-submenu { display: grid; gap: 4px; padding-left: 14px; }
+.side-submenu-item { min-height: 40px; padding-left: 12px; font-size: 14px; }
 .menu-backdrop, .mobile-close { display: none; }
 .app-header { display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #e3e9e4; background: #fff; }
 .header-brand { display: flex; align-items: center; gap: 10px; }
+.menu-toggle { color: var(--brand-green); }
+.menu-toggle:focus-visible { outline: 2px solid var(--brand-green); outline-offset: 2px; }
 .header-brand strong { color: #18343a; font-size: 17px; }
 .top-nav { display: flex; align-items: center; gap: 4px; margin-right: auto; margin-left: 18px; }
-.top-nav .active { color: #155e56; font-weight: 700; }
+.top-nav .active { color: var(--brand-green); font-weight: 700; }
 .header-actions { display: flex; align-items: center; gap: 10px; }
 .user-button { color: #526360; }
 .app-main { padding: 42px clamp(20px, 5vw, 72px); }
@@ -78,10 +91,9 @@ h3 { margin-bottom: 10px; color: #263d40; font-size: 17px; }
   .page-title h1 { font-size: 38px; }
   .section-heading { align-items: flex-start; }
   .section-heading .el-link { margin-top: 4px; }
-  .app-aside { position: fixed; z-index: 30; top: 0; bottom: 0; left: 0; width: 0 !important; border-right: 0; box-shadow: none; }
-  .menu-open .app-aside { width: 280px !important; box-shadow: 4px 0 18px rgb(24 52 58 / 12%); }
+   .app-aside { position: fixed; z-index: 30; top: 0; bottom: 0; left: 0; width: 0 !important; border-right: 0; box-shadow: none; }
+   .menu-open .app-aside { width: 280px !important; box-shadow: 4px 0 18px rgb(24 52 58 / 12%); }
   .menu-open .menu-backdrop { display: block; position: fixed; z-index: 20; inset: 0; background: rgb(24 52 58 / 30%); }
-  .mobile-close { display: inline-flex; margin-left: auto; }
-  .brand { padding: 0 16px 0 24px; }
-  .menu-toggle { padding-left: 0; }
+   .mobile-close { display: inline-flex; margin-left: auto; }
+   .menu-toggle { padding-left: 0; }
 }
