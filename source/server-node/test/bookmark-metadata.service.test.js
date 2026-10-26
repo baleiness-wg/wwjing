@@ -112,6 +112,24 @@ test("metadata fetch revalidates redirect targets and returns parsed contract", 
   assert.deepEqual(requested, ["https://start.example/path", "https://final.example/page"]);
 });
 
+test("metadata requests use browser-compatible headers for dynamic sites", async () => {
+  let requestHeaders;
+  const fetchMetadata = createMetadataService({
+    lookup: async () => [{ address: "93.184.216.34", family: 4 }],
+    request: (url, options, callback) => {
+      requestHeaders = options.headers;
+      return mockRequest([{
+        statusCode: 200,
+        headers: { "content-type": "text/html" },
+        body: "<title>Example</title>"
+      }], [])(url, options, callback);
+    }
+  });
+  await fetchMetadata({ sourceUrl: "https://example.com/video" });
+  assert.match(requestHeaders["User-Agent"], /^Mozilla\/5\.0/);
+  assert.equal(requestHeaders.Referer, "https://www.douyin.com/");
+});
+
 test("metadata fetch blocks a redirect resolving to a private address before connecting", async () => {
   let requests = 0;
   const fetchMetadata = createMetadataService({

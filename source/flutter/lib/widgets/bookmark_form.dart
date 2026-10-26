@@ -79,6 +79,9 @@ class _BookmarkFormState extends State<BookmarkForm> {
           _url.text = metadata.finalUrl!.trim();
         }
       }
+      if (_title.text.trim().isEmpty) {
+        _title.text = titleFallbackForUrl(uri);
+      }
     });
     if (metadata == null && state.metadataMessage != null) {
       ScaffoldMessenger.of(context)
@@ -138,30 +141,67 @@ class _BookmarkFormState extends State<BookmarkForm> {
 
   Future<void> _createFolder() async {
     final controller = TextEditingController();
+    String? parentId;
+    final state = context.read<AppState>();
     final name = await showDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('新建收藏夹'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: const InputDecoration(labelText: '名称'),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('新建收藏夹'),
+          content: SizedBox(
+            width: 420,
+            height: MediaQuery.sizeOf(context).height * .6,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                TextField(
+                  controller: controller,
+                  autofocus: true,
+                  decoration: const InputDecoration(labelText: '名称'),
+                ),
+                const SizedBox(height: 18),
+                Text('创建位置', style: Theme.of(context).textTheme.titleSmall),
+                const SizedBox(height: 6),
+                Expanded(
+                  child: Card(
+                    margin: EdgeInsets.zero,
+                    child: ListView(
+                      children: [
+                        ListTile(
+                          leading: Icon(parentId == null ? Icons.radio_button_checked : Icons.radio_button_unchecked),
+                          title: const Text('根目录'),
+                          onTap: () => setDialogState(() => parentId = null),
+                        ),
+                        for (final node in flattenFolderTree(state.folderTree))
+                          ListTile(
+                            leading: Icon(parentId == node.folder.id ? Icons.radio_button_checked : Icons.radio_button_unchecked),
+                            contentPadding: EdgeInsets.only(left: 16.0 + (node.depth - 1) * 22.0),
+                            title: Text(node.folder.name),
+                            onTap: () => setDialogState(() => parentId = node.folder.id),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, controller.text.trim()),
+              child: const Text('创建'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('取消'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, controller.text.trim()),
-            child: const Text('创建'),
-          ),
-        ],
       ),
     );
     controller.dispose();
     if (!mounted || name == null || name.isEmpty) return;
-    final created = await context.read<AppState>().createFolder(name, null);
+    final created = await state.createFolder(name, parentId);
     if (mounted && created != null) setState(() => _folderId = created.id);
   }
 
@@ -288,6 +328,7 @@ class _BookmarkFormState extends State<BookmarkForm> {
                    Expanded(
                      child: DropdownButtonFormField<String?>(
                        initialValue: _folderId,
+                       menuMaxHeight: MediaQuery.sizeOf(context).height * .6,
                        decoration: const InputDecoration(labelText: '收藏夹'),
                        items: [
                          const DropdownMenuItem(value: null, child: Text('未分类')),
@@ -295,7 +336,7 @@ class _BookmarkFormState extends State<BookmarkForm> {
                            DropdownMenuItem(
                              value: folder.id,
                              child: Text(
-                               '${'  ' * (flattenFolderTree(state.folderTree).firstWhere((node) => node.folder.id == folder.id).depth - 1)}${folder.name}',
+                               '${'　' * (flattenFolderTree(state.folderTree).firstWhere((node) => node.folder.id == folder.id).depth - 1)}${folder.name}',
                              ),
                            ),
                        ],

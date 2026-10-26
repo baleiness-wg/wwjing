@@ -194,7 +194,13 @@ function requestPage(url, addresses, requestImpl, timeoutMs) {
       reject(error);
     };
     const request = requestImpl(url, {
-      headers: { Accept: "text/html,application/xhtml+xml", "User-Agent": "wwjing-bookmark-metadata/1.0" },
+      headers: {
+        Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+        "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+        "Cache-Control": "no-cache",
+        Referer: "https://www.douyin.com/",
+        "User-Agent": "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36"
+      },
       lookup(hostname, options, callback) {
         const candidates = addresses.filter(({ family }) => !options.family || family === options.family);
         if (options.all) return callback(null, candidates);
