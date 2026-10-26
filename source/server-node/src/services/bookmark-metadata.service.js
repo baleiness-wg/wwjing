@@ -118,7 +118,41 @@ function attributes(tag) {
   return result;
 }
 
+function decodeEmbeddedUrl(value) {
+  return value
+    .replace(/\\u002f/gi, "/")
+    .replace(/\\\//g, "/")
+    .replace(/\\u0026/gi, "&")
+    .replace(/\\u003d/gi, "=")
+    .replace(/\\u003f/gi, "?");
+}
+
+function embeddedCoverUrl(html, finalUrl) {
+  const host = new URL(finalUrl).hostname.replace(/^www\./i, "");
+  if (!/^(?:douyin|iesdouyin)\.com$/i.test(host) &&
+      !/\.douyinvod\.com$/i.test(host)) return null;
+
+  const fieldPatterns = [
+    /["'](?:cover|dynamic_cover|origin_cover|thumbnail)["']\s*:\s*["']([^"']+)["']/gi,
+    /["'](?:cover|dynamic_cover|origin_cover|thumbnail)["']\s*:\s*\{[\s\S]{0,800}?["']url_list["']\s*:\s*\[["']([^"']+)["']/gi,
+    /["']url_list["']\s*:\s*\[["']([^"']+)["']/gi
+  ];
+  for (const fieldPattern of fieldPatterns) for (const match of html.matchAll(fieldPattern)) {
+    try {
+      const candidate = new URL(decodeEmbeddedUrl(match[1]), finalUrl);
+      if (["http:", "https:"].includes(candidate.protocol) &&
+          candidate.hostname && (!net.isIP(candidate.hostname) || isPublicAddress(candidate.hostname))) {
+        return candidate.toString();
+      }
+    } catch {
+      // Ignore malformed embedded candidates and continue to the next image.
+    }
+  }
+  return null;
+}
+
 function parseMetadata(html, finalUrl) {
+  const embeddedCover = embeddedCoverUrl(html, finalUrl);
   const document = html
     .replace(/<!--[\s\S]*?-->/g, "")
     .replace(/<script\b[\s\S]*?<\/script\s*>/gi, "")
@@ -135,7 +169,7 @@ function parseMetadata(html, finalUrl) {
   const description = values.get("og:description") || values.get("twitter:description") ||
     values.get("description") || null;
   const image = values.get("og:image") || values.get("og:image:url") ||
-    values.get("twitter:image") || values.get("twitter:image:src");
+    values.get("twitter:image") || values.get("twitter:image:src") || embeddedCover;
   let coverUrl = null;
   if (image) {
     try {

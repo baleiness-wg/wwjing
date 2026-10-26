@@ -160,7 +160,9 @@ class FolderNavigation extends StatelessWidget {
                     selected:
                         state.view == BookmarkView.folder &&
                         state.selectedFolderId == node.folder.id,
-                    leading: const Icon(Icons.folder_outlined),
+                     leading: node.depth == 1
+                         ? const Icon(Icons.folder_outlined)
+                         : const SizedBox(width: 24),
                     title: Text(
                       node.folder.name,
                       maxLines: 1,

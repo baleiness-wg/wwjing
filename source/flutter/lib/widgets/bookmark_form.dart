@@ -136,6 +136,35 @@ class _BookmarkFormState extends State<BookmarkForm> {
     }
   }
 
+  Future<void> _createFolder() async {
+    final controller = TextEditingController();
+    final name = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('新建收藏夹'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(labelText: '名称'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, controller.text.trim()),
+            child: const Text('创建'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (!mounted || name == null || name.isEmpty) return;
+    final created = await context.read<AppState>().createFolder(name, null);
+    if (mounted && created != null) setState(() => _folderId = created.id);
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
@@ -253,19 +282,37 @@ class _BookmarkFormState extends State<BookmarkForm> {
                 ),
               ),
               const SizedBox(height: 14),
-              DropdownButtonFormField<String?>(
-                initialValue: _folderId,
-                decoration: const InputDecoration(labelText: '收藏夹'),
-                items: [
-                  const DropdownMenuItem(value: null, child: Text('未分类')),
-                  for (final folder in ordered)
-                    DropdownMenuItem(
-                      value: folder.id,
-                      child: Text(folder.name),
-                    ),
-                ],
-                onChanged: (value) => setState(() => _folderId = value),
-              ),
+               Row(
+                 crossAxisAlignment: CrossAxisAlignment.start,
+                 children: [
+                   Expanded(
+                     child: DropdownButtonFormField<String?>(
+                       initialValue: _folderId,
+                       decoration: const InputDecoration(labelText: '收藏夹'),
+                       items: [
+                         const DropdownMenuItem(value: null, child: Text('未分类')),
+                         for (final folder in ordered)
+                           DropdownMenuItem(
+                             value: folder.id,
+                             child: Text(
+                               '${'  ' * (flattenFolderTree(state.folderTree).firstWhere((node) => node.folder.id == folder.id).depth - 1)}${folder.name}',
+                             ),
+                           ),
+                       ],
+                       onChanged: (value) => setState(() => _folderId = value),
+                     ),
+                   ),
+                   const SizedBox(width: 8),
+                   Padding(
+                     padding: const EdgeInsets.only(top: 4),
+                     child: IconButton(
+                       onPressed: state.busy ? null : _createFolder,
+                       tooltip: '新建收藏夹并选择',
+                       icon: const Icon(Icons.create_new_folder_outlined),
+                     ),
+                   ),
+                 ],
+               ),
               const SizedBox(height: 24),
               FilledButton.icon(
                 onPressed: state.busy ? null : _save,

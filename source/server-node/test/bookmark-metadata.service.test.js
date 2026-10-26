@@ -27,6 +27,31 @@ test("metadata parser handles attribute order, entities, precedence, and relativ
   assert.equal(decodeHtml("A&nbsp;B &#169; &#x1f600;"), "A B © 😀");
 });
 
+test("metadata parser extracts Douyin embedded cover when social meta is absent", () => {
+  const html = `
+    <script>window.__INITIAL_STATE__ = {
+      "cover": "https:\\u002F\\u002Fp3-sign.douyinvod.com\\u002Ftos-cn-i-0813\\u002Fcover~tplv.webp",
+      "title": "示例视频"
+    };</script>`;
+  assert.equal(
+    parseMetadata(html, "https://www.douyin.com/video/123" ).coverUrl,
+    "https://p3-sign.douyinvod.com/tos-cn-i-0813/cover~tplv.webp"
+  );
+});
+
+test("metadata parser extracts Douyin cover url_list data", () => {
+  const html = `<script>\"cover\":{\"url_list\":[\"https:\\\/\\\/p3-sign.douyinvod.com\\\/cover.jpg\"]}</script>`;
+  assert.equal(
+    parseMetadata(html, "https://www.douyin.com/video/456").coverUrl,
+    "https://p3-sign.douyinvod.com/cover.jpg"
+  );
+});
+
+test("metadata parser does not use embedded cover fields from unrelated hosts", () => {
+  const html = `<script>{"cover":"https:\\u002F\\u002Fcdn.example.com\\u002Fcover.jpg"}</script>`;
+  assert.equal(parseMetadata(html, "https://example.com/article").coverUrl, null);
+});
+
 test("SSRF policy rejects non-public IPv4 and IPv6 ranges", () => {
   for (const address of [
     "0.0.0.0", "10.0.0.1", "100.64.0.1", "127.0.0.1", "169.254.1.1",

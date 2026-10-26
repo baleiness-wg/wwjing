@@ -206,11 +206,13 @@ class AppState extends ChangeNotifier {
     });
   }
 
-  Future<void> createFolder(String name, String? parentId) async {
+  Future<BookmarkFolder?> createFolder(String name, String? parentId) async {
+    BookmarkFolder? created;
     await _run(() async {
-      await api.createFolder(name: name, parentId: parentId);
+      created = await api.createFolder(name: name, parentId: parentId);
       await refresh();
     });
+    return created;
   }
 
   Future<void> renameFolder(BookmarkFolder folder, String name) async {

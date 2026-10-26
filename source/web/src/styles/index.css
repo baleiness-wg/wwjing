@@ -107,6 +107,8 @@ h3 { margin-bottom: 10px; color: #263d40; font-size: 17px; }
 .bulk-bar { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 16px 0 0; border-radius: 10px; padding: 10px 14px; background: #eaf5f0; color: #155e56; }
 .bookmark-results { min-height: 350px; }
 .bookmark-card { position: relative; display: grid; grid-template-columns: 24px 132px minmax(0, 1fr) auto; gap: 13px; padding: 20px 0; border-bottom: 1px solid #edf0ed; }
+.bookmark-card[draggable="true"] { cursor: grab; }
+.bookmark-card[draggable="true"]:active { cursor: grabbing; }
 .bookmark-check { align-self: start; margin-top: 4px; }
 .bookmark-cover { display: block; width: 132px; height: 84px; overflow: hidden; border-radius: 11px; background: #e9f1ed; text-decoration: none; }
 .bookmark-cover img, .bookmark-cover-preview img { width: 100%; height: 100%; object-fit: cover; }
@@ -124,6 +126,7 @@ h3 { margin-bottom: 10px; color: #263d40; font-size: 17px; }
 .bookmark-cover-preview { width: 100%; height: 180px; margin: -8px 0 18px; overflow: hidden; border: 1px solid #dfe8e1; border-radius: 12px; background: #f1f5f2; }
 .bookmark-cover-preview .bookmark-cover__fallback span { color: #748782; font-size: 12px; }
 .bookmark-pagination { justify-content: flex-end; margin-top: 24px; }
+.folder-select-row { display: flex; width: 100%; align-items: center; gap: 8px; }
 @media (max-width: 640px) {
   .form-row { grid-template-columns: 1fr; gap: 0; }
   .app-main { padding: 22px 16px 32px; }

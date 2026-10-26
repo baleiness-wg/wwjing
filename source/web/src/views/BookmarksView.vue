@@ -47,6 +47,7 @@ const failedCoverUrls = ref(new Set());
 const folderForm = reactive({ id: null, name: "", parentId: null, position: 0 });
 const itemForm = reactive({ id: null, sourceUrl: "", title: "", description: "", coverUrl: "", folderId: null });
 const bulkFolderId = ref(null);
+const draggingItemId = ref(null);
 
 const folderMap = computed(() => new Map(folders.value.map((folder) => [String(folder.id), folder])));
 
@@ -206,15 +207,34 @@ async function saveFolder() {
     position: Number(folderForm.position) || 0
   };
   try {
-    if (folderDialogMode.value === "create") await createBookmarkFolder(data);
+    let createdFolder;
+    if (folderDialogMode.value === "create") createdFolder = await createBookmarkFolder(data);
     else await updateBookmarkFolder(folderForm.id, data);
     folderDialogVisible.value = false;
     ElMessage.success(folderDialogMode.value === "create" ? "目录已创建" : "目录已更新");
     await loadFolders();
+    if (createdFolder?.folder?.id && itemDialogVisible.value) itemForm.folderId = createdFolder.folder.id;
   } catch (error) {
     ElMessage.error(error.message);
   } finally {
     saving.value = false;
+  }
+}
+
+function openCreateFolderForItem() {
+  openCreateFolder(itemForm.folderId || null);
+}
+
+async function dropItemOnFolder(folderId) {
+  if (!draggingItemId.value) return;
+  const itemId = draggingItemId.value;
+  draggingItemId.value = null;
+  try {
+    await updateBookmarkItem(itemId, { folderId });
+    ElMessage.success(folderId ? "收藏已移动" : "收藏已移入未分类");
+    await Promise.all([loadFolders(), loadItems()]);
+  } catch (error) {
+    ElMessage.error(error.message);
   }
 }
 
@@ -421,7 +441,12 @@ onMounted(async () => {
             <Link />
             <span>全部收藏</span>
           </button>
-          <button :class="{ active: activeFolderId === null }" @click="selectFolder(null)">
+           <button
+             :class="{ active: activeFolderId === null }"
+             @dragover.prevent
+             @drop.prevent="dropItemOnFolder(null)"
+             @click="selectFolder(null)"
+           >
             <span class="uncategorized-mark">—</span>
             <span>未分类</span>
           </button>
@@ -439,7 +464,12 @@ onMounted(async () => {
           aria-label="目录树"
         >
           <template #default="{ data }">
-            <div class="folder-node" @click="selectFolder(data.id)">
+            <div
+              class="folder-node"
+              @click="selectFolder(data.id)"
+              @dragover.prevent
+              @drop.prevent="dropItemOnFolder(data.id)"
+            >
               <span class="folder-node__name" :title="folderPath(data.id)">{{ data.name }}</span>
               <el-dropdown trigger="click" @command="(command) => command()" @click.stop>
                 <el-button text circle :icon="MoreFilled" :aria-label="`${data.name}目录操作`" />
@@ -488,7 +518,14 @@ onMounted(async () => {
         </div>
 
         <div v-loading="loadingItems" class="bookmark-results" aria-live="polite">
-          <article v-for="item in items" :key="item.id" class="bookmark-card">
+            <article
+              v-for="item in items"
+              :key="item.id"
+              class="bookmark-card"
+              draggable="true"
+              @dragstart="draggingItemId = String(item.id)"
+              @dragend="draggingItemId = null"
+            >
             <el-checkbox
               class="bookmark-check"
               :model-value="selectedIds.includes(String(item.id))"
@@ -598,10 +635,13 @@ onMounted(async () => {
           </div>
         </div>
         <el-form-item label="收藏目录">
-          <el-select v-model="itemForm.folderId" class="full-width" clearable placeholder="未分类">
-            <el-option label="未分类" :value="null" />
-            <el-option v-for="folder in folderOptions" :key="folder.id" :label="folder.label" :value="folder.id" />
-          </el-select>
+          <div class="folder-select-row">
+            <el-select v-model="itemForm.folderId" class="full-width" clearable placeholder="未分类">
+              <el-option label="未分类" :value="null" />
+              <el-option v-for="folder in folderOptions" :key="folder.id" :label="folder.label" :value="folder.id" />
+            </el-select>
+            <el-button :icon="FolderAdd" title="新建目录并选择" aria-label="新建目录并选择" @click="openCreateFolderForItem" />
+          </div>
         </el-form-item>
       </el-form>
       <template #footer>
