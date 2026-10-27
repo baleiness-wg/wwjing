@@ -118,111 +118,64 @@ class _BookmarkFormState extends State<BookmarkForm> {
     final saved = await state.saveDraft(value, allowDuplicate: allowDuplicate);
     if (!mounted || saved) return;
     if (state.errorCode == 'DUPLICATE_BOOKMARK') {
-      final confirm = await showDialog<bool>(
+      final duplicate = DuplicateBookmarkInfo.fromJson(state.errorData);
+      final action = await showDialog<String>(
         context: context,
         builder: (context) => AlertDialog(
           title: const Text('链接已收藏'),
-          content: const Text('仍要再保存一份吗？'),
+          content: Text('已有收藏：${duplicate.title?.isNotEmpty == true ? duplicate.title : _url.text.trim()}\n所在位置：${duplicate.folderName ?? '未分类'}'),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('取消'),
+              onPressed: () => Navigator.pop(context, 'open'),
+              child: const Text('打开原链接'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, 'folder'),
+              child: const Text('查看文件夹'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, 'overwrite'),
+              child: const Text('覆盖原收藏'),
             ),
             FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('继续保存'),
+              onPressed: () => Navigator.pop(context, 'duplicate'),
+              child: const Text('另存一份'),
             ),
           ],
         ),
       );
-      if (confirm == true) await state.saveDraft(value, allowDuplicate: true);
+      if (!mounted || action == null) return;
+      if (action == 'open') {
+        await openExternalLink(context, value.sourceUrl);
+      } else if (action == 'folder') {
+        await state.openFolder(duplicate.folderId);
+        if (mounted) state.closeDraft();
+      } else if (action == 'overwrite' && duplicate.id.isNotEmpty) {
+        final overwritten = await state.overwriteItem(duplicate.id, value);
+        if (overwritten && mounted) state.closeDraft();
+      } else if (action == 'duplicate') {
+        await state.saveDraft(value, allowDuplicate: true);
+      }
     }
   }
 
-  Future<void> _createFolder() async {
-    final controller = TextEditingController();
-    String? parentId;
+  Future<void> _chooseFolder(List<FolderNode> nodes) async {
     final state = context.read<AppState>();
-    final name = await showDialog<String>(
+    final selected = await showDialog<String>(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: const Text('新建收藏夹'),
-          content: SizedBox(
-            width: 420,
-            height: MediaQuery.sizeOf(context).height * .6,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                TextField(
-                  controller: controller,
-                  autofocus: true,
-                  decoration: const InputDecoration(labelText: '名称'),
-                ),
-                const SizedBox(height: 18),
-                Text('创建位置', style: Theme.of(context).textTheme.titleSmall),
-                const SizedBox(height: 6),
-                Expanded(
-                  child: Card(
-                    margin: EdgeInsets.zero,
-                    child: ListView(
-                      children: [
-                        ListTile(
-                          leading: Icon(parentId == null ? Icons.radio_button_checked : Icons.radio_button_unchecked),
-                          title: const Text('根目录'),
-                          onTap: () => setDialogState(() => parentId = null),
-                        ),
-                        for (final node in flattenFolderTree(state.folderTree))
-                          ListTile(
-                            leading: Icon(parentId == node.folder.id ? Icons.radio_button_checked : Icons.radio_button_unchecked),
-                            contentPadding: EdgeInsets.only(left: 16.0 + (node.depth - 1) * 22.0),
-                            title: Text(node.folder.name),
-                            onTap: () => setDialogState(() => parentId = node.folder.id),
-                          ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('取消'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, controller.text.trim()),
-              child: const Text('创建'),
-            ),
-          ],
-        ),
+      builder: (context) => _FolderPickerDialog(
+        state: state,
+        selectedFolderId: _folderId,
       ),
     );
-    controller.dispose();
-    if (!mounted || name == null || name.isEmpty) return;
-    final created = await state.createFolder(name, parentId);
-    if (mounted && created != null) setState(() => _folderId = created.id);
+    if (!mounted || selected == null) return;
+    setState(() => _folderId = selected.isEmpty ? null : selected);
   }
 
   @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
-    final recent = state.recentFolderIds
-        .map(
-          (id) => state.folders.where((folder) => folder.id == id).firstOrNull,
-        )
-        .whereType<BookmarkFolder>()
-        .toList();
-    final treeFolders = flattenFolderTree(state.folderTree)
-        .map((node) => node.folder)
-        .toList();
-    final ordered = [
-      ...recent,
-      ...treeFolders.where(
-        (folder) => !recent.any((item) => item.id == folder.id),
-      ),
-    ];
+    final folderNodes = flattenFolderTree(state.folderTree).toList();
 
     return PopScope(
       canPop: false,
@@ -325,32 +278,23 @@ class _BookmarkFormState extends State<BookmarkForm> {
                Row(
                  crossAxisAlignment: CrossAxisAlignment.start,
                  children: [
-                   Expanded(
-                     child: DropdownButtonFormField<String?>(
-                       initialValue: _folderId,
-                       menuMaxHeight: MediaQuery.sizeOf(context).height * .6,
-                       decoration: const InputDecoration(labelText: '收藏夹'),
-                       items: [
-                         const DropdownMenuItem(value: null, child: Text('未分类')),
-                         for (final folder in ordered)
-                           DropdownMenuItem(
-                             value: folder.id,
-                             child: Text(
-                               '${'　' * (flattenFolderTree(state.folderTree).firstWhere((node) => node.folder.id == folder.id).depth - 1)}${folder.name}',
-                             ),
-                           ),
-                       ],
-                       onChanged: (value) => setState(() => _folderId = value),
-                     ),
-                   ),
-                   const SizedBox(width: 8),
-                   Padding(
-                     padding: const EdgeInsets.only(top: 4),
-                     child: IconButton(
-                       onPressed: state.busy ? null : _createFolder,
-                       tooltip: '新建收藏夹并选择',
-                       icon: const Icon(Icons.create_new_folder_outlined),
-                     ),
+                    Expanded(
+                      child: InkWell(
+                        onTap: () => _chooseFolder(folderNodes),
+                        borderRadius: BorderRadius.circular(4),
+                        child: InputDecorator(
+                          decoration: const InputDecoration(labelText: '收藏夹'),
+                          child: Text(
+                            _folderId == null
+                                ? '未分类'
+                                : folderNodes
+                                      .firstWhere((node) => node.folder.id == _folderId)
+                                      .folder
+                                      .name,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ),
                    ),
                  ],
                ),
@@ -377,6 +321,163 @@ class _BookmarkFormState extends State<BookmarkForm> {
               ],
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FolderPickerDialog extends StatefulWidget {
+  const _FolderPickerDialog({required this.state, required this.selectedFolderId});
+
+  final AppState state;
+  final String? selectedFolderId;
+
+  @override
+  State<_FolderPickerDialog> createState() => _FolderPickerDialogState();
+}
+
+class _FolderPickerDialogState extends State<_FolderPickerDialog> {
+  late String? selectedFolderId = widget.selectedFolderId;
+  final nameController = TextEditingController();
+  String? parentId;
+
+  @override
+  void dispose() {
+    nameController.dispose();
+    super.dispose();
+  }
+
+  Future<void> createFolder() async {
+    final name = nameController.text.trim();
+    if (name.isEmpty) return;
+    final folder = await widget.state.createFolder(name, parentId);
+    if (!mounted || folder == null) return;
+    Navigator.pop(context, folder.id);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final nodes = flattenFolderTree(widget.state.folderTree).toList();
+    final colors = Theme.of(context).colorScheme;
+    return AlertDialog(
+      title: const Text('选择收藏夹'),
+      content: SizedBox(
+        width: 440,
+        height: MediaQuery.sizeOf(context).height * .6,
+        child: Column(
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: nameController,
+                    decoration: const InputDecoration(
+                      isDense: true,
+                      hintText: '新建收藏夹',
+                      prefixIcon: Icon(Icons.create_new_folder_outlined),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                IconButton.filledTonal(
+                  onPressed: widget.state.busy ? null : createFolder,
+                  tooltip: '创建到选中的目录下',
+                  icon: const Icon(Icons.add),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                parentId == null ? '新目录将创建在根目录' : '新目录将创建在选中的目录下',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Expanded(
+              child: Card(
+                margin: EdgeInsets.zero,
+                clipBehavior: Clip.antiAlias,
+                child: ListView(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  children: [
+                    _FolderPickerTile(
+                      label: '未分类',
+                      depth: 0,
+                      selected: selectedFolderId == null,
+                      colorScheme: colors,
+                      onTap: () => setState(() => selectedFolderId = null),
+                    ),
+                    for (final node in nodes)
+                      _FolderPickerTile(
+                        label: node.folder.name,
+                        depth: node.depth,
+                        selected: selectedFolderId == node.folder.id,
+                        colorScheme: colors,
+                        onTap: () => setState(() {
+                          selectedFolderId = node.folder.id;
+                          parentId = node.folder.id;
+                        }),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('取消')),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, selectedFolderId ?? ''),
+          child: const Text('选择'),
+        ),
+      ],
+    );
+  }
+}
+
+class _FolderPickerTile extends StatelessWidget {
+  const _FolderPickerTile({
+    required this.label,
+    required this.depth,
+    required this.selected,
+    required this.colorScheme,
+    required this.onTap,
+  });
+
+  final String label;
+  final int depth;
+  final bool selected;
+  final ColorScheme colorScheme;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(left: depth == 0 ? 6 : 6 + (depth - 1) * 20.0, right: 6, top: 1, bottom: 1),
+      child: Material(
+        color: selected ? colorScheme.primaryContainer : Colors.transparent,
+        borderRadius: BorderRadius.circular(8),
+        child: ListTile(
+          dense: true,
+          visualDensity: const VisualDensity(vertical: -2),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+          leading: Icon(
+            depth == 0 ? Icons.inbox_outlined : Icons.folder_outlined,
+            size: 18,
+            color: selected ? colorScheme.primary : colorScheme.onSurfaceVariant,
+          ),
+          title: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (selected) Icon(Icons.check_circle, size: 18, color: colorScheme.primary),
+            ],
+          ),
+          onTap: onTap,
         ),
       ),
     );

@@ -24,6 +24,7 @@ class AppState extends ChangeNotifier {
   bool busy = false;
   String? error;
   String? errorCode;
+  Object? errorData;
   String? metadataMessage;
   BookmarkDraft? draft;
   String? editingItemId;
@@ -75,6 +76,7 @@ class AppState extends ChangeNotifier {
       folders = await api.getFolders();
       final result = await api.getItems(
         folderId: view == BookmarkView.folder ? selectedFolderId : null,
+        includeDescendants: view == BookmarkView.folder,
         uncategorized: view == BookmarkView.uncategorized,
         query: query,
         page: page,
@@ -206,6 +208,48 @@ class AppState extends ChangeNotifier {
     });
   }
 
+  Future<void> moveItems(Iterable<String> ids, String? folderId) async {
+    await _run(() async {
+      for (final id in ids) {
+        await api.updateItem(id, {'folderId': folderId});
+      }
+      await refresh(resetPage: true);
+    });
+  }
+
+  Future<void> deleteItems(Iterable<String> ids) async {
+    await _run(() async {
+      for (final id in ids) {
+        await api.deleteItem(id);
+      }
+      await refresh(resetPage: true);
+    });
+  }
+
+  Future<bool> overwriteItem(String id, BookmarkDraft value) async {
+    var updated = false;
+    await _run(() async {
+      await api.updateItem(id, {
+        'sourceUrl': value.sourceUrl,
+        'title': value.title.trim().isEmpty ? null : value.title.trim(),
+        'description': value.description.trim().isEmpty ? null : value.description.trim(),
+        'folderId': value.folderId,
+        'coverUrl': value.coverUrl.trim().isEmpty ? null : value.coverUrl.trim(),
+      });
+      updated = true;
+      await refresh(resetPage: true);
+    });
+    return updated;
+  }
+
+  Future<void> openFolder(String? folderId) async {
+    if (folderId == null) {
+      await selectView(BookmarkView.uncategorized);
+    } else {
+      await selectView(BookmarkView.folder, folderId);
+    }
+  }
+
   Future<BookmarkFolder?> createFolder(String name, String? parentId) async {
     BookmarkFolder? created;
     await _run(() async {
@@ -253,12 +297,14 @@ class AppState extends ChangeNotifier {
     busy = true;
     error = null;
     errorCode = null;
+    errorData = null;
     notifyListeners();
     try {
       await operation();
     } on ApiException catch (exception) {
       error = exception.message;
       errorCode = exception.code;
+      errorData = exception.data;
     } catch (_) {
       error = '网络请求失败，请检查连接后重试';
     } finally {

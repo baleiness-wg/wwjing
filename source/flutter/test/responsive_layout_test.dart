@@ -68,7 +68,7 @@ void main() {
     expect(find.byType(Drawer), findsNothing);
     expect(find.byType(FolderNavigation), findsOneWidget);
     expect(find.byTooltip('目录操作'), findsOneWidget);
-    expect(find.byTooltip('打开链接'), findsOneWidget);
+    expect(find.byTooltip('更多操作'), findsOneWidget);
     expect(find.byType(BookmarkCover), findsOneWidget);
     expect(find.byKey(const Key('bookmark-cover-placeholder')), findsOneWidget);
     expect(find.text('example.com'), findsWidgets);

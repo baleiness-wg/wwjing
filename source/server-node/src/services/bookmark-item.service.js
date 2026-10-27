@@ -84,6 +84,7 @@ async function list(userId, input = {}) {
   const query = typeof input.query === "string" ? input.query.trim() : "";
   const result = await itemModel.list(userId, {
     folderId,
+    includeDescendants: input.includeDescendants === "true",
     uncategorized: input.uncategorized === "true",
     query,
     page,

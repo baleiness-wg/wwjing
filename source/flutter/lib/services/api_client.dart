@@ -69,6 +69,7 @@ class ApiClient {
 
   Future<({List<BookmarkItem> items, int page, int totalPages})> getItems({
     String? folderId,
+    bool includeDescendants = false,
     bool uncategorized = false,
     String query = '',
     int page = 1,
@@ -76,6 +77,7 @@ class ApiClient {
   }) async {
     final params = <String, String>{'page': '$page', 'pageSize': '$pageSize'};
     if (folderId != null) params['folderId'] = folderId;
+    if (includeDescendants) params['includeDescendants'] = 'true';
     if (uncategorized) params['uncategorized'] = 'true';
     if (query.trim().isNotEmpty) params['query'] = query.trim();
     final data = await _request('GET', '/bookmarks/items', query: params);
@@ -176,7 +178,7 @@ class ApiClient {
         details['message'] as String? ?? '请求失败（${response.statusCode}）',
         statusCode: response.statusCode,
         code: details['code'] as String?,
-        data: details,
+        data: details['data'] ?? details['duplicate'] ?? details,
       );
     }
     return data;

@@ -26,6 +26,20 @@ String titleFallbackForUrl(Uri uri) {
   return id == null ? platform : '$platform $id';
 }
 
+String _titleFromSharedText(String text, int urlStart, Uri uri) {
+  var title = text.substring(0, urlStart).trim();
+  title = title
+      .replaceFirst(RegExp(r'^\s*\d{1,2}:\d{2}\s*'), '')
+      .replaceFirst(RegExp(r'^\s*\d{1,2}\.\d{1,2}\s*'), '')
+      .replaceFirst(RegExp(r'^\s*复制打开(?:抖音|小红书)[，,、:]?\s*'), '')
+      .replaceFirst(RegExp(r'^\s*看看[【\[][^】\]]+[】\]]\s*'), '')
+      .replaceFirst(RegExp(r'^\s*先复制内容，然后去【小红书】一键查看笔记[。.!！]?\s*'), '')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim();
+  if (title.isNotEmpty) return title;
+  return titleFallbackForUrl(uri);
+}
+
 final _httpUrlPattern = RegExp(
   r'https?://[^\s<>"\u3000，。；：！？、]+',
   caseSensitive: false,
@@ -45,9 +59,10 @@ SharedLink? extractSharedLink(String text) {
       !(uri.scheme == 'http' || uri.scheme == 'https')) {
     return null;
   }
+  final sharedTitle = _titleFromSharedText(text, match.start, uri);
   return SharedLink(
     url: rawUrl,
-    title: titleFallbackForUrl(uri),
+    title: sharedTitle,
     originalText: text.trim(),
   );
 }

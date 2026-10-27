@@ -144,3 +144,29 @@ class BookmarkDraft {
   final String coverUrl;
   final bool fetchMetadataOnOpen;
 }
+
+class DuplicateBookmarkInfo {
+  const DuplicateBookmarkInfo({
+    required this.id,
+    this.folderId,
+    this.folderName,
+    this.title,
+  });
+
+  factory DuplicateBookmarkInfo.fromJson(Object? value) {
+    final json = value is Map<String, dynamic> ? value : const <String, dynamic>{};
+    return DuplicateBookmarkInfo(
+      id: '${json['id'] ?? ''}',
+      folderId: json['folderId'] == null && json['folder_id'] == null
+          ? null
+          : '${json['folderId'] ?? json['folder_id']}',
+      folderName: json['folderName'] as String? ?? json['folder_name'] as String?,
+      title: json['title'] as String?,
+    );
+  }
+
+  final String id;
+  final String? folderId;
+  final String? folderName;
+  final String? title;
+}

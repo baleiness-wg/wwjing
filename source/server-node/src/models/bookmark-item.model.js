@@ -29,7 +29,18 @@ async function list(userId, filters) {
   const parameters = [userId];
   if (filters.folderId) {
     parameters.push(filters.folderId);
-    conditions.push(`item.folder_id = $${parameters.length}`);
+    if (filters.includeDescendants) {
+      conditions.push(`item.folder_id IN (
+        WITH RECURSIVE descendants AS (
+          SELECT id FROM bookmark_folders WHERE user_id = $1 AND id = $${parameters.length}
+          UNION ALL
+          SELECT child.id FROM bookmark_folders child JOIN descendants parent ON child.parent_id = parent.id
+          WHERE child.user_id = $1
+        ) SELECT id FROM descendants
+      )`);
+    } else {
+      conditions.push(`item.folder_id = $${parameters.length}`);
+    }
   } else if (filters.uncategorized) {
     conditions.push("item.folder_id IS NULL");
   }

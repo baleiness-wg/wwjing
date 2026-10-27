@@ -44,6 +44,7 @@ class BookmarkApp extends StatefulWidget {
 class _BookmarkAppState extends State<BookmarkApp> with WidgetsBindingObserver {
   late final ShareService _shareService;
   String? _clipboardCandidate;
+  String? _clipboardText;
 
   @override
   void initState() {
@@ -86,15 +87,23 @@ class _BookmarkAppState extends State<BookmarkApp> with WidgetsBindingObserver {
       return;
     }
     if (!mounted) return;
-    setState(() => _clipboardCandidate = shared.url);
+    setState(() {
+      _clipboardCandidate = shared.url;
+      _clipboardText = text;
+    });
   }
 
   Future<void> _handleClipboard(bool accept) async {
     final url = _clipboardCandidate;
     if (url == null) return;
     await widget.state.preferences.setHandledClipboardUrl(url);
-    if (accept) widget.state.openSharedText(url);
-    if (mounted) setState(() => _clipboardCandidate = null);
+    if (accept) widget.state.openSharedText(_clipboardText ?? url);
+    if (mounted) {
+      setState(() {
+        _clipboardCandidate = null;
+        _clipboardText = null;
+      });
+    }
   }
 
   @override
@@ -110,6 +119,17 @@ class _BookmarkAppState extends State<BookmarkApp> with WidgetsBindingObserver {
             brightness: Brightness.light,
           ),
           useMaterial3: true,
+          textTheme: ThemeData.light().textTheme.copyWith(
+            bodyLarge: const TextStyle(fontSize: 14),
+            bodyMedium: const TextStyle(fontSize: 13),
+            bodySmall: const TextStyle(fontSize: 11),
+            labelLarge: const TextStyle(fontSize: 13),
+            labelMedium: const TextStyle(fontSize: 11),
+            labelSmall: const TextStyle(fontSize: 10),
+            titleLarge: const TextStyle(fontSize: 20),
+            titleMedium: const TextStyle(fontSize: 16),
+            titleSmall: const TextStyle(fontSize: 14),
+          ),
           inputDecorationTheme: const InputDecorationTheme(
             border: OutlineInputBorder(),
           ),
