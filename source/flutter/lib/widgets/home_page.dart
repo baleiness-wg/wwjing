@@ -7,6 +7,22 @@ import '../state/app_state.dart';
 import 'bookmark_cover.dart';
 import 'folder_navigation.dart';
 
+sealed class _DragEntry {
+  const _DragEntry();
+}
+
+class _ItemDragEntry extends _DragEntry {
+  const _ItemDragEntry(this.item);
+
+  final BookmarkItem item;
+}
+
+class _FolderDragEntry extends _DragEntry {
+  const _FolderDragEntry(this.folder);
+
+  final BookmarkFolder folder;
+}
+
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
 
@@ -72,7 +88,10 @@ class _HomePageState extends State<HomePage> {
       builder: (context) => SimpleDialog(
         title: const Text('批量移动到'),
         children: [
-          SimpleDialogOption(onPressed: () => Navigator.pop(context, ''), child: const Text('未分类')),
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(context, ''),
+            child: const Text('未分类'),
+          ),
           for (final node in flattenFolderTree(state.folderTree))
             SimpleDialogOption(
               onPressed: () => Navigator.pop(context, node.folder.id),
@@ -97,10 +116,15 @@ class _HomePageState extends State<HomePage> {
         title: const Text('批量删除收藏'),
         content: Text('确定删除已选择的 ${_selectedItemIds.length} 条收藏吗？此操作不可撤销。'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('取消')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('取消'),
+          ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            style: FilledButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.error),
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
             child: const Text('删除'),
           ),
         ],
@@ -115,8 +139,97 @@ class _HomePageState extends State<HomePage> {
     await openExternalLink(context, item.sourceUrl);
   }
 
-  Future<void> _openChildFolder(BuildContext context, BookmarkFolder folder) async {
+  Future<void> _openChildFolder(
+    BuildContext context,
+    BookmarkFolder folder,
+  ) async {
     await context.read<AppState>().selectView(BookmarkView.folder, folder.id);
+  }
+
+  bool _isFolderDescendant(AppState state, String folderId, String targetId) {
+    var currentId = state.folders
+        .where((folder) => folder.id == targetId)
+        .firstOrNull
+        ?.parentId;
+    while (currentId != null) {
+      if (currentId == folderId) return true;
+      currentId = state.folders
+          .where((folder) => folder.id == currentId)
+          .firstOrNull
+          ?.parentId;
+    }
+    return false;
+  }
+
+  Future<void> _dropEntry(
+    BuildContext context,
+    _DragEntry entry,
+    BookmarkFolder target,
+  ) async {
+    final state = context.read<AppState>();
+    if (entry is _ItemDragEntry) {
+      await state.moveItem(entry.item.id, target.id);
+    } else if (entry is _FolderDragEntry &&
+        entry.folder.id != target.id &&
+        !_isFolderDescendant(state, entry.folder.id, target.id)) {
+      await state.moveFolder(entry.folder, target.id);
+    }
+  }
+
+  Widget _dropTargetFolder(
+    BuildContext context,
+    BookmarkFolder folder,
+    Widget child,
+  ) {
+    return DragTarget<_DragEntry>(
+      onWillAcceptWithDetails: (details) {
+        final entry = details.data;
+        final state = context.read<AppState>();
+        return entry is _ItemDragEntry ||
+            (entry is _FolderDragEntry &&
+                entry.folder.id != folder.id &&
+                !_isFolderDescendant(state, entry.folder.id, folder.id));
+      },
+      onAcceptWithDetails: (details) =>
+          _dropEntry(context, details.data, folder),
+      builder: (context, candidates, rejected) {
+        final highlighted = candidates.isNotEmpty;
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            color: highlighted
+                ? Theme.of(context).colorScheme.primaryContainer
+                : null,
+            border: highlighted
+                ? Border.all(
+                    color: Theme.of(context).colorScheme.primary,
+                    width: 2,
+                  )
+                : null,
+          ),
+          child: child,
+        );
+      },
+    );
+  }
+
+  Widget _draggableEntry({required _DragEntry data, required Widget child}) {
+    return LongPressDraggable<_DragEntry>(
+      data: data,
+      delay: const Duration(milliseconds: 180),
+      feedback: Material(
+        elevation: 8,
+        borderRadius: BorderRadius.circular(14),
+        color: Colors.transparent,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 360),
+          child: Opacity(opacity: 0.9, child: child),
+        ),
+      ),
+      childWhenDragging: Opacity(opacity: 0.35, child: child),
+      child: child,
+    );
   }
 
   Future<void> _handleBack(BuildContext context) async {
@@ -203,13 +316,23 @@ class _HomePageState extends State<HomePage> {
                     MaterialBanner(
                       content: Text('已选择 ${_selectedItemIds.length} 条收藏'),
                       actions: [
-                        TextButton(onPressed: () => _moveSelected(context), child: const Text('批量移动')),
+                        TextButton(
+                          onPressed: () => _moveSelected(context),
+                          child: const Text('批量移动'),
+                        ),
                         TextButton(
                           onPressed: () => _deleteSelected(context),
-                          style: TextButton.styleFrom(foregroundColor: Theme.of(context).colorScheme.error),
+                          style: TextButton.styleFrom(
+                            foregroundColor: Theme.of(context)
+                                .colorScheme
+                                .error,
+                          ),
                           child: const Text('批量删除'),
                         ),
-                        TextButton(onPressed: () => setState(_selectedItemIds.clear), child: const Text('取消选择')),
+                        TextButton(
+                          onPressed: () => setState(_selectedItemIds.clear),
+                          child: const Text('取消选择'),
+                        ),
                       ],
                     ),
                   Padding(
@@ -246,38 +369,59 @@ class _HomePageState extends State<HomePage> {
                             onRefresh: state.refresh,
                             child: ListView.separated(
                               padding: const EdgeInsets.all(12),
-                              itemCount: _childFolders(state).length + state.items.length,
-                              separatorBuilder: (_, _) => const SizedBox(height: 8),
+                              itemCount:
+                                  _childFolders(state).length +
+                                  state.items.length,
+                              separatorBuilder: (_, _) =>
+                                  const SizedBox(height: 8),
                               itemBuilder: (context, index) {
                                 final childFolders = _childFolders(state);
                                 if (index < childFolders.length) {
                                   final folder = childFolders[index];
-                                  return Card(
+                                  final card = Card(
                                     child: ListTile(
-                                      leading: const Icon(Icons.folder_outlined),
+                                      leading: const Icon(
+                                        Icons.folder_outlined,
+                                      ),
                                       title: Text(folder.name),
-                                      subtitle: const Text('打开子目录'),
+                                      subtitle: const Text('打开子目录，长按可拖动'),
                                       trailing: const Icon(Icons.chevron_right),
-                                      onTap: () => _openChildFolder(context, folder),
+                                      onTap: () =>
+                                          _openChildFolder(context, folder),
+                                    ),
+                                  );
+                                  return _dropTargetFolder(
+                                    context,
+                                    folder,
+                                    _draggableEntry(
+                                      data: _FolderDragEntry(folder),
+                                      child: card,
                                     ),
                                   );
                                 }
-                                final item = state.items[index - childFolders.length];
-                                return Card(
+                                final item =
+                                    state.items[index - childFolders.length];
+                                final card = Card(
                                   child: ListTile(
                                     leading: _editMode
                                         ? Row(
                                             mainAxisSize: MainAxisSize.min,
                                             children: [
                                               Checkbox(
-                                                value: _selectedItemIds.contains(item.id),
-                                                onChanged: (value) => setState(() {
-                                                  if (value == true) {
-                                                    _selectedItemIds.add(item.id);
-                                                  } else {
-                                                    _selectedItemIds.remove(item.id);
-                                                  }
-                                                }),
+                                                value: _selectedItemIds
+                                                    .contains(item.id),
+                                                onChanged: (value) =>
+                                                    setState(() {
+                                                      if (value == true) {
+                                                        _selectedItemIds.add(
+                                                          item.id,
+                                                        );
+                                                      } else {
+                                                        _selectedItemIds.remove(
+                                                          item.id,
+                                                        );
+                                                      }
+                                                    }),
                                               ),
                                               BookmarkCover(
                                                 sourceUrl: item.sourceUrl,
@@ -311,17 +455,36 @@ class _HomePageState extends State<HomePage> {
                                     trailing: PopupMenuButton<String>(
                                       tooltip: '更多操作',
                                       onSelected: (action) {
-                                        if (action == 'edit') state.openDraft(item);
-                                        if (action == 'move') _move(context, item);
-                                        if (action == 'delete') state.deleteItem(item.id);
+                                        if (action == 'edit') {
+                                          state.openDraft(item);
+                                        }
+                                        if (action == 'move') {
+                                          _move(context, item);
+                                        }
+                                        if (action == 'delete') {
+                                          state.deleteItem(item.id);
+                                        }
                                       },
                                       itemBuilder: (_) => const [
-                                        PopupMenuItem(value: 'edit', child: Text('编辑')),
-                                        PopupMenuItem(value: 'move', child: Text('移动')),
-                                        PopupMenuItem(value: 'delete', child: Text('删除')),
+                                        PopupMenuItem(
+                                          value: 'edit',
+                                          child: Text('编辑'),
+                                        ),
+                                        PopupMenuItem(
+                                          value: 'move',
+                                          child: Text('移动'),
+                                        ),
+                                        PopupMenuItem(
+                                          value: 'delete',
+                                          child: Text('删除'),
+                                        ),
                                       ],
                                     ),
                                   ),
+                                );
+                                return _draggableEntry(
+                                  data: _ItemDragEntry(item),
+                                  child: card,
                                 );
                               },
                             ),
@@ -332,12 +495,16 @@ class _HomePageState extends State<HomePage> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         IconButton(
-                          onPressed: state.page > 1 ? () => state.goToPage(state.page - 1) : null,
+                          onPressed: state.page > 1
+                              ? () => state.goToPage(state.page - 1)
+                              : null,
                           icon: const Icon(Icons.chevron_left),
                         ),
                         Text('${state.page} / ${state.totalPages}'),
                         IconButton(
-                          onPressed: state.page < state.totalPages ? () => state.goToPage(state.page + 1) : null,
+                          onPressed: state.page < state.totalPages
+                              ? () => state.goToPage(state.page + 1)
+                              : null,
                           icon: const Icon(Icons.chevron_right),
                         ),
                       ],
@@ -358,8 +525,14 @@ class _HomePageState extends State<HomePage> {
                     setState(() {
                       _actionLeft ??= width - 150;
                       _actionTop ??= height - 76;
-                      _actionLeft = (_actionLeft! + details.delta.dx).clamp(8, width - 142);
-                      _actionTop = (_actionTop! + details.delta.dy).clamp(8, height - 60);
+                      _actionLeft = (_actionLeft! + details.delta.dx).clamp(
+                        8,
+                        width - 142,
+                      );
+                      _actionTop = (_actionTop! + details.delta.dy).clamp(
+                        8,
+                        height - 60,
+                      );
                       _actionDragged = true;
                     });
                   },
@@ -373,15 +546,23 @@ class _HomePageState extends State<HomePage> {
                     elevation: 6,
                     borderRadius: BorderRadius.circular(28),
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 14,
+                      ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.add_link, color: Theme.of(context).colorScheme.onPrimary),
+                          Icon(
+                            Icons.add_link,
+                            color: Theme.of(context).colorScheme.onPrimary,
+                          ),
                           const SizedBox(width: 8),
                           Text(
                             '收藏链接',
-                            style: TextStyle(color: Theme.of(context).colorScheme.onPrimary),
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.onPrimary,
+                            ),
                           ),
                         ],
                       ),
