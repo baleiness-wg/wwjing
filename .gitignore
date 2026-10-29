@@ -1,0 +1,32 @@
+# Node dependencies and runtime output
+**/node_modules/
+**/npm-debug.log*
+**/*.log
+
+# Flutter/Dart generated files
+**/.dart_tool/
+**/build/
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+**/.packages
+**/pubspec_overrides.yaml
+
+# Android/Gradle generated files
+**/.gradle/
+**/local.properties
+**/captures/
+**/*.iml
+
+# IDE and OS files
+**/.idea/
+**/.vscode/
+**/.DS_Store
+Thumbs.db
+
+# Web build output
+source/web/dist/
+
+# Local environment and secrets
+**/.env
+**/.env.*
+!**/.env.example
