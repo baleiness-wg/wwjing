@@ -1,6 +1,7 @@
 @baseUrl = http://localhost:3000/api
 @username = bookmark-demo
 @password = replace-with-password
+@space = star
 
 ### Register a bookmark test account (run once)
 POST {{baseUrl}}/auth/register
@@ -22,6 +23,32 @@ Content-Type: application/json
 
 ### Read current content
 GET http://localhost:3000/api/transfer/content
+Authorization: Bearer {{TOKEN}}
+
+### List folders in an app space
+GET {{baseUrl}}/bookmarks/folders?space={{space}}
+Authorization: Bearer {{TOKEN}}
+
+### List bookmark items in an app space
+GET {{baseUrl}}/bookmarks/items?space={{space}}&page=1&pageSize=20
+Authorization: Bearer {{TOKEN}}
+
+### List cookie tags
+GET {{baseUrl}}/bookmarks/tags?space=cookie
+Authorization: Bearer {{TOKEN}}
+
+### Create a cookie tag
+POST {{baseUrl}}/bookmarks/tags
+Authorization: Bearer {{TOKEN}}
+Content-Type: application/json
+
+{
+  "space": "cookie",
+  "name": "快手"
+}
+
+### Pick a random cookie recipe
+GET {{baseUrl}}/bookmarks/random?space=cookie
 Authorization: Bearer {{TOKEN}}
 
 ### Save text content

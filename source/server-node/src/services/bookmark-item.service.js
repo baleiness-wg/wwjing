@@ -1,10 +1,19 @@
 const itemModel = require("../models/bookmark-item.model");
 const folderModel = require("../models/bookmark-folder.model");
 const BookmarkError = require("./bookmark-errors");
+const tagService = require("./bookmark-tag.service");
 
 const trackingParameters = new Set([
   "fbclid", "gclid", "dclid", "msclkid", "igshid", "mc_cid", "mc_eid"
 ]);
+
+function parseSpace(value) {
+  const space = value || "star";
+  if (!['star', 'cookie'].includes(space)) {
+    throw new BookmarkError(400, "INVALID_SPACE", "space 必须是 star 或 cookie");
+  }
+  return space;
+}
 
 function normalizeUrl(value) {
   if (typeof value !== "string" || !value.trim()) {
@@ -62,10 +71,10 @@ function optionalUrl(value, field) {
   }
 }
 
-async function validateFolder(userId, folderId) {
+async function validateFolder(userId, folderId, space = "star") {
   if (folderId === null || folderId === undefined) return null;
   const id = parseId(folderId, "folderId");
-  if (!await folderModel.findById(userId, id)) {
+  if (!await folderModel.findById(userId, id, space)) {
     throw new BookmarkError(404, "FOLDER_NOT_FOUND", "收藏夹不存在");
   }
   return id;
@@ -75,7 +84,8 @@ async function list(userId, input = {}) {
   if (input.folderId !== undefined && input.uncategorized === "true") {
     throw new BookmarkError(400, "INVALID_INPUT", "folderId 与 uncategorized 不能同时使用");
   }
-  const folderId = input.folderId === undefined ? null : await validateFolder(userId, input.folderId);
+  const space = parseSpace(input.space);
+  const folderId = input.folderId === undefined ? null : await validateFolder(userId, input.folderId, space);
   const page = input.page === undefined ? 1 : Number(input.page);
   const pageSize = input.pageSize === undefined ? 20 : Number(input.pageSize);
   if (!Number.isInteger(page) || page < 1 || !Number.isInteger(pageSize) || pageSize < 1 || pageSize > 100) {
@@ -84,6 +94,7 @@ async function list(userId, input = {}) {
   const query = typeof input.query === "string" ? input.query.trim() : "";
   const result = await itemModel.list(userId, {
     folderId,
+    space,
     includeDescendants: input.includeDescendants === "true",
     uncategorized: input.uncategorized === "true",
     query,
@@ -93,21 +104,23 @@ async function list(userId, input = {}) {
   return { ...result, page, pageSize };
 }
 
-async function get(userId, idValue) {
-  const item = await itemModel.findById(userId, parseId(idValue, "id"));
+async function get(userId, idValue, space = "star") {
+  const item = await itemModel.findById(userId, parseId(idValue, "id"), space);
   if (!item) throw new BookmarkError(404, "ITEM_NOT_FOUND", "收藏条目不存在");
   return item;
 }
 
 async function create(userId, input = {}) {
+  const space = parseSpace(input.space);
   const sourceUrl = typeof input.sourceUrl === "string" ? input.sourceUrl.trim() : input.sourceUrl;
   const normalized = normalizeUrl(sourceUrl);
-  const folderId = await validateFolder(userId, input.folderId);
-  const duplicate = await itemModel.findDuplicate(userId, normalized.normalizedUrl);
+  const folderId = await validateFolder(userId, input.folderId, space);
+  const duplicate = await itemModel.findDuplicate(userId, normalized.normalizedUrl, space);
   if (duplicate && input.allowDuplicate !== true) {
     throw new BookmarkError(409, "DUPLICATE_BOOKMARK", "该链接已收藏", { duplicate });
   }
-  return itemModel.create(userId, {
+  const item = await itemModel.create(userId, {
+    space,
     folderId,
     title: optionalText(input.title, "title"),
     description: optionalText(input.description, "description"),
@@ -115,17 +128,20 @@ async function create(userId, input = {}) {
     sourceUrl,
     ...normalized
   });
+  if (Object.hasOwn(input, "tagIds")) await itemModel.setTags(userId, item.id, space, tagService.parseTagIds(input.tagIds));
+  return item;
 }
 
 async function update(userId, idValue, input = {}) {
+  const space = parseSpace(input.space);
   const id = parseId(idValue, "id");
-  const current = await get(userId, id);
+  const current = await get(userId, id, space);
   const sourceUrl = Object.hasOwn(input, "sourceUrl") ? input.sourceUrl : current.sourceUrl;
   const normalized = normalizeUrl(sourceUrl);
   const folderId = Object.hasOwn(input, "folderId")
-    ? await validateFolder(userId, input.folderId)
+    ? await validateFolder(userId, input.folderId, space)
     : current.folderId;
-  return itemModel.update(userId, id, {
+  const item = await itemModel.update(userId, id, {
     folderId,
     title: Object.hasOwn(input, "title") ? optionalText(input.title, "title") : current.title,
     description: Object.hasOwn(input, "description")
@@ -135,6 +151,8 @@ async function update(userId, idValue, input = {}) {
     sourceUrl: sourceUrl.trim(),
     ...normalized
   });
+  if (Object.hasOwn(input, "tagIds")) await itemModel.setTags(userId, id, space, tagService.parseTagIds(input.tagIds));
+  return item;
 }
 
 async function remove(userId, idValue) {
@@ -144,4 +162,4 @@ async function remove(userId, idValue) {
   }
 }
 
-module.exports = { normalizeUrl, list, get, create, update, remove };
+module.exports = { normalizeUrl, list, get, create, update, remove, parseSpace };

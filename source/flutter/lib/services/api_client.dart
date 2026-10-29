@@ -27,6 +27,7 @@ class ApiClient {
   final TokenStore tokenStore;
   final http.Client _http;
   final Future<void> Function()? onUnauthorized;
+  static const space = 'star';
 
   Future<Map<String, dynamic>> login(String username, String password) async {
     final response = await _http.post(
@@ -38,7 +39,7 @@ class ApiClient {
   }
 
   Future<List<BookmarkFolder>> getFolders() async {
-    final data = await _request('GET', '/bookmarks/folders');
+    final data = await _request('GET', '/bookmarks/folders', query: {'space': space});
     final raw = data is List
         ? data
         : (data as Map<String, dynamic>)['folders'] as List? ?? const [];
@@ -54,17 +55,17 @@ class ApiClient {
     final data = await _request(
       'POST',
       '/bookmarks/folders',
-      body: {'name': name, 'parentId': parentId},
+      body: {'name': name, 'parentId': parentId, 'space': space},
     );
     return BookmarkFolder.fromJson(_unwrap(data, 'folder'));
   }
 
   Future<void> updateFolder(String id, Map<String, Object?> changes) async {
-    await _request('PATCH', '/bookmarks/folders/$id', body: changes);
+    await _request('PATCH', '/bookmarks/folders/$id', body: {...changes, 'space': space});
   }
 
   Future<void> deleteFolder(String id) async {
-    await _request('DELETE', '/bookmarks/folders/$id');
+    await _request('DELETE', '/bookmarks/folders/$id?space=$space');
   }
 
   Future<({List<BookmarkItem> items, int page, int totalPages})> getItems({
@@ -75,7 +76,7 @@ class ApiClient {
     int page = 1,
     int pageSize = 20,
   }) async {
-    final params = <String, String>{'page': '$page', 'pageSize': '$pageSize'};
+    final params = <String, String>{'page': '$page', 'pageSize': '$pageSize', 'space': space};
     if (folderId != null) params['folderId'] = folderId;
     if (includeDescendants) params['includeDescendants'] = 'true';
     if (uncategorized) params['uncategorized'] = 'true';
@@ -112,6 +113,7 @@ class ApiClient {
             ? null
             : draft.description.trim(),
         'folderId': draft.folderId,
+        'space': space,
         'coverUrl': draft.coverUrl.trim().isEmpty
             ? null
             : draft.coverUrl.trim(),
@@ -131,11 +133,11 @@ class ApiClient {
   }
 
   Future<void> updateItem(String id, Map<String, Object?> changes) async {
-    await _request('PATCH', '/bookmarks/items/$id', body: changes);
+    await _request('PATCH', '/bookmarks/items/$id', body: {...changes, 'space': space});
   }
 
   Future<void> deleteItem(String id) async {
-    await _request('DELETE', '/bookmarks/items/$id');
+    await _request('DELETE', '/bookmarks/items/$id?space=$space');
   }
 
   Future<dynamic> _request(

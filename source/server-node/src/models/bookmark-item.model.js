@@ -1,41 +1,41 @@
 const pool = require("../db");
 
-const selectFields = `id, folder_id AS "folderId", item_type AS "itemType", title,
+const selectFields = `id, space, folder_id AS "folderId", item_type AS "itemType", title,
   description, cover_url AS "coverUrl", source_url AS "sourceUrl", normalized_url AS "normalizedUrl",
   source_host AS "sourceHost", metadata, created_at AS "createdAt", updated_at AS "updatedAt"`;
 
-async function findById(userId, id, client = pool) {
+async function findById(userId, id, space = "star", client = pool) {
   const result = await client.query(
-    `SELECT ${selectFields} FROM bookmark_items WHERE user_id = $1 AND id = $2`,
-    [userId, id]
+    `SELECT ${selectFields} FROM bookmark_items WHERE user_id = $1 AND id = $2 AND space = $3`,
+    [userId, id, space]
   );
   return result.rows[0] || null;
 }
 
-async function findDuplicate(userId, normalizedUrl, client = pool) {
+async function findDuplicate(userId, normalizedUrl, space = "star", client = pool) {
   const result = await client.query(
     `SELECT item.id, item.title, item.folder_id AS "folderId", folder.name AS "folderName"
      FROM bookmark_items item
      LEFT JOIN bookmark_folders folder ON folder.id = item.folder_id AND folder.user_id = item.user_id
-     WHERE item.user_id = $1 AND item.normalized_url = $2
+     WHERE item.user_id = $1 AND item.normalized_url = $2 AND item.space = $3
      ORDER BY item.updated_at DESC, item.id DESC LIMIT 1`,
-    [userId, normalizedUrl]
+    [userId, normalizedUrl, space]
   );
   return result.rows[0] || null;
 }
 
 async function list(userId, filters) {
-  const conditions = ["item.user_id = $1"];
-  const parameters = [userId];
+  const conditions = ["item.user_id = $1", "item.space = $2"];
+  const parameters = [userId, filters.space || "star"];
   if (filters.folderId) {
     parameters.push(filters.folderId);
     if (filters.includeDescendants) {
       conditions.push(`item.folder_id IN (
         WITH RECURSIVE descendants AS (
-          SELECT id FROM bookmark_folders WHERE user_id = $1 AND id = $${parameters.length}
+          SELECT id FROM bookmark_folders WHERE user_id = $1 AND space = $2 AND id = $${parameters.length}
           UNION ALL
           SELECT child.id FROM bookmark_folders child JOIN descendants parent ON child.parent_id = parent.id
-          WHERE child.user_id = $1
+          WHERE child.user_id = $1 AND child.space = $2
         ) SELECT id FROM descendants
       )`);
     } else {
@@ -70,10 +70,10 @@ async function list(userId, filters) {
 async function create(userId, values) {
   const result = await pool.query(
      `INSERT INTO bookmark_items
-       (user_id, folder_id, title, description, cover_url, source_url, normalized_url, source_host)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        (user_id, space, folder_id, title, description, cover_url, source_url, normalized_url, source_host)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
      RETURNING ${selectFields}`,
-    [userId, values.folderId, values.title, values.description, values.coverUrl, values.sourceUrl,
+    [userId, values.space, values.folderId, values.title, values.description, values.coverUrl, values.sourceUrl,
       values.normalizedUrl, values.sourceHost]
   );
   return result.rows[0];
@@ -81,22 +81,47 @@ async function create(userId, values) {
 
 async function update(userId, id, values) {
   const result = await pool.query(
-     `UPDATE bookmark_items SET folder_id = $3, title = $4, description = $5,
-       cover_url = $6, source_url = $7, normalized_url = $8, source_host = $9, updated_at = NOW()
-     WHERE user_id = $1 AND id = $2
+      `UPDATE bookmark_items SET folder_id = $4, title = $5, description = $6,
+        cover_url = $7, source_url = $8, normalized_url = $9, source_host = $10, updated_at = NOW()
+      WHERE user_id = $1 AND id = $2 AND space = $3
      RETURNING ${selectFields}`,
-    [userId, id, values.folderId, values.title, values.description, values.coverUrl, values.sourceUrl,
+    [userId, id, values.space, values.folderId, values.title, values.description, values.coverUrl, values.sourceUrl,
       values.normalizedUrl, values.sourceHost]
   );
   return result.rows[0] || null;
 }
 
-async function remove(userId, id) {
+async function remove(userId, id, space = "star") {
   const result = await pool.query(
-    "DELETE FROM bookmark_items WHERE user_id = $1 AND id = $2",
-    [userId, id]
+    "DELETE FROM bookmark_items WHERE user_id = $1 AND id = $2 AND space = $3",
+    [userId, id, space]
   );
   return result.rowCount > 0;
 }
 
-module.exports = { findById, findDuplicate, list, create, update, remove };
+async function setTags(userId, itemId, space, tagIds) {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const item = await findById(userId, itemId, space, client);
+    if (!item) return false;
+    await client.query("DELETE FROM bookmark_item_tags WHERE item_id = $1", [itemId]);
+    if (tagIds?.length) {
+      await client.query(
+        `INSERT INTO bookmark_item_tags (item_id, tag_id)
+         SELECT $1, id FROM bookmark_tags
+         WHERE user_id = $2 AND space = $3 AND id = ANY($4::bigint[])`,
+        [itemId, userId, space, tagIds]
+      );
+    }
+    await client.query("COMMIT");
+    return true;
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+module.exports = { findById, findDuplicate, list, create, update, remove, setTags };

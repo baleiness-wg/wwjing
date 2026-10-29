@@ -3,7 +3,7 @@ const logger = require("../logger");
 
 async function list(req, res, next) {
   try {
-    res.json(await itemService.list(req.auth.sub, req.query));
+    res.json(await itemService.list(req.auth.sub, { ...req.query, space: req.query.space || "star" }));
   } catch (error) {
     next(error);
   }
@@ -11,7 +11,7 @@ async function list(req, res, next) {
 
 async function create(req, res, next) {
   try {
-    const item = await itemService.create(req.auth.sub, req.body);
+    const item = await itemService.create(req.auth.sub, { ...req.body, space: req.body.space || "star" });
     (req.log || logger).info({ userId: req.auth.sub, itemId: item.id }, "bookmark item created");
     res.status(201).json({ item });
   } catch (error) {
@@ -21,7 +21,7 @@ async function create(req, res, next) {
 
 async function get(req, res, next) {
   try {
-    res.json({ item: await itemService.get(req.auth.sub, req.params.id) });
+    res.json({ item: await itemService.get(req.auth.sub, req.params.id, req.query.space || "star") });
   } catch (error) {
     next(error);
   }
@@ -29,7 +29,7 @@ async function get(req, res, next) {
 
 async function update(req, res, next) {
   try {
-    const item = await itemService.update(req.auth.sub, req.params.id, req.body);
+    const item = await itemService.update(req.auth.sub, req.params.id, { ...req.body, space: req.body.space || "star" });
     (req.log || logger).info({ userId: req.auth.sub, itemId: item.id }, "bookmark item updated");
     res.json({ item });
   } catch (error) {
@@ -39,7 +39,7 @@ async function update(req, res, next) {
 
 async function remove(req, res, next) {
   try {
-    await itemService.remove(req.auth.sub, req.params.id);
+    await itemService.remove(req.auth.sub, req.params.id, req.query.space || req.body?.space || "star");
     (req.log || logger).info({ userId: req.auth.sub, itemId: req.params.id }, "bookmark item deleted");
     res.status(204).send();
   } catch (error) {

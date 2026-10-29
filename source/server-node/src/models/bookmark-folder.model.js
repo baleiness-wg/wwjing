@@ -1,114 +1,114 @@
 const pool = require("../db");
 
-const selectFields = `id, parent_id AS "parentId", name, position,
+const selectFields = `id, space, parent_id AS "parentId", name, position,
   created_at AS "createdAt", updated_at AS "updatedAt"`;
 
-async function listByUser(userId) {
+async function listByUser(userId, space = "star") {
   const result = await pool.query(
     `SELECT ${selectFields}
      FROM bookmark_folders
-     WHERE user_id = $1
+      WHERE user_id = $1 AND space = $2
      ORDER BY parent_id NULLS FIRST, position, name, id`,
-    [userId]
+    [userId, space]
   );
   return result.rows;
 }
 
-async function findById(userId, id, client = pool, forUpdate = false) {
+async function findById(userId, id, space = "star", client = pool, forUpdate = false) {
   const result = await client.query(
     `SELECT ${selectFields}
      FROM bookmark_folders
-     WHERE user_id = $1 AND id = $2${forUpdate ? " FOR UPDATE" : ""}`,
-    [userId, id]
+      WHERE user_id = $1 AND id = $2 AND space = $3${forUpdate ? " FOR UPDATE" : ""}`,
+    [userId, id, space]
   );
   return result.rows[0] || null;
 }
 
-async function create(userId, values, client = pool) {
+async function create(userId, values, space = "star", client = pool) {
   const result = await client.query(
-    `INSERT INTO bookmark_folders (user_id, parent_id, name, position)
-     VALUES ($1, $2, $3, $4)
+    `INSERT INTO bookmark_folders (user_id, space, parent_id, name, position)
+      VALUES ($1, $2, $3, $4, $5)
      RETURNING ${selectFields}`,
-    [userId, values.parentId, values.name, values.position]
+    [userId, space, values.parentId, values.name, values.position]
   );
   return result.rows[0];
 }
 
-async function update(userId, id, values, client = pool) {
+async function update(userId, id, values, space = "star", client = pool) {
   const result = await client.query(
     `UPDATE bookmark_folders
-     SET parent_id = $3, name = $4, position = $5, updated_at = NOW()
-     WHERE user_id = $1 AND id = $2
+      SET parent_id = $4, name = $5, position = $6, updated_at = NOW()
+      WHERE user_id = $1 AND id = $2 AND space = $3
      RETURNING ${selectFields}`,
-    [userId, id, values.parentId, values.name, values.position]
+    [userId, id, space, values.parentId, values.name, values.position]
   );
   return result.rows[0] || null;
 }
 
-async function getDepth(userId, id, client = pool) {
+async function getDepth(userId, id, space = "star", client = pool) {
   const result = await client.query(
     `WITH RECURSIVE ancestors AS (
        SELECT id, parent_id, 1 AS depth
-       FROM bookmark_folders WHERE user_id = $1 AND id = $2
+        FROM bookmark_folders WHERE user_id = $1 AND id = $2 AND space = $3
        UNION ALL
        SELECT parent.id, parent.parent_id, ancestors.depth + 1
        FROM bookmark_folders parent
        JOIN ancestors ON parent.id = ancestors.parent_id
-       WHERE parent.user_id = $1
+        WHERE parent.user_id = $1 AND parent.space = $3
      )
      SELECT COALESCE(MAX(depth), 0)::int AS depth FROM ancestors`,
-    [userId, id]
+    [userId, id, space]
   );
   return result.rows[0].depth;
 }
 
-async function getSubtreeDepth(userId, id, client = pool) {
+async function getSubtreeDepth(userId, id, space = "star", client = pool) {
   const result = await client.query(
     `WITH RECURSIVE descendants AS (
-       SELECT id, 1 AS depth FROM bookmark_folders WHERE user_id = $1 AND id = $2
+        SELECT id, 1 AS depth FROM bookmark_folders WHERE user_id = $1 AND id = $2 AND space = $3
        UNION ALL
        SELECT child.id, descendants.depth + 1
        FROM bookmark_folders child
        JOIN descendants ON child.parent_id = descendants.id
-       WHERE child.user_id = $1
+        WHERE child.user_id = $1 AND child.space = $3
      )
      SELECT COALESCE(MAX(depth), 0)::int AS depth FROM descendants`,
-    [userId, id]
+    [userId, id, space]
   );
   return result.rows[0].depth;
 }
 
-async function isDescendant(userId, id, possibleDescendantId, client = pool) {
+async function isDescendant(userId, id, possibleDescendantId, space = "star", client = pool) {
   const result = await client.query(
     `WITH RECURSIVE descendants AS (
-       SELECT id FROM bookmark_folders WHERE user_id = $1 AND parent_id = $2
+        SELECT id FROM bookmark_folders WHERE user_id = $1 AND parent_id = $2 AND space = $4
        UNION ALL
        SELECT child.id FROM bookmark_folders child
        JOIN descendants ON child.parent_id = descendants.id
-       WHERE child.user_id = $1
+        WHERE child.user_id = $1 AND child.space = $4
      )
      SELECT 1 FROM descendants WHERE id = $3 LIMIT 1`,
-    [userId, id, possibleDescendantId]
+    [userId, id, possibleDescendantId, space]
   );
   return result.rowCount > 0;
 }
 
-async function hasContents(userId, id, client = pool) {
+async function hasContents(userId, id, space = "star", client = pool) {
   const result = await client.query(
     `SELECT EXISTS (
-       SELECT 1 FROM bookmark_folders WHERE user_id = $1 AND parent_id = $2
+        SELECT 1 FROM bookmark_folders WHERE user_id = $1 AND parent_id = $2 AND space = $3
        UNION ALL
-       SELECT 1 FROM bookmark_items WHERE user_id = $1 AND folder_id = $2
+        SELECT 1 FROM bookmark_items WHERE user_id = $1 AND folder_id = $2 AND space = $3
      ) AS "hasContents"`,
-    [userId, id]
+    [userId, id, space]
   );
   return result.rows[0].hasContents;
 }
 
-async function remove(userId, id, client = pool) {
+async function remove(userId, id, space = "star", client = pool) {
   const result = await client.query(
-    "DELETE FROM bookmark_folders WHERE user_id = $1 AND id = $2",
-    [userId, id]
+    "DELETE FROM bookmark_folders WHERE user_id = $1 AND id = $2 AND space = $3",
+    [userId, id, space]
   );
   return result.rowCount > 0;
 }

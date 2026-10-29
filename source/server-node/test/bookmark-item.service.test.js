@@ -71,9 +71,11 @@ test("list supports uncategorized keyword search and stable pagination inputs", 
       pageSize: "10"
     });
     assert.deepEqual(received, {
-      userId: "22",
-      folderId: null,
-      uncategorized: true,
+    userId: "22",
+    folderId: null,
+    space: "star",
+    includeDescendants: false,
+    uncategorized: true,
       query: "example",
       page: 2,
       pageSize: 10
