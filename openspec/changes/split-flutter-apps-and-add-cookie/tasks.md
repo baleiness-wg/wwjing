@@ -13,16 +13,16 @@
 - [x] 2.3 新增认证随机菜谱接口，支持 `cookie` 空间、可选收藏夹和标签过滤，返回单条随机菜谱或明确空状态；通过服务和路由测试验证不读取 `star` 数据。
 - [x] 2.4 更新主规格、接口说明、`README.http` 和受影响模块 `build.json`，核对空间、标签和随机接口示例可执行。
 
-## 3. 共享 Flutter 基础与 flutter-star 迁移
+## 3. 共享 Flutter 基础与 flutter_star 迁移
 
-- [x] 3.1 将现有 `source/flutter` 迁移为 `source/flutter-star`，更新 pubspec 名称、Android namespace/application ID、Kotlin 包路径、MethodChannel、应用名称、分享 Intent 和构建信息；验证目录和包名引用无旧标识残留。
-- [x] 3.2 抽取认证、安全存储、API 客户端、分享服务、标题解析、外部 App 跳转、通用模型和目录/封面组件到 `source/flutter_shared`，让 `flutter-star` 通过共享依赖编译；运行 `flutter pub get` 和 `flutter analyze`。
+- [x] 3.1 将现有 `source/flutter` 迁移为 `source/flutter_star`，更新 pubspec 名称、Android namespace/application ID、Kotlin 包路径、MethodChannel、应用名称、分享 Intent 和构建信息；验证目录和包名引用无旧标识残留。
+- [x] 3.2 抽取认证、安全存储、API 客户端、分享服务、标题解析、外部 App 跳转、通用模型和目录/封面组件到 `source/flutter_shared`，让 `flutter_star` 通过共享依赖编译；运行 `flutter pub get` 和 `flutter analyze`。
 - [x] 3.3 为共享 API 客户端增加固定 `space` 参数，让 `flutter-star` 全部收藏请求使用 `star`；运行现有 Flutter 测试并验证原有分享、标题、目录和打开 App 行为。
 - [x] 3.4 为 `flutter-star` 更新测试导入、README、Android debug 构建和 `build.json`，确认原有账号登录后只能读取 `star` 空间。
 
 ## 4. flutter-cookie 应用
 
-- [x] 4.1 基于共享 Flutter 基础创建仅 Android 的 `source/flutter-cookie` 工程，设置 `wwjing_cookie`、独立 application ID 和中文应用名称；运行 `flutter pub get`、`flutter analyze` 和基础测试。
+- [x] 4.1 基于共享 Flutter 基础创建仅 Android 的 `source/flutter_kitchen` 工程，设置 `wwjing_kitchen`、独立 application ID 和中文应用名称；运行 `flutter pub get`、`flutter analyze` 和基础测试。
 - [x] 4.2 实现 cookie 空间登录、系统分享/剪贴板接收、标题和描述预填、收藏夹选择、封面 URL 编辑和链接打开，复用共享解析逻辑；通过 widget 测试验证分享文案优先于 URL 标题。
 - [x] 4.3 实现做饭收藏夹浏览、创建、重命名、移动、删除、搜索和收藏条目编辑/删除，所有请求固定使用 `cookie`；通过 widget/API 集成测试验证与 `star` 数据隔离。
 - [x] 4.4 实现标签管理界面和收藏表单多标签选择，支持创建、重命名、删除、筛选和移除标签；通过 widget 测试验证一条菜谱可关联多个标签。

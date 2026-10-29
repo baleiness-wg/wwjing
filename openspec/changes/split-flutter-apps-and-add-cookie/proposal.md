@@ -6,9 +6,9 @@
 
 ## What Changes
 
-- 将现有 `source/flutter` Android Flutter 工程重命名为 `source/flutter-star`，更新 Dart 包名、Android 应用标识、应用名称、原生包路径和构建信息，保持原有收藏行为兼容。
+- 将现有 `source/flutter` Android Flutter 工程重命名为 `source/flutter_star`，更新 Dart 包名、Android 应用标识、应用名称、原生包路径和构建信息，保持原有收藏行为兼容。
 - 抽取两个客户端共同使用的认证、安全存储、API 请求、分享文本解析、标题识别、外部 App 跳转、封面展示和基础收藏模型代码。
-- 新增 `source/flutter-cookie` Android Flutter 客户端，复用同一账号登录和链接接收流程，但只访问 `cookie` 数据空间。
+- 新增 `source/flutter_kitchen` Android Flutter 客户端，复用同一账号登录和链接接收流程，但只访问 `cookie` 数据空间。
 - 为收藏夹条目和收藏夹增加 `space` 数据边界，使 `star` 与 `cookie` 数据按用户和应用空间隔离。
 - 新增菜谱标签的创建、重命名、删除、选择和多标签分类能力；标签与收藏夹同时存在，一条菜谱可以拥有多个标签。
 - 保持分享链接标题识别逻辑，优先使用分享文案和网页标题，再使用 URL 兜底；菜谱收藏允许用户编辑标题、描述、收藏夹和标签。

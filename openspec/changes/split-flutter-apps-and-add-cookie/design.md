@@ -8,8 +8,8 @@
 
 **Goals:**
 
-- 将现有客户端稳定迁移为 `flutter-star`，保留原用户数据和原有行为。
-- 新增 `flutter-cookie`，复用通用基础能力但使用独立应用空间。
+- 将现有客户端稳定迁移为 `flutter_star`，保留原用户数据和原有行为。
+- 新增 `flutter_kitchen`，复用通用基础能力但使用独立应用空间。
 - 让服务端在数据库和每个 API 查询层都执行 `user_id + space` 隔离。
 - 为 `cookie` 空间提供标签多选、标签维护和简单随机菜谱。
 - 让标题识别、分享接收、外部 App 跳转和认证逻辑只维护一份共享实现。
@@ -30,13 +30,13 @@
 
 ### 2. Flutter 采用共享包加两个应用壳
 
-将认证、API 基础请求、token store、分享服务、链接标题解析、外部 App 启动、通用收藏模型和目录组件抽至 `source/flutter_shared`；`source/flutter-star` 与 `source/flutter-cookie` 使用 path dependency 或共享源码依赖。两个应用分别保留自己的 `AppState`、主题入口和页面组合。
+将认证、API 基础请求、token store、分享服务、链接标题解析、外部 App 启动、通用收藏模型和目录组件抽至 `source/flutter_shared`；`source/flutter_star` 与 `source/flutter_kitchen` 使用 path dependency 或共享源码依赖。两个应用分别保留自己的 `AppState`、主题入口和页面组合。
 
 不直接复制整个工程，因为复制会使后续修复分享解析和 Android Deep Link 时产生双份差异；也不把两个 App 合成一个运行时开关，因为用户需要独立安装图标和数据空间。
 
 ### 3. 客户端空间固定在应用配置中
 
-共享 API 客户端接收不可变 `space` 参数。`flutter-star` 固定传 `star`，`flutter-cookie` 固定传 `cookie`；服务端仍校验允许值和用户身份。移动端不提供空间切换入口，避免用户误把两个 App 的数据混在一起。
+共享 API 客户端接收不可变 `space` 参数。`flutter_star` 固定传 `star`，`flutter_kitchen` 固定传 `cookie`；服务端仍校验允许值和用户身份。移动端不提供空间切换入口，避免用户误把两个 App 的数据混在一起。
 
 ### 4. 标签使用用户空间内的多对多关系
 
