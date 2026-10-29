@@ -1,4 +1,4 @@
-# wwjing_bookmarks
+# wwjing_star
 
 跨端私人收藏夹 Android 客户端
 
@@ -36,4 +36,26 @@ flutter run -d <device-id> --dart-define=API_BASE_URL=http://192.168.1.2:3000/ap
 flutter analyze
 flutter test
 flutter build apk --debug
+flutter build apk --release
 ```
+
+Release APK 输出：`build/app/outputs/flutter-apk/app-release.apk`
+
+## VS Code 初始化
+
+- 安装 Flutter 和 ADB QR 插件。
+- 使用 `Ctrl+Shift+P` → `Flutter: Run Flutter Doctor` 检查环境。
+- 使用 `Ctrl+Shift+P` → `Flutter: New Project` 创建新工程时，确保打开的是本目录。
+
+## Android 无线调试
+
+```powershell
+adb disconnect
+flutter clean
+adb mdns services
+adb connect 192.168.1.5:42209
+adb devices -l
+flutter run -d 192.168.1.5:42209
+```
+
+也可以使用 VS Code 的 ADB QR 插件完成无线配对。电脑开发者模式可通过 `Start-Process "ms-settings:developers"` 打开。
