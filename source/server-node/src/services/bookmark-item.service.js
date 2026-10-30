@@ -155,9 +155,9 @@ async function update(userId, idValue, input = {}) {
   return item;
 }
 
-async function remove(userId, idValue) {
+async function remove(userId, idValue, space = "star") {
   const id = parseId(idValue, "id");
-  if (!await itemModel.remove(userId, id)) {
+  if (!await itemModel.remove(userId, id, space)) {
     throw new BookmarkError(404, "ITEM_NOT_FOUND", "收藏条目不存在");
   }
 }
