@@ -142,6 +142,7 @@ async function update(userId, idValue, input = {}) {
     ? await validateFolder(userId, input.folderId, space)
     : current.folderId;
   const item = await itemModel.update(userId, id, {
+    space,
     folderId,
     title: Object.hasOwn(input, "title") ? optionalText(input.title, "title") : current.title,
     description: Object.hasOwn(input, "description")
