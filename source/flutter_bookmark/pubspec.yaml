@@ -1,0 +1,29 @@
+name: wwjing_bookmark
+description: "微微鲸统一收藏 Android 客户端"
+publish_to: 'none'
+version: 1.1.0+5
+
+environment:
+  sdk: ^3.13.4
+
+dependencies:
+  flutter:
+    sdk: flutter
+  # REST API 请求。
+  http: 1.5.0
+  # Android Keystore 支持的 JWT 安全存储。
+  flutter_secure_storage: 9.2.4
+  # 最近目录及剪贴板去重等非敏感偏好。
+  shared_preferences: 2.5.3
+  # ChangeNotifier 状态注入。
+  provider: 6.1.5+1
+  # 使用系统浏览器或已安装应用打开收藏原链接。
+  url_launcher: 6.3.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
