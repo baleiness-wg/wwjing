@@ -144,6 +144,42 @@ test("metadata parser cleans nested proxy url for Xiaohongshu covers", () => {
   assert.equal(res3.coverUrl, "https://sns-webpic-qc.xhscdn.com/265/abc.jpg");
 });
 
+test("metadata parser replaces xiaohongshu platform logo with embedded cover from __INITIAL_STATE__", () => {
+  const noteJson = JSON.stringify({
+    note: { detail: { title: "测试笔记", cover: { url: "https://sns-webpic-qc.xhscdn.com/notes/test.jpg" } } }
+  });
+  const html = `<script>window.__INITIAL_STATE__ = ${noteJson};</script>` +
+    '<meta property="og:image" content="//picasso-static.xiaohongshu.com/fe-platform/logo.png">';
+  const res = parseMetadata(html, "https://www.xiaohongshu.com/explore/abc");
+  assert.equal(res.coverUrl, "https://sns-webpic-qc.xhscdn.com/notes/test.jpg");
+});
+
+test("metadata parser keeps picasso logo when no embedded cover is available", () => {
+  const html = '<meta property="og:image" content="//picasso-static.xiaohongshu.com/fe-platform/logo.png">';
+  const res = parseMetadata(html, "https://www.xiaohongshu.com/explore/abc");
+  assert.equal(res.coverUrl, "https://picasso-static.xiaohongshu.com/fe-platform/logo.png");
+});
+
+test("metadata parser extracts cover from urlList in xiaohongshu state", () => {
+  const noteJson = JSON.stringify({
+    note: { detail: { cover: { urlList: ["https://sns-img-qc.xhscdn.com/photo/x.jpg"] } } }
+  });
+  const html = `<script>window.__INITIAL_STATE__ = ${noteJson};</script>` +
+    '<meta property="og:image" content="//picasso-static.xiaohongshu.com/fe-platform/logo.png">';
+  const res = parseMetadata(html, "https://www.xiaohongshu.com/explore/xyz");
+  assert.equal(res.coverUrl, "https://sns-img-qc.xhscdn.com/photo/x.jpg");
+});
+
+test("embedded cover extraction is skipped for non-xiaohongshu hosts", () => {
+  const noteJson = JSON.stringify({
+    note: { detail: { cover: { url: "https://sns-webpic-qc.xhscdn.com/notes/test.jpg" } } }
+  });
+  const html = `<script>window.__INITIAL_STATE__ = ${noteJson};</script>` +
+    '<meta property="og:image" content="//example.com/cover.jpg">';
+  const res = parseMetadata(html, "https://example.com/page");
+  assert.equal(res.coverUrl, "https://example.com/cover.jpg");
+});
+
 test("metadata fetch blocks a redirect resolving to a private address before connecting", async () => {
   let requests = 0;
   const fetchMetadata = createMetadataService({

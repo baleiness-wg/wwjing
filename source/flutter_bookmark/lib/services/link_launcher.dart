@@ -125,19 +125,34 @@ class LinkLauncher {
   Future<bool> _openXiaohongshu(Uri uri) async {
     const packageName = 'com.xingin.xhs';
     final id = xiaohongshuItemId(uri);
-    if (id != null && await _openInApp('xhsdiscover://item/$id', packageName)) {
-      return true;
-    }
+    // 根据 URL 中的 type 参数判断内容类型，使用对应的 deep link scheme
+    final isVideo = uri.queryParameters['type']?.toLowerCase() == 'video' ||
+        uri.path.contains('/note/') ||
+        uri.path.contains('/discovery/item');
+    final deepLink = isVideo
+        ? 'xhsdiscover://video/$id'
+        : 'xhsdiscover://item/$id';
+    if (id != null && await _openInApp(deepLink, packageName)) return true;
+    // 若 deep link 失败，用完整 URL 让 app 自身处理
     if (await _openInApp(uri.toString(), packageName)) return true;
     return _openApp(packageName);
   }
 
   Future<bool> _openDouyin(Uri uri) async {
     const packageName = 'com.ss.android.ugc.aweme';
+    // 优先用原始 URL 让抖音自身处理跳转（支持各版本）
+    if (await _openInApp(uri.toString(), packageName)) return true;
+    // 备用：尝试 deep link scheme
     final id = douyinVideoId(uri);
-    if (id != null &&
-        await _openInApp('snssdk1128://aweme/detail/$id', packageName)) {
-      return true;
+    if (id != null) {
+      // 新版抖音 deep link scheme 可能有变化，多种尝试
+      for (final scheme in [
+        'snssdk1128://aweme/detail/$id',
+        'aweme://detail/$id',
+        'aweme://user/$id',
+      ]) {
+        if (await _openInApp(scheme, packageName)) return true;
+      }
     }
     return _openApp(packageName);
   }
