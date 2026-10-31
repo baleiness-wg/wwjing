@@ -151,26 +151,99 @@ function embeddedCoverUrl(html, finalUrl) {
   return null;
 }
 
+// 小红书内嵌封面提取：从 HTML 的 script 数据中查找实际封面 URL
+// 跳过平台 logo（picasso-static）和静态资源域名
+function extractXhsEmbeddedCover(html, finalUrl) {
+  const host = new URL(finalUrl).hostname.replace(/^www\./i, "");
+  if (!/^(?:www\.)?xiaohongshu\.com$/i.test(host) && !/\.xhslink\.com$/i.test(host)) return null;
+
+  // 先尝试从 __INITIAL_STATE__ 或类似结构中提取
+  const stateMatches = html.match(/(?:window\.)?__INITIAL_STATE__\s*=\s*({[\s\S]*?})\s*[;]\s*(?:<\/script>|$)/gi);
+  if (stateMatches) {
+    for (const block of stateMatches) {
+      try {
+        const jsonStr = block.replace(/(?:window\.)?__INITIAL_STATE__\s*=\s*/, '').replace(/\s*[;]\s*(?:<\/script>|$)/, '').trim();
+        const obj = JSON.parse(jsonStr);
+        const cover = extractXhsCoverFromObj(obj);
+        if (cover) return cover;
+      } catch {
+        // ignore malformed JSON blocks
+      }
+    }
+  }
+
+  // 备用：从任意 script 块中搜索 cover 相关字段
+  const scriptBlocks = html.match(/<script[^>]*>([\s\S]*?)<\/script>/gi) || [];
+  for (const block of scriptBlocks) {
+    const inner = block.replace(/<script[^>]*>/i, "").replace(/<\/script>/i, "");
+    const cover = extractXhsCoverFromObj(parseJsonLike(inner));
+    if (cover) return cover;
+  }
+
+  return null;
+}
+
+function parseJsonLike(str) {
+  try { return JSON.parse(str); } catch { return null; }
+}
+
+function extractXhsCoverFromObj(obj) {
+  if (!obj || typeof obj !== "object") return null;
+  // 常见路径：note.detail.cover
+  const note = obj.note;
+  if (note && note.detail) {
+    const cover = note.detail.cover;
+    if (cover && typeof cover === "object") {
+      return cover.url || (cover.urlList && cover.urlList[0]) ||
+             (cover.originUrlList && cover.originUrlList[0]) || null;
+    }
+  }
+  // 泛化搜索：找所有包含 sns-webpic / sns-img 的值
+  const results = [];
+  const search = (o) => {
+    if (!o || typeof o !== "object") return;
+    if (Array.isArray(o)) { o.forEach(search); return; }
+    for (const key of Object.keys(o)) {
+      const v = o[key];
+      if (v && typeof v === "string" && /(?:sns-webpic|sns-img|xhscdn)\.com/i.test(v)) {
+        results.push(v);
+      } else if (v && typeof v === "object") {
+        search(v);
+      }
+    }
+  };
+  search(obj);
+  if (results.length > 0) {
+    // 过滤掉 picasso logo
+    const real = results.filter(u => !u.includes("picasso-static") && !u.includes("fe-platform"));
+    return real.length > 0 ? real[0] : (results[0] || null);
+  }
+  return null;
+}
+
 function cleanCoverUrl(rawUrl) {
   if (!rawUrl || typeof rawUrl !== "string") return null;
   let str = rawUrl.trim();
-  try {
-    // 递归进行最多 3 次 decodeURIComponent 处理嵌套转义
-    for (let i = 0; i < 3; i++) {
-      if (str.includes("%3A") || str.includes("%2F") || str.includes("%3a") || str.includes("%2f")) {
-        str = decodeURIComponent(str);
-      } else {
-        break;
-      }
-    }
-  } catch {
-    // ignore decode errors
-  }
 
-  // 小红书图片清洗：精准匹配末尾真实的 sns-webpic 或 sns-img 直链，彻底丢弃前置反代前缀
-  const xhsMatch = str.match(/https?:\/\/(sns-(?:webpic|img)[^"'?\s<]+(?:\?[^"'?\s<]*)?)/i);
-  if (xhsMatch) {
-    return `https://${xhsMatch[1]}`;
+  // 只有小红书这种存在嵌套代理前缀的，才针对性做 URL 递归解码与反代剥离
+  // 千万不能全局对带有签名参数（如抖音 x-signature=...%2B...）的 URL 执行 decodeURIComponent，否则签名会被破坏导致 403！
+  if (str.includes("xiaohongshu.com") || str.includes("xhscdn.com")) {
+    try {
+      for (let i = 0; i < 3; i++) {
+        if (str.includes("%3A") || str.includes("%2F") || str.includes("%3a") || str.includes("%2f")) {
+          str = decodeURIComponent(str);
+        } else {
+          break;
+        }
+      }
+    } catch {
+      // ignore decode errors
+    }
+
+    const xhsMatch = str.match(/https?:\/\/(sns-(?:webpic|img)[^"'?\s<]+(?:\?[^"'?\s<]*)?)/i);
+    if (xhsMatch) {
+      return `https://${xhsMatch[1]}`;
+    }
   }
 
   // 若仍存在多重协议嵌套（例如 proxy/https://...），截取最后一段合法的 http:// 或 https://
@@ -185,6 +258,8 @@ function cleanCoverUrl(rawUrl) {
 
 function parseMetadata(html, finalUrl) {
   const embeddedCover = embeddedCoverUrl(html, finalUrl);
+  // 小红书尝试从内嵌数据提取实际封面（跳过平台 logo）
+  const xhsEmbeddedCover = extractXhsEmbeddedCover(html, finalUrl);
   const document = html
     .replace(/<!--[\s\S]*?-->/g, "")
     .replace(/<script\b[\s\S]*?<\/script\s*>/gi, "")
@@ -202,6 +277,11 @@ function parseMetadata(html, finalUrl) {
     values.get("description") || null;
   let image = values.get("og:image") || values.get("og:image:url") ||
     values.get("twitter:image") || values.get("twitter:image:src") || embeddedCover;
+  // 若 og:image 是小红书平台 logo，则用内嵌封面替换
+  const isXhsLogo = image && /picasso-static\.xiaohongshu\.com\/fe-platform/i.test(image);
+  if (isXhsLogo && xhsEmbeddedCover) {
+    image = xhsEmbeddedCover;
+  }
   if (image) {
     image = cleanCoverUrl(image);
   }
@@ -231,7 +311,9 @@ function requestPage(url, addresses, requestImpl, timeoutMs) {
 
     const isBili = url.hostname.toLowerCase().endsWith("bilibili.com") ||
       url.hostname.toLowerCase().endsWith("b23.tv");
-    const referer = isBili ? "https://www.bilibili.com/" : "https://www.douyin.com/";
+    const isXhs = url.hostname.toLowerCase().endsWith("xiaohongshu.com") ||
+      url.hostname.toLowerCase().endsWith("xhslink.com");
+    const referer = isBili ? "https://www.bilibili.com/" : isXhs ? "https://www.xiaohongshu.com/" : "https://www.douyin.com/";
     const userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 
     const request = requestImpl(url, {
@@ -434,6 +516,52 @@ function resolveDouyinData(finalUrl) {
   }
 }
 
+function resolveXiaohongshuData(html, finalUrl) {
+  try {
+    const url = new URL(finalUrl);
+    const host = url.hostname.toLowerCase();
+    if (!host.endsWith("xiaohongshu.com") && !host.endsWith("xhslink.com")) return null;
+
+    // 从 HTML 中提取封面（不依赖第三方 API）
+    const embeddedCover = extractXhsEmbeddedCover(html, finalUrl);
+    // 同时从 meta 标签提取
+    const doc = html.replace(/<!--[\s\S]*?-->/g, "").replace(/<script\b[\s\S]*?<\/script\s*>/gi, "");
+    const values = new Map();
+    for (const match of doc.matchAll(/<meta\b[^>]*>/gi)) {
+      const attrs = attributes(match[0]);
+      const key = (attrs.property || attrs.name || "").toLowerCase();
+      if (key && attrs.content !== undefined && !values.has(key)) values.set(key, decodeHtml(attrs.content));
+    }
+    let image = values.get("og:image") || values.get("og:image:url") ||
+      values.get("twitter:image") || values.get("twitter:image:src");
+    // 若 og:image 是平台 logo 且内有嵌封面，优先用内嵌
+    const isXhsLogo = image && /picasso-static\.xiaohongshu\.com\/fe-platform/i.test(image);
+    if (isXhsLogo && embeddedCover) {
+      image = embeddedCover;
+    }
+    if (image) {
+      image = cleanCoverUrl(image);
+    }
+    let coverUrl = null;
+    if (image) {
+      try {
+        const candidate = new URL(image, finalUrl);
+        if (["http:", "https:"].includes(candidate.protocol) && candidate.hostname &&
+            (!net.isIP(candidate.hostname) || isPublicAddress(candidate.hostname))) {
+          coverUrl = candidate.toString();
+        }
+      } catch {
+        coverUrl = null;
+      }
+    }
+    const title = values.get("og:title") || values.get("twitter:title") || null;
+    const description = values.get("og:description") || values.get("twitter:description") || null;
+    return { coverUrl, title, description };
+  } catch {
+    return null;
+  }
+}
+
 function createMetadataService(dependencies = {}) {
   const resolver = dependencies.lookup || dns.lookup;
   const requestImpl = dependencies.request || ((url, options, callback) =>
@@ -487,7 +615,8 @@ function createMetadataService(dependencies = {}) {
         response.resume();
         throw new BookmarkError(415, "METADATA_UNSUPPORTED_CONTENT", "目标内容不是 HTML 页面");
       }
-      const metadata = parseMetadata(await readBody(response), url.toString());
+      const html = await readBody(response);
+      const metadata = parseMetadata(html, url.toString());
       if (url.hostname.toLowerCase().endsWith("bilibili.com") || url.hostname.toLowerCase().endsWith("b23.tv") || originalRawUrl.includes("bilibili.com") || originalRawUrl.includes("b23.tv")) {
         const biliData = (await biliPrePromise) || (await resolveBilibiliData(url.toString()));
         if (biliData) {
@@ -512,6 +641,22 @@ function createMetadataService(dependencies = {}) {
           }
           if (dyData.description && (!metadata.description || metadata.description.includes("记录美好生活"))) {
             metadata.description = dyData.description;
+          }
+        }
+      } else if (url.hostname.toLowerCase().endsWith("xiaohongshu.com") ||
+                 url.hostname.toLowerCase().endsWith("xhslink.com") ||
+                 originalRawUrl.includes("xiaohongshu.com") ||
+                 originalRawUrl.includes("xhslink.com")) {
+        const xhsData = resolveXiaohongshuData(html, url.toString());
+        if (xhsData) {
+          if (xhsData.coverUrl) {
+            metadata.coverUrl = xhsData.coverUrl;
+          }
+          if (xhsData.title && (!metadata.title || /小红书/.test(metadata.title))) {
+            metadata.title = xhsData.title;
+          }
+          if (xhsData.description && (!metadata.description || /小红书/.test(metadata.description))) {
+            metadata.description = xhsData.description;
           }
         }
       }
