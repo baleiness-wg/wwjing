@@ -95,9 +95,8 @@ void main() {
     expect(find.byType(BookmarkCover), findsOneWidget);
     expect(find.byKey(const Key('bookmark-cover-placeholder')), findsOneWidget);
     expect(find.text('example.com'), findsWidgets);
-    expect(find.byType(FloatingActionButton), findsOneWidget);
-    expect(find.byKey(const Key('add-bookmark-fab')), findsOneWidget);
-    expect(find.text('收藏链接'), findsOneWidget);
+    expect(find.byKey(const Key('add-bookmark-button')), findsOneWidget);
+    expect(find.byIcon(Icons.add), findsOneWidget);
     expect(find.byTooltip('刷新'), findsNothing);
   });
 
@@ -192,14 +191,14 @@ void main() {
 
     await tester.tap(find.byKey(const Key('cancel-selection-button')));
     await tester.pump();
-    expect(find.byKey(const Key('add-bookmark-fab')), findsOneWidget);
+    expect(find.byKey(const Key('add-bookmark-button')), findsOneWidget);
     expect(find.byKey(const Key('move-selection-button')), findsNothing);
 
     await tester.tap(find.byTooltip('编辑收藏'));
     await tester.pump();
     await tester.tap(find.byKey(const Key('save-selection-button')));
     await tester.pump();
-    expect(find.byKey(const Key('add-bookmark-fab')), findsOneWidget);
+    expect(find.byKey(const Key('add-bookmark-button')), findsOneWidget);
     expect(find.byKey(const Key('save-selection-button')), findsNothing);
   });
 
@@ -216,26 +215,15 @@ void main() {
     expect(find.byKey(const Key('folder-option-root')), findsOneWidget);
   });
 
-  testWidgets('官方扩展 FAB 点击打开草稿，拖动不误触发', (tester) async {
+  testWidgets('AppBar 右上角加号按钮点击打开新建草稿', (tester) async {
     await pumpHome(tester, const Size(1000, 800));
-    final fab = find.byKey(const Key('add-bookmark-fab'));
+    final addButton = find.byKey(const Key('add-bookmark-button'));
+    expect(addButton, findsOneWidget);
+    expect(find.byIcon(Icons.add), findsOneWidget);
 
-    await tester.tap(fab);
+    await tester.tap(addButton);
     await tester.pump();
     expect(state.draft, isNotNull);
-
-    state.closeDraft();
-    await tester.pump();
-    final before = tester.getTopLeft(fab);
-    await tester.drag(fab, const Offset(-180, -120));
-    await tester.pumpAndSettle();
-    final after = tester.getTopLeft(fab);
-
-    expect(state.draft, isNull);
-    expect(after.dx, lessThan(before.dx));
-    expect(after.dy, lessThan(before.dy));
-    expect(after.dx, greaterThanOrEqualTo(8));
-    expect(after.dy, greaterThanOrEqualTo(8));
   });
 
   testWidgets('收藏表单链接框右侧显示打开按钮', (tester) async {

@@ -1,5 +1,27 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:wwjing_bookmark/config/app_config.dart';
+import 'package:wwjing_bookmark/main.dart';
+import 'package:wwjing_bookmark/models/bookmark.dart';
 import 'package:wwjing_bookmark/models/shared_link.dart';
+import 'package:wwjing_bookmark/services/api_client.dart';
+import 'package:wwjing_bookmark/services/share_service.dart';
+import 'package:wwjing_bookmark/state/app_state.dart';
+import 'package:wwjing_bookmark/widgets/bookmark_form.dart';
+import 'test_fakes.dart';
+
+class FakeShareService extends ShareService {
+  FakeShareService({this.onListen});
+  final void Function(void Function(String))? onListen;
+
+  @override
+  void listen(void Function(String) callback) {
+    onListen?.call(callback);
+  }
+
+  @override
+  Future<String?> initialText() async => null;
+}
 
 void main() {
   test('提取混合文本中的首个 HTTP 链接并保留原文', () {
@@ -28,5 +50,50 @@ void main() {
   test('忽略无链接和非 HTTP 协议', () {
     expect(extractSharedLink('只有中文'), isNull);
     expect(extractSharedLink('ftp://example.com/a'), isNull);
+  });
+
+  testWidgets('编辑状态下接收新分享链接弹出确认对话框', (tester) async {
+    final tokens = MemoryTokenStore('Bearer token');
+    final state = AppState(
+      api: ApiClient(
+        baseUrl: 'https://api.example/api',
+        space: 'cookie',
+        tokenStore: tokens,
+      ),
+      tokenStore: tokens,
+      preferences: MemoryPreferencesStore(),
+    )
+      ..initialized = true
+      ..authenticated = true
+      ..draft = const BookmarkDraft(sourceUrl: 'https://old.example.com');
+
+    void Function(String)? shareCallback;
+    final app = BookmarkApp(
+      state: state,
+      appConfig: AppConfig.kitchen,
+      shareService: FakeShareService(
+        onListen: (cb) => shareCallback = cb,
+      ),
+    );
+
+    await tester.pumpWidget(app);
+    await tester.pump();
+    expect(find.byType(BookmarkForm), findsOneWidget);
+
+    // 触发新链接
+    shareCallback?.call('https://new.example.com');
+    await tester.pump();
+
+    // 弹出确认对话框
+    expect(find.byType(AlertDialog), findsOneWidget);
+    expect(find.text('检测到新分享链接'), findsOneWidget);
+    expect(find.text('确定切换'), findsOneWidget);
+
+    // 点击确定切换
+    await tester.tap(find.text('确定切换'));
+    await tester.pump();
+    await tester.pumpAndSettle();
+
+    expect(state.draft?.sourceUrl, 'https://new.example.com');
   });
 }

@@ -42,8 +42,6 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   final _search = TextEditingController();
-  double? _actionLeft;
-  double? _actionTop;
   bool _editMode = false;
   bool _randomBusy = false;
   final Set<String> _selectedItemIds = {};
@@ -367,6 +365,13 @@ class _HomePageState extends State<HomePage> {
                   onPressed: _exitEditMode,
                   child: const Text('保存'),
                 ),
+              if (!_editMode)
+                IconButton(
+                  key: const Key('add-bookmark-button'),
+                  tooltip: '收藏链接',
+                  onPressed: state.openDraft,
+                  icon: const Icon(Icons.add),
+                ),
               if (!_editMode && widget.appConfig.supportsRandom)
                 IconButton(
                   key: const Key('random-bookmark-button'),
@@ -563,41 +568,6 @@ class _HomePageState extends State<HomePage> {
                           label: const Text('删除'),
                         ),
                       ],
-                    ),
-                  ),
-                ),
-              if (!_editMode)
-                Positioned(
-                  left: _actionLeft,
-                  top: _actionTop,
-                  right: _actionLeft == null ? 20 : null,
-                  bottom: _actionTop == null ? 20 : null,
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onPanUpdate: (details) {
-                      final width = wide
-                          ? constraints.maxWidth - 301
-                          : constraints.maxWidth;
-                      final height = constraints.maxHeight;
-                      setState(() {
-                        _actionLeft ??= width - 150;
-                        _actionTop ??= height - 76;
-                        _actionLeft = (_actionLeft! + details.delta.dx).clamp(
-                          8,
-                          width - 142,
-                        );
-                        _actionTop = (_actionTop! + details.delta.dy).clamp(
-                          8,
-                          height - 60,
-                        );
-                      });
-                    },
-                    child: FloatingActionButton.extended(
-                      key: const Key('add-bookmark-fab'),
-                      heroTag: 'add-bookmark',
-                      onPressed: state.openDraft,
-                      icon: const Icon(Icons.add_link),
-                      label: const Text('收藏链接'),
                     ),
                   ),
                 ),

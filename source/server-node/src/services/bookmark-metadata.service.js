@@ -154,23 +154,26 @@ function embeddedCoverUrl(html, finalUrl) {
 function cleanCoverUrl(rawUrl) {
   if (!rawUrl || typeof rawUrl !== "string") return null;
   let str = rawUrl.trim();
-  try {
-    // 递归进行最多 3 次 decodeURIComponent 处理嵌套转义
-    for (let i = 0; i < 3; i++) {
-      if (str.includes("%3A") || str.includes("%2F") || str.includes("%3a") || str.includes("%2f")) {
-        str = decodeURIComponent(str);
-      } else {
-        break;
-      }
-    }
-  } catch {
-    // ignore decode errors
-  }
 
-  // 小红书图片清洗：精准匹配末尾真实的 sns-webpic 或 sns-img 直链，彻底丢弃前置反代前缀
-  const xhsMatch = str.match(/https?:\/\/(sns-(?:webpic|img)[^"'?\s<]+(?:\?[^"'?\s<]*)?)/i);
-  if (xhsMatch) {
-    return `https://${xhsMatch[1]}`;
+  // 只有小红书这种存在嵌套代理前缀的，才针对性做 URL 递归解码与反代剥离
+  // 千万不能全局对带有签名参数（如抖音 x-signature=...%2B...）的 URL 执行 decodeURIComponent，否则签名会被破坏导致 403！
+  if (str.includes("xiaohongshu.com") || str.includes("xhscdn.com")) {
+    try {
+      for (let i = 0; i < 3; i++) {
+        if (str.includes("%3A") || str.includes("%2F") || str.includes("%3a") || str.includes("%2f")) {
+          str = decodeURIComponent(str);
+        } else {
+          break;
+        }
+      }
+    } catch {
+      // ignore decode errors
+    }
+
+    const xhsMatch = str.match(/https?:\/\/(sns-(?:webpic|img)[^"'?\s<]+(?:\?[^"'?\s<]*)?)/i);
+    if (xhsMatch) {
+      return `https://${xhsMatch[1]}`;
+    }
   }
 
   // 若仍存在多重协议嵌套（例如 proxy/https://...），截取最后一段合法的 http:// 或 https://

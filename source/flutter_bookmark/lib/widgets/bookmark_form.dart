@@ -26,11 +26,13 @@ class _BookmarkFormState extends State<BookmarkForm> {
   late final TextEditingController _coverUrl;
   String? _folderId;
   bool _recognizing = false;
+  BookmarkDraft? _lastObservedDraft;
 
   @override
   void initState() {
     super.initState();
     final draft = context.read<AppState>().draft!;
+    _lastObservedDraft = draft;
     _url = TextEditingController(text: draft.sourceUrl);
     _title = TextEditingController(text: draft.title);
     _description = TextEditingController(text: draft.description);
@@ -38,6 +40,20 @@ class _BookmarkFormState extends State<BookmarkForm> {
     _folderId = draft.folderId;
     if (draft.fetchMetadataOnOpen && draft.sourceUrl.isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _recognizeMetadata());
+    }
+  }
+
+  void _applyDraft(BookmarkDraft draft) {
+    setState(() {
+      _lastObservedDraft = draft;
+      _url.text = draft.sourceUrl;
+      _title.text = draft.title;
+      _description.text = draft.description;
+      _coverUrl.text = draft.coverUrl;
+      _folderId = draft.folderId;
+    });
+    if (draft.fetchMetadataOnOpen && draft.sourceUrl.isNotEmpty) {
+      _recognizeMetadata(overrideTitle: true);
     }
   }
 
@@ -269,6 +285,12 @@ class _BookmarkFormState extends State<BookmarkForm> {
   @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
+    if (state.draft != null && state.draft != _lastObservedDraft) {
+      final newDraft = state.draft!;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _applyDraft(newDraft);
+      });
+    }
     final folderNodes = flattenFolderTree(state.folderTree).toList();
 
     return PopScope(

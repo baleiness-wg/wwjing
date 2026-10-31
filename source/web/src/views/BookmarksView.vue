@@ -111,19 +111,22 @@ function sourceHost(url) {
 function cleanCoverUrl(rawUrl) {
   if (!rawUrl || typeof rawUrl !== "string") return null;
   let str = rawUrl.trim();
-  try {
-    for (let i = 0; i < 3; i++) {
-      if (str.includes("%3A") || str.includes("%2F") || str.includes("%3a") || str.includes("%2f")) {
-        str = decodeURIComponent(str);
-      } else {
-        break;
-      }
-    }
-  } catch {}
 
-  const xhsMatch = str.match(/https?:\/\/(sns-(?:webpic|img)[^"'?\s<]+(?:\?[^"'?\s<]*)?)/i);
-  if (xhsMatch) {
-    return `https://${xhsMatch[1]}`;
+  if (str.includes("xiaohongshu.com") || str.includes("xhscdn.com")) {
+    try {
+      for (let i = 0; i < 3; i++) {
+        if (str.includes("%3A") || str.includes("%2F") || str.includes("%3a") || str.includes("%2f")) {
+          str = decodeURIComponent(str);
+        } else {
+          break;
+        }
+      }
+    } catch {}
+
+    const xhsMatch = str.match(/https?:\/\/(sns-(?:webpic|img)[^"'?\s<]+(?:\?[^"'?\s<]*)?)/i);
+    if (xhsMatch) {
+      return `https://${xhsMatch[1]}`;
+    }
   }
 
   const lastHttps = str.lastIndexOf("https://");
