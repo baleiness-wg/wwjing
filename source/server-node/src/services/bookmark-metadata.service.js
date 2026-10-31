@@ -229,11 +229,10 @@ function requestPage(url, addresses, requestImpl, timeoutMs) {
       reject(error);
     };
 
-    const isBili = url.hostname.toLowerCase().endsWith("bilibili.com");
+    const isBili = url.hostname.toLowerCase().endsWith("bilibili.com") ||
+      url.hostname.toLowerCase().endsWith("b23.tv");
     const referer = isBili ? "https://www.bilibili.com/" : "https://www.douyin.com/";
-    const userAgent = isBili
-      ? "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
-      : "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36";
+    const userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 
     const request = requestImpl(url, {
       headers: {
@@ -308,8 +307,10 @@ function resolveBilibiliData(finalUrl) {
         const apiUrl = `https://api.bilibili.com/x/web-interface/view?${param}`;
         const req = https.get(apiUrl, {
           headers: {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            Referer: "https://www.bilibili.com/"
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+            Referer: "https://www.bilibili.com/",
+            Accept: "application/json, text/plain, */*",
+            "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8"
           },
           timeout: 4000
         }, (res) => {
@@ -347,7 +348,8 @@ function resolveBilibiliData(finalUrl) {
         const bugpkUrl = `https://api.bugpk.com/api/bilibili?url=${encodeURIComponent(finalUrl)}`;
         const bugpkReq = https.get(bugpkUrl, {
           headers: {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+            Referer: "https://www.bilibili.com/",
             Accept: "application/json"
           },
           timeout: 4000
@@ -438,6 +440,12 @@ function createMetadataService(dependencies = {}) {
     (url.protocol === "https:" ? https : http).request(url, options, callback));
   return async function fetchMetadata(input = {}) {
     const originalRawUrl = input.sourceUrl?.trim() || "";
+    // 如果是 B 站链接，且直接包含 BV/av 号，优先尝试官方 API 解析
+    let biliPrePromise = null;
+    if (originalRawUrl.includes("bilibili.com") || originalRawUrl.includes("b23.tv")) {
+      biliPrePromise = resolveBilibiliData(originalRawUrl);
+    }
+
     // 如果是抖音短链或直链，提前并发发起专用解析，不用死等 HTML 慢响应
     const douyinPromise = (originalRawUrl.includes("douyin.com"))
       ? resolveDouyinData(originalRawUrl)
@@ -480,13 +488,13 @@ function createMetadataService(dependencies = {}) {
         throw new BookmarkError(415, "METADATA_UNSUPPORTED_CONTENT", "目标内容不是 HTML 页面");
       }
       const metadata = parseMetadata(await readBody(response), url.toString());
-      if (url.hostname.toLowerCase().endsWith("bilibili.com") || url.hostname.toLowerCase().endsWith("b23.tv")) {
-        const biliData = await resolveBilibiliData(url.toString());
+      if (url.hostname.toLowerCase().endsWith("bilibili.com") || url.hostname.toLowerCase().endsWith("b23.tv") || originalRawUrl.includes("bilibili.com") || originalRawUrl.includes("b23.tv")) {
+        const biliData = (await biliPrePromise) || (await resolveBilibiliData(url.toString()));
         if (biliData) {
-          if (biliData.coverUrl && (!metadata.coverUrl || metadata.coverUrl.includes("transparent.png"))) {
+          if (biliData.coverUrl) {
             metadata.coverUrl = biliData.coverUrl;
           }
-          if (biliData.title && !metadata.title) {
+          if (biliData.title) {
             metadata.title = biliData.title;
           }
           if (biliData.description && !metadata.description) {

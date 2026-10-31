@@ -678,7 +678,7 @@ onMounted(async () => {
               @change="(checked) => toggleItem(item.id, checked)"
             />
             <a class="bookmark-cover" :href="item.sourceUrl" target="_blank" rel="noopener noreferrer" tabindex="-1" aria-hidden="true">
-              <img v-if="hasCover(item)" :src="coverSrc(item)" alt="" @error="markCoverFailed(coverSrc(item))" />
+              <img v-if="hasCover(item)" :src="coverSrc(item)" referrerpolicy="no-referrer" alt="" @error="markCoverFailed(coverSrc(item))" />
               <span v-else class="bookmark-cover__fallback">
                 <strong>{{ itemHost(item).slice(0, 1).toUpperCase() }}</strong>
                 <small>{{ itemHost(item) }}</small>
@@ -772,7 +772,7 @@ onMounted(async () => {
           />
         </el-form-item>
         <div v-if="itemForm.coverUrl" class="bookmark-cover-preview">
-          <img v-if="!previewCoverFailed" :src="cleanCoverUrl(itemForm.coverUrl)" alt="封面预览" @error="previewCoverFailed = true" />
+          <img v-if="!previewCoverFailed" :src="cleanCoverUrl(itemForm.coverUrl)" referrerpolicy="no-referrer" alt="封面预览" @error="previewCoverFailed = true" />
           <div v-else class="bookmark-cover__fallback">
             <strong>{{ previewHost.slice(0, 1).toUpperCase() }}</strong>
             <small>{{ previewHost }}</small>
