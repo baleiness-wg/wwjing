@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../services/cover_url_cleaner.dart';
 
 class BookmarkCover extends StatelessWidget {
   const BookmarkCover({
@@ -42,7 +43,8 @@ class BookmarkCover extends StatelessWidget {
         style: Theme.of(context).textTheme.labelSmall,
       ),
     );
-    final imageUri = Uri.tryParse(coverUrl?.trim() ?? '');
+    final cleaned = cleanCoverUrl(coverUrl);
+    final imageUri = Uri.tryParse(cleaned ?? '');
     if (imageUri == null ||
         !imageUri.hasAuthority ||
         (imageUri.scheme != 'http' && imageUri.scheme != 'https')) {
@@ -52,6 +54,10 @@ class BookmarkCover extends StatelessWidget {
       borderRadius: BorderRadius.circular(10),
       child: Image.network(
         imageUri.toString(),
+        headers: const {
+          'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        },
         key: const Key('bookmark-cover-image'),
         width: width,
         height: height,

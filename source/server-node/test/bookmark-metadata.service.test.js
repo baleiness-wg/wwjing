@@ -131,9 +131,17 @@ test("metadata requests use browser-compatible headers for dynamic sites", async
 });
 
 test("metadata parser cleans nested proxy url for Xiaohongshu covers", () => {
-  const html = '<meta property="og:image" content="https://ci.xiaohongshu.com/http://sns-webpic-qc.xhscdn.com/notes_pre_post/1040g.jpg?imageMogr2">';
-  const res = parseMetadata(html, "https://www.xiaohongshu.com/discovery/item/12345");
-  assert.equal(res.coverUrl, "https://sns-webpic-qc.xhscdn.com/notes_pre_post/1040g.jpg?imageMogr2");
+  const html1 = '<meta property="og:image" content="https://ci.xiaohongshu.com/http://sns-webpic-qc.xhscdn.com/notes_pre_post/1040g.jpg?imageMogr2">';
+  const res1 = parseMetadata(html1, "https://www.xiaohongshu.com/discovery/item/12345");
+  assert.equal(res1.coverUrl, "https://sns-webpic-qc.xhscdn.com/notes_pre_post/1040g.jpg?imageMogr2");
+
+  const html2 = '<meta property="og:image" content="https://ci.xiaohongshu.com/http%3A%2F%2Fsns-img-qc.xhscdn.com%2Fphoto%2Ftest.png">';
+  const res2 = parseMetadata(html2, "https://www.xiaohongshu.com/discovery/item/12345");
+  assert.equal(res2.coverUrl, "https://sns-img-qc.xhscdn.com/photo/test.png");
+
+  const html3 = '<meta property="og:image" content="https://ci.xiaohongshu.com/https://sns-webpic-qc.xhscdn.com/265/abc.jpg">';
+  const res3 = parseMetadata(html3, "https://www.xiaohongshu.com/discovery/item/12345");
+  assert.equal(res3.coverUrl, "https://sns-webpic-qc.xhscdn.com/265/abc.jpg");
 });
 
 test("metadata fetch blocks a redirect resolving to a private address before connecting", async () => {

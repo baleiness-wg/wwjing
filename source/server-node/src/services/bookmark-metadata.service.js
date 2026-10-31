@@ -154,16 +154,31 @@ function embeddedCoverUrl(html, finalUrl) {
 function cleanCoverUrl(rawUrl) {
   if (!rawUrl || typeof rawUrl !== "string") return null;
   let str = rawUrl.trim();
-  // 小红书图片清洗：提取真正的 sns-webpic / sns-img 域名直链
-  const xhsMatch = str.match(/https?:\/\/(sns-[^?]+(?:\?[^\s"']*)?)/i);
+  try {
+    // 递归进行最多 3 次 decodeURIComponent 处理嵌套转义
+    for (let i = 0; i < 3; i++) {
+      if (str.includes("%3A") || str.includes("%2F") || str.includes("%3a") || str.includes("%2f")) {
+        str = decodeURIComponent(str);
+      } else {
+        break;
+      }
+    }
+  } catch {
+    // ignore decode errors
+  }
+
+  // 小红书图片清洗：精准匹配末尾真实的 sns-webpic 或 sns-img 直链，彻底丢弃前置反代前缀
+  const xhsMatch = str.match(/https?:\/\/(sns-(?:webpic|img)[^"'?\s<]+(?:\?[^"'?\s<]*)?)/i);
   if (xhsMatch) {
     return `https://${xhsMatch[1]}`;
   }
-  const nestedHttpIndex = str.indexOf("http://", 8);
-  const nestedHttpsIndex = str.indexOf("https://", 8);
-  const targetIndex = nestedHttpsIndex !== -1 ? nestedHttpsIndex : nestedHttpIndex;
-  if (targetIndex > 0) {
-    str = str.slice(targetIndex).replace(/^http:\/\//i, "https://");
+
+  // 若仍存在多重协议嵌套（例如 proxy/https://...），截取最后一段合法的 http:// 或 https://
+  const lastHttps = str.lastIndexOf("https://");
+  const lastHttp = str.lastIndexOf("http://");
+  const lastProtocolIndex = Math.max(lastHttps, lastHttp);
+  if (lastProtocolIndex > 0) {
+    str = str.slice(lastProtocolIndex).replace(/^http:\/\//i, "https://");
   }
   return str;
 }
@@ -265,33 +280,121 @@ function resolveBilibiliData(finalUrl) {
   try {
     const url = new URL(finalUrl);
     const host = url.hostname.toLowerCase();
-    if (!host.endsWith("bilibili.com")) return null;
-    const match = url.pathname.match(/\/(?:video\/)?(BV[a-zA-Z0-9]+)/i);
-    if (!match) return null;
-    const bvid = match[1];
+    if (!host.endsWith("bilibili.com") && !host.endsWith("b23.tv")) return null;
+
     return new Promise((resolve) => {
-      const apiUrl = `https://api.bilibili.com/x/web-interface/view?bvid=${encodeURIComponent(bvid)}`;
-      const req = https.get(apiUrl, {
+      // 优先调用专用解析接口（与 mcp-server-bilibili 方案一致），支持 b23.tv 与 bilibili.com 任意视频长短链
+      const bugpkUrl = `https://api.bugpk.com/api/bilibili?url=${encodeURIComponent(finalUrl)}`;
+      const bugpkReq = https.get(bugpkUrl, {
         headers: {
-          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-          Referer: "https://www.bilibili.com/"
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+          Accept: "application/json"
         },
-        timeout: 3000
+        timeout: 4000
       }, (res) => {
-        let data = "";
-        res.on("data", (chunk) => data += chunk);
+        let raw = "";
+        res.on("data", (chunk) => raw += chunk);
         res.on("end", () => {
           try {
-            const json = JSON.parse(data);
-            const d = json.data;
-            if (d) {
-              const pic = typeof d.pic === "string" && !d.pic.includes("transparent.png")
-                ? d.pic.replace(/^http:\/\//i, "https://")
-                : null;
+            const parsed = JSON.parse(raw);
+            if (parsed.code === 200 && parsed.data && parsed.data.cover) {
+              const cover = String(parsed.data.cover).replace(/^http:\/\//i, "https://");
               resolve({
-                title: d.title || null,
-                description: d.desc || null,
-                coverUrl: pic
+                title: parsed.data.title || null,
+                description: parsed.data.description || null,
+                coverUrl: cover
+              });
+              return;
+            }
+          } catch {
+            // parse failed, fallback to official view API
+          }
+          fallbackOfficial();
+        });
+      });
+
+      bugpkReq.on("error", () => fallbackOfficial());
+      bugpkReq.on("timeout", () => {
+        bugpkReq.destroy();
+        fallbackOfficial();
+      });
+
+      function fallbackOfficial() {
+        const match = url.pathname.match(/\/(?:video\/)?(BV[a-zA-Z0-9]+)/i);
+        if (!match) {
+          resolve(null);
+          return;
+        }
+        const bvid = match[1];
+        const apiUrl = `https://api.bilibili.com/x/web-interface/view?bvid=${encodeURIComponent(bvid)}`;
+        const req = https.get(apiUrl, {
+          headers: {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            Referer: "https://www.bilibili.com/"
+          },
+          timeout: 3000
+        }, (res) => {
+          let data = "";
+          res.on("data", (chunk) => data += chunk);
+          res.on("end", () => {
+            try {
+              const json = JSON.parse(data);
+              const d = json.data;
+              if (d) {
+                const pic = typeof d.pic === "string" && !d.pic.includes("transparent.png")
+                  ? d.pic.replace(/^http:\/\//i, "https://")
+                  : null;
+                resolve({
+                  title: d.title || null,
+                  description: d.desc || null,
+                  coverUrl: pic
+                });
+                return;
+              }
+            } catch {
+              // ignore
+            }
+            resolve(null);
+          });
+        });
+        req.on("error", () => resolve(null));
+        req.on("timeout", () => {
+          req.destroy();
+          resolve(null);
+        });
+      }
+    });
+  } catch {
+    return null;
+  }
+}
+
+function resolveDouyinData(finalUrl) {
+  try {
+    const url = new URL(finalUrl);
+    const host = url.hostname.toLowerCase();
+    if (!host.endsWith("douyin.com")) return null;
+
+    return new Promise((resolve) => {
+      const bugpkUrl = `https://api.bugpk.com/api/douyin?url=${encodeURIComponent(finalUrl)}`;
+      const req = https.get(bugpkUrl, {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+          Accept: "application/json"
+        },
+        timeout: 4000
+      }, (res) => {
+        let raw = "";
+        res.on("data", (chunk) => raw += chunk);
+        res.on("end", () => {
+          try {
+            const parsed = JSON.parse(raw);
+            if (parsed.code === 200 && parsed.data && parsed.data.cover) {
+              const cover = String(parsed.data.cover).replace(/^http:\/\//i, "https://");
+              resolve({
+                title: parsed.data.title || parsed.data.desc || null,
+                description: parsed.data.desc || null,
+                coverUrl: cover
               });
               return;
             }
@@ -301,6 +404,7 @@ function resolveBilibiliData(finalUrl) {
           resolve(null);
         });
       });
+
       req.on("error", () => resolve(null));
       req.on("timeout", () => {
         req.destroy();
@@ -354,7 +458,7 @@ function createMetadataService(dependencies = {}) {
         throw new BookmarkError(415, "METADATA_UNSUPPORTED_CONTENT", "目标内容不是 HTML 页面");
       }
       const metadata = parseMetadata(await readBody(response), url.toString());
-      if (url.hostname.toLowerCase().endsWith("bilibili.com")) {
+      if (url.hostname.toLowerCase().endsWith("bilibili.com") || url.hostname.toLowerCase().endsWith("b23.tv")) {
         const biliData = await resolveBilibiliData(url.toString());
         if (biliData) {
           if (biliData.coverUrl && (!metadata.coverUrl || metadata.coverUrl.includes("transparent.png"))) {
@@ -365,6 +469,19 @@ function createMetadataService(dependencies = {}) {
           }
           if (biliData.description && !metadata.description) {
             metadata.description = biliData.description;
+          }
+        }
+      } else if (url.hostname.toLowerCase().endsWith("douyin.com")) {
+        const dyData = await resolveDouyinData(url.toString());
+        if (dyData) {
+          if (dyData.coverUrl && !metadata.coverUrl) {
+            metadata.coverUrl = dyData.coverUrl;
+          }
+          if (dyData.title && !metadata.title) {
+            metadata.title = dyData.title;
+          }
+          if (dyData.description && !metadata.description) {
+            metadata.description = dyData.description;
           }
         }
       }

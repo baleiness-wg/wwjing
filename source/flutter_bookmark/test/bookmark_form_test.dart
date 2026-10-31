@@ -8,6 +8,7 @@ import 'package:http/testing.dart';
 import 'package:provider/provider.dart';
 import 'package:wwjing_bookmark/models/bookmark.dart';
 import 'package:wwjing_bookmark/services/api_client.dart';
+import 'package:wwjing_bookmark/services/douyin_resolver.dart';
 import 'package:wwjing_bookmark/state/app_state.dart';
 import 'package:wwjing_bookmark/widgets/bookmark_form.dart';
 import 'package:wwjing_bookmark/widgets/folder_picker_dialog.dart';
@@ -422,5 +423,30 @@ void main() {
       find.widgetWithText(TextField, 'https://example.com/auto-cover.png'),
       findsOneWidget,
     );
+  });
+
+  test('DouyinResolver 格式检测与解析回退', () async {
+    expect(DouyinResolver.isDouyinUrl('https://v.douyin.com/test'), isTrue);
+    expect(DouyinResolver.isDouyinUrl('https://www.iesdouyin.com/share/video/123'), isTrue);
+    expect(DouyinResolver.isDouyinUrl('https://www.bilibili.com/video/BV123'), isFalse);
+
+    final mockClient = MockClient((request) async {
+      return http.Response.bytes(
+        utf8.encode(jsonEncode({
+          'code': 200,
+          'data': {
+            'title': '测试抖音作品',
+            'desc': '这是描述',
+            'cover': 'http://p3-sign.douyinpic.com/test.jpg'
+          }
+        })),
+        200,
+        headers: {'content-type': 'application/json; charset=utf-8'},
+      );
+    });
+    final resolver = DouyinResolver(client: mockClient);
+    final res = await resolver.resolve('https://v.douyin.com/test');
+    expect(res?.title, '测试抖音作品');
+    expect(res?.coverUrl, 'https://p3-sign.douyinpic.com/test.jpg');
   });
 }

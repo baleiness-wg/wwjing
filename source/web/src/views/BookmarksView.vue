@@ -108,12 +108,44 @@ function sourceHost(url) {
   }
 }
 
+function cleanCoverUrl(rawUrl) {
+  if (!rawUrl || typeof rawUrl !== "string") return null;
+  let str = rawUrl.trim();
+  try {
+    for (let i = 0; i < 3; i++) {
+      if (str.includes("%3A") || str.includes("%2F") || str.includes("%3a") || str.includes("%2f")) {
+        str = decodeURIComponent(str);
+      } else {
+        break;
+      }
+    }
+  } catch {}
+
+  const xhsMatch = str.match(/https?:\/\/(sns-(?:webpic|img)[^"'?\s<]+(?:\?[^"'?\s<]*)?)/i);
+  if (xhsMatch) {
+    return `https://${xhsMatch[1]}`;
+  }
+
+  const lastHttps = str.lastIndexOf("https://");
+  const lastHttp = str.lastIndexOf("http://");
+  const lastProtocolIndex = Math.max(lastHttps, lastHttp);
+  if (lastProtocolIndex > 0) {
+    str = str.slice(lastProtocolIndex).replace(/^http:\/\//i, "https://");
+  }
+  return str;
+}
+
 function itemHost(item) {
   return item.sourceHost || sourceHost(item.sourceUrl);
 }
 
 function hasCover(item) {
-  return Boolean(item.coverUrl) && !failedCoverUrls.value.has(item.coverUrl);
+  const cleaned = cleanCoverUrl(item.coverUrl);
+  return Boolean(cleaned) && !failedCoverUrls.value.has(cleaned);
+}
+
+function coverSrc(item) {
+  return cleanCoverUrl(item.coverUrl);
 }
 
 function markCoverFailed(url) {
@@ -646,7 +678,7 @@ onMounted(async () => {
               @change="(checked) => toggleItem(item.id, checked)"
             />
             <a class="bookmark-cover" :href="item.sourceUrl" target="_blank" rel="noopener noreferrer" tabindex="-1" aria-hidden="true">
-              <img v-if="hasCover(item)" :src="item.coverUrl" alt="" @error="markCoverFailed(item.coverUrl)" />
+              <img v-if="hasCover(item)" :src="coverSrc(item)" alt="" @error="markCoverFailed(coverSrc(item))" />
               <span v-else class="bookmark-cover__fallback">
                 <strong>{{ itemHost(item).slice(0, 1).toUpperCase() }}</strong>
                 <small>{{ itemHost(item) }}</small>
@@ -740,7 +772,7 @@ onMounted(async () => {
           />
         </el-form-item>
         <div v-if="itemForm.coverUrl" class="bookmark-cover-preview">
-          <img v-if="!previewCoverFailed" :src="itemForm.coverUrl" alt="封面预览" @error="previewCoverFailed = true" />
+          <img v-if="!previewCoverFailed" :src="cleanCoverUrl(itemForm.coverUrl)" alt="封面预览" @error="previewCoverFailed = true" />
           <div v-else class="bookmark-cover__fallback">
             <strong>{{ previewHost.slice(0, 1).toUpperCase() }}</strong>
             <small>{{ previewHost }}</small>

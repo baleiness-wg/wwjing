@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../models/bookmark.dart';
 import '../models/shared_link.dart';
+import '../services/douyin_resolver.dart';
 import '../services/link_launcher.dart';
 import '../state/app_state.dart';
 import 'bookmark_cover.dart';
@@ -82,6 +83,33 @@ class _BookmarkFormState extends State<BookmarkForm> {
     }
     setState(() => _recognizing = true);
     final state = context.read<AppState>();
+
+    // 抖音短链或视频优先尝试客户端专用解析
+    if (DouyinResolver.isDouyinUrl(uri.toString())) {
+      final dyMetadata = await DouyinResolver().resolve(uri.toString());
+      if (dyMetadata != null && mounted) {
+        setState(() {
+          _recognizing = false;
+          if ((overrideTitle || _title.text.trim().isEmpty) &&
+              dyMetadata.title?.trim().isNotEmpty == true) {
+            _title.text = dyMetadata.title!.trim();
+          }
+          if (_description.text.trim().isEmpty &&
+              dyMetadata.description?.trim().isNotEmpty == true) {
+            _description.text = dyMetadata.description!.trim();
+          }
+          if (_coverUrl.text.trim().isEmpty &&
+              dyMetadata.coverUrl?.trim().isNotEmpty == true) {
+            _coverUrl.text = dyMetadata.coverUrl!.trim();
+          }
+          if (_title.text.trim().isEmpty) {
+            _title.text = titleFallbackForUrl(uri);
+          }
+        });
+        return;
+      }
+    }
+
     final metadata = await state.fetchBookmarkMetadata(uri.toString());
     if (!mounted) return;
     setState(() {
