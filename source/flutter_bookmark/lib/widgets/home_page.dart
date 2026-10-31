@@ -125,10 +125,11 @@ class _HomePageState extends State<HomePage> {
     final messenger = ScaffoldMessenger.of(context);
     final navigator = Navigator.of(context);
 
-    // 1. 先弹出目录多选范围确认窗口（默认全选所有目录）
+    // 1. 先弹出目录多选范围确认窗口（若在特定文件夹内则默认仅预选该文件夹，在全部收藏则默认全选）
     final selected = await showRandomFoldersFilterDialog(
       context: context,
       state: state,
+      currentFolderId: state.selectedFolderId,
     );
     if (!mounted || selected == null) return;
 
@@ -348,16 +349,37 @@ class _HomePageState extends State<HomePage> {
                     child: const Text('取消'),
                   )
                 : null,
-            title: Text(switch (state.view) {
-              BookmarkView.all => '全部收藏',
-              BookmarkView.uncategorized => '未分类',
-              BookmarkView.folder =>
-                state.folders
-                        .where((folder) => folder.id == state.selectedFolderId)
-                        .firstOrNull
-                        ?.name ??
-                    '收藏夹',
-            }),
+            title: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(switch (state.view) {
+                  BookmarkView.all => '全部收藏',
+                  BookmarkView.uncategorized => '未分类',
+                  BookmarkView.folder =>
+                    state.folders
+                            .where((folder) => folder.id == state.selectedFolderId)
+                            .firstOrNull
+                            ?.name ??
+                        '收藏夹',
+                }),
+                if (!_editMode && widget.appConfig.supportsRandom) ...[
+                  const SizedBox(width: 4),
+                  IconButton(
+                    key: const Key('random-bookmark-button'),
+                    tooltip: '今天吃什么',
+                    onPressed: state.busy || _randomBusy
+                        ? null
+                        : () => _showRandom(context),
+                    icon: _randomBusy
+                        ? const SizedBox.square(
+                            dimension: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.casino_outlined),
+                  ),
+                ],
+              ],
+            ),
             actions: [
               if (_editMode)
                 TextButton(
@@ -369,22 +391,14 @@ class _HomePageState extends State<HomePage> {
                 IconButton(
                   key: const Key('add-bookmark-button'),
                   tooltip: '收藏链接',
-                  onPressed: state.openDraft,
+                  onPressed: () {
+                    if (state.selectedFolderId != null) {
+                      state.openDraftInFolder(state.selectedFolderId!);
+                    } else {
+                      state.openDraft();
+                    }
+                  },
                   icon: const Icon(Icons.add),
-                ),
-              if (!_editMode && widget.appConfig.supportsRandom)
-                IconButton(
-                  key: const Key('random-bookmark-button'),
-                  tooltip: '今天吃什么',
-                  onPressed: state.busy || _randomBusy
-                      ? null
-                      : () => _showRandom(context),
-                  icon: _randomBusy
-                      ? const SizedBox.square(
-                          dimension: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.casino_outlined),
                 ),
               if (!_editMode && state.items.isNotEmpty)
                 IconButton(

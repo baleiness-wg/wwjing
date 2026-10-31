@@ -464,4 +464,53 @@ void main() {
     expect(find.text('鲸界'), findsOneWidget);
     expect(find.byIcon(Icons.water_drop_rounded), findsOneWidget);
   });
+
+  testWidgets('当前处于特定文件夹下时，随机弹窗与加号按钮默认使用该文件夹', (tester) async {
+    final tokens = MemoryTokenStore('Bearer token');
+    state = AppState(
+      api: ApiClient(
+        baseUrl: 'https://api.example/api',
+        space: 'cookie',
+        tokenStore: tokens,
+        httpClient: MockClient((_) async => http.Response('{}', 200)),
+      ),
+      tokenStore: tokens,
+      preferences: MemoryPreferencesStore(),
+    )
+      ..initialized = true
+      ..authenticated = true
+      ..folders = const [
+        BookmarkFolder(id: '1', name: '快手菜'),
+        BookmarkFolder(id: '2', name: '硬菜'),
+      ]
+      ..view = BookmarkView.folder
+      ..selectedFolderId = '2';
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider.value(
+        value: state,
+        child: const MaterialApp(home: HomePage(appConfig: AppConfig.kitchen)),
+      ),
+    );
+    await tester.pump();
+
+    // 1. 点击右上角新建加号按钮 -> 应该默认将 folderId 设置为 '2'
+    await tester.tap(find.byKey(const Key('add-bookmark-button')));
+    await tester.pump();
+    expect(state.draft, isNotNull);
+    expect(state.draft?.folderId, '2');
+
+    state.closeDraft();
+    await tester.pump();
+
+    // 2. 点击随机按钮 -> 弹窗中应该仅勾选当前文件夹 '2'
+    await tester.tap(find.byKey(const Key('random-bookmark-button')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('选择随机目录范围'), findsOneWidget);
+    final checkbox1 = tester.widget<CheckboxListTile>(find.byKey(const Key('random-folder-checkbox-1')));
+    final checkbox2 = tester.widget<CheckboxListTile>(find.byKey(const Key('random-folder-checkbox-2')));
+    expect(checkbox1.value, isFalse);
+    expect(checkbox2.value, isTrue);
+  });
 }
