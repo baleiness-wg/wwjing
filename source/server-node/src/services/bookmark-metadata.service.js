@@ -6,7 +6,7 @@ const BookmarkError = require("./bookmark-errors");
 
 const MAX_BYTES = 1024 * 1024;
 const MAX_REDIRECTS = 4;
-const TIMEOUT_MS = 10000;
+const TIMEOUT_MS = 20000;
 
 function parseIpv4(address) {
   if (net.isIP(address) !== 4) return null;
@@ -398,7 +398,7 @@ function resolveDouyinData(finalUrl) {
           "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
           Accept: "application/json"
         },
-        timeout: 8000
+        timeout: 18000
       }, (res) => {
         let raw = "";
         res.on("data", (chunk) => raw += chunk);
