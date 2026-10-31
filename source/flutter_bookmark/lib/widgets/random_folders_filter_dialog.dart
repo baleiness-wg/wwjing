@@ -41,24 +41,15 @@ class _RandomFoldersFilterDialogState
   @override
   void initState() {
     super.initState();
-    // 如果当前处于特定文件夹下，默认只勾选那一个文件夹
+    // 1. 如果当前处于特定文件夹下，默认只勾选该文件夹
     if (widget.currentFolderId != null &&
         allFolderIds.contains(widget.currentFolderId!)) {
       selectedIds = {widget.currentFolderId!};
       return;
     }
 
-    final saved = widget.state.selectedRandomFolderIds;
-    if (saved == null || saved.isEmpty) {
-      // 处于全部收藏等非特定目录时，默认选择所有目录
-      selectedIds = Set.from(allFolderIds);
-    } else {
-      // 过滤掉已被删除的无效目录
-      selectedIds = saved.where(allFolderIds.contains).toSet();
-      if (selectedIds.isEmpty) {
-        selectedIds = Set.from(allFolderIds);
-      }
-    }
+    // 2. 如果在全部收藏页面（currentFolderId == null），默认直接勾选所有文件夹
+    selectedIds = Set.from(allFolderIds);
   }
 
   void _toggleSelectAll() {
