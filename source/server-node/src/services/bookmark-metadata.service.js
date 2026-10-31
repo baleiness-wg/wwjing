@@ -496,13 +496,13 @@ function createMetadataService(dependencies = {}) {
       } else if (url.hostname.toLowerCase().endsWith("douyin.com") || originalRawUrl.includes("douyin.com")) {
         const dyData = (await douyinPromise) || (await resolveDouyinData(url.toString()));
         if (dyData) {
-          if (dyData.coverUrl && !metadata.coverUrl) {
+          if (dyData.coverUrl) {
             metadata.coverUrl = dyData.coverUrl;
           }
-          if (dyData.title && !metadata.title) {
+          if (dyData.title && (!metadata.title || metadata.title.includes("记录美好生活"))) {
             metadata.title = dyData.title;
           }
-          if (dyData.description && !metadata.description) {
+          if (dyData.description && (!metadata.description || metadata.description.includes("记录美好生活"))) {
             metadata.description = dyData.description;
           }
         }
