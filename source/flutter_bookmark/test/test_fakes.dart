@@ -15,6 +15,7 @@ class MemoryTokenStore implements TokenStore {
 class MemoryPreferencesStore implements PreferencesStore {
   List<String> recent = [];
   String? clipboard;
+  List<String>? randomFolders;
   @override
   Future<String?> handledClipboardUrl() async => clipboard;
   @override
@@ -24,4 +25,9 @@ class MemoryPreferencesStore implements PreferencesStore {
       recent = [id, ...recent.where((value) => value != id)];
   @override
   Future<void> setHandledClipboardUrl(String url) async => clipboard = url;
+  @override
+  Future<List<String>?> selectedRandomFolderIds() async => randomFolders;
+  @override
+  Future<void> setSelectedRandomFolderIds(List<String>? folderIds) async =>
+      randomFolders = folderIds;
 }

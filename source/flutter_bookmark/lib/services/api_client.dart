@@ -39,6 +39,18 @@ class ApiClient {
     return _decode(response) as Map<String, dynamic>;
   }
 
+  Future<Map<String, dynamic>> register(
+    String username,
+    String password,
+  ) async {
+    final response = await _http.post(
+      Uri.parse('$baseUrl/auth/register'),
+      headers: const {'Content-Type': 'application/json'},
+      body: jsonEncode({'username': username, 'password': password}),
+    );
+    return _decode(response) as Map<String, dynamic>;
+  }
+
   Future<List<BookmarkFolder>> getFolders() async {
     final data = await _request(
       'GET',
@@ -145,12 +157,12 @@ class ApiClient {
     return BookmarkMetadata.fromJson(_unwrap(data, 'metadata'));
   }
 
-  Future<BookmarkItem?> getRandomItem() async {
-    final data = await _request(
-      'GET',
-      '/bookmarks/random',
-      query: {'space': space},
-    );
+  Future<BookmarkItem?> getRandomItem({Iterable<String>? folderIds}) async {
+    final query = <String, String>{'space': space};
+    if (folderIds != null && folderIds.isNotEmpty) {
+      query['folderIds'] = folderIds.join(',');
+    }
+    final data = await _request('GET', '/bookmarks/random', query: query);
     final item = (data as Map<String, dynamic>)['item'];
     return item == null
         ? null

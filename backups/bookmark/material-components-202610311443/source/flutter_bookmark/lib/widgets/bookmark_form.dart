@@ -1,0 +1,518 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
+
+import '../models/bookmark.dart';
+import '../models/shared_link.dart';
+import '../services/link_launcher.dart';
+import '../state/app_state.dart';
+import 'bookmark_cover.dart';
+
+class BookmarkForm extends StatefulWidget {
+  const BookmarkForm({super.key});
+
+  @override
+  State<BookmarkForm> createState() => _BookmarkFormState();
+}
+
+class _BookmarkFormState extends State<BookmarkForm> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _url;
+  late final TextEditingController _title;
+  late final TextEditingController _description;
+  late final TextEditingController _coverUrl;
+  String? _folderId;
+  bool _recognizing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final draft = context.read<AppState>().draft!;
+    _url = TextEditingController(text: draft.sourceUrl);
+    _title = TextEditingController(text: draft.title);
+    _description = TextEditingController(text: draft.description);
+    _coverUrl = TextEditingController(text: draft.coverUrl);
+    _folderId = draft.folderId;
+    if (draft.fetchMetadataOnOpen && draft.sourceUrl.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _recognizeMetadata());
+    }
+  }
+
+  @override
+  void dispose() {
+    _url.dispose();
+    _title.dispose();
+    _description.dispose();
+    _coverUrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _recognizeMetadata() async {
+    final uri = Uri.tryParse(_url.text.trim());
+    if (uri == null ||
+        !uri.hasAuthority ||
+        (uri.scheme != 'http' && uri.scheme != 'https')) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('请先输入有效的 HTTP/HTTPS 链接')));
+      return;
+    }
+    setState(() => _recognizing = true);
+    final state = context.read<AppState>();
+    final metadata = await state.fetchBookmarkMetadata(uri.toString());
+    if (!mounted) return;
+    setState(() {
+      _recognizing = false;
+      if (metadata != null) {
+        if (_title.text.trim().isEmpty &&
+            metadata.title?.trim().isNotEmpty == true) {
+          _title.text = metadata.title!.trim();
+        }
+        if (_description.text.trim().isEmpty &&
+            metadata.description?.trim().isNotEmpty == true) {
+          _description.text = metadata.description!.trim();
+        }
+        if (_coverUrl.text.trim().isEmpty &&
+            metadata.coverUrl?.trim().isNotEmpty == true) {
+          _coverUrl.text = metadata.coverUrl!.trim();
+        }
+        if (metadata.finalUrl?.trim().isNotEmpty == true) {
+          _url.text = metadata.finalUrl!.trim();
+        }
+      }
+      if (_title.text.trim().isEmpty) {
+        _title.text = titleFallbackForUrl(uri);
+      }
+    });
+    if (metadata == null && state.metadataMessage != null) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(state.metadataMessage!)));
+    }
+  }
+
+  Future<void> _paste() async {
+    final text = (await Clipboard.getData(Clipboard.kTextPlain))?.text ?? '';
+    final shared = extractSharedLink(text);
+    if (!mounted) return;
+    if (shared == null) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('剪贴板中没有有效链接')));
+      return;
+    }
+    setState(() {
+      _url.text = shared.url;
+      if (_title.text.isEmpty) _title.text = shared.title;
+      if (_description.text.isEmpty) _description.text = shared.originalText;
+    });
+  }
+
+  Future<void> _save({bool allowDuplicate = false}) async {
+    if (!_formKey.currentState!.validate()) return;
+    final state = context.read<AppState>();
+    var sourceUrl = _url.text.trim();
+    final uri = Uri.parse(sourceUrl);
+    if (isXiaohongshuShortLink(uri)) {
+      setState(() => _recognizing = true);
+      final metadata = await state.fetchBookmarkMetadata(sourceUrl);
+      if (!mounted) return;
+      setState(() => _recognizing = false);
+      final finalUrl = metadata?.finalUrl?.trim();
+      final finalUri = finalUrl == null ? null : Uri.tryParse(finalUrl);
+      if (finalUri == null || !isCompleteXiaohongshuUrl(finalUri)) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('小红书短链解析失败，请稍后重试')));
+        return;
+      }
+      sourceUrl = finalUrl!;
+      _url.text = sourceUrl;
+    }
+    final value = BookmarkDraft(
+      sourceUrl: sourceUrl,
+      title: _title.text.trim(),
+      description: _description.text.trim(),
+      folderId: _folderId,
+      coverUrl: _coverUrl.text.trim(),
+    );
+    final saved = await state.saveDraft(value, allowDuplicate: allowDuplicate);
+    if (!mounted || saved) return;
+    if (state.errorCode == 'DUPLICATE_BOOKMARK') {
+      final duplicate = DuplicateBookmarkInfo.fromJson(state.errorData);
+      final action = await showDialog<String>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('链接已收藏'),
+          content: Text(
+            '已有收藏：${duplicate.title?.isNotEmpty == true ? duplicate.title : _url.text.trim()}\n所在位置：${duplicate.folderName ?? '未分类'}',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, 'open'),
+              child: const Text('打开原链接'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, 'folder'),
+              child: const Text('查看文件夹'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, 'overwrite'),
+              child: const Text('覆盖原收藏'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, 'duplicate'),
+              child: const Text('另存一份'),
+            ),
+          ],
+        ),
+      );
+      if (!mounted || action == null) return;
+      if (action == 'open') {
+        await openExternalLink(context, value.sourceUrl);
+      } else if (action == 'folder') {
+        await state.openFolder(duplicate.folderId);
+        if (mounted) state.closeDraft();
+      } else if (action == 'overwrite' && duplicate.id.isNotEmpty) {
+        final overwritten = await state.overwriteItem(duplicate.id, value);
+        if (overwritten && mounted) state.closeDraft();
+      } else if (action == 'duplicate') {
+        await state.saveDraft(value, allowDuplicate: true);
+      }
+    }
+  }
+
+  Future<void> _chooseFolder(List<FolderNode> nodes) async {
+    final state = context.read<AppState>();
+    final selected = await showDialog<String>(
+      context: context,
+      builder: (context) =>
+          _FolderPickerDialog(state: state, selectedFolderId: _folderId),
+    );
+    if (!mounted || selected == null) return;
+    setState(() => _folderId = selected.isEmpty ? null : selected);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = context.watch<AppState>();
+    final folderNodes = flattenFolderTree(state.folderTree).toList();
+
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) state.closeDraft();
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(state.editingItemId == null ? '快速收藏' : '编辑收藏'),
+          actions: [
+            TextButton.icon(
+              onPressed: _paste,
+              icon: const Icon(Icons.content_paste),
+              label: const Text('粘贴'),
+            ),
+          ],
+        ),
+        body: Form(
+          key: _formKey,
+          child: ListView(
+            padding: const EdgeInsets.all(20),
+            children: [
+              TextFormField(
+                controller: _url,
+                autofocus: _url.text.isEmpty,
+                decoration: InputDecoration(
+                  labelText: '链接',
+                  prefixIcon: const Icon(Icons.link),
+                  suffixIcon: IconButton(
+                    onPressed: () => openExternalLink(context, _url.text),
+                    tooltip: '打开链接',
+                    icon: const Icon(Icons.open_in_new),
+                  ),
+                ),
+                keyboardType: TextInputType.url,
+                onChanged: (_) => setState(() {}),
+                validator: (value) {
+                  final uri = Uri.tryParse(value?.trim() ?? '');
+                  return uri != null &&
+                          uri.hasAuthority &&
+                          (uri.scheme == 'http' || uri.scheme == 'https')
+                      ? null
+                      : '请输入 HTTP/HTTPS 链接';
+                },
+              ),
+              const SizedBox(height: 14),
+              TextField(
+                controller: _title,
+                decoration: const InputDecoration(labelText: '标题（可选）'),
+              ),
+              const SizedBox(height: 14),
+              TextField(
+                controller: _description,
+                decoration: const InputDecoration(
+                  labelText: '描述（可选）',
+                  alignLabelWithHint: true,
+                ),
+                minLines: 3,
+                maxLines: 6,
+              ),
+              const SizedBox(height: 14),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  BookmarkCover(
+                    sourceUrl: _url.text,
+                    coverUrl: _coverUrl.text,
+                    width: 88,
+                    height: 88,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextField(
+                      controller: _coverUrl,
+                      decoration: const InputDecoration(
+                        labelText: '封面 URL（可选）',
+                        prefixIcon: Icon(Icons.image_outlined),
+                      ),
+                      keyboardType: TextInputType.url,
+                      onChanged: (_) => setState(() {}),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerRight,
+                child: OutlinedButton.icon(
+                  onPressed: _recognizing ? null : _recognizeMetadata,
+                  icon: _recognizing
+                      ? const SizedBox.square(
+                          dimension: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.auto_awesome_outlined),
+                  label: const Text('识别封面'),
+                ),
+              ),
+              const SizedBox(height: 14),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: InkWell(
+                      onTap: () => _chooseFolder(folderNodes),
+                      borderRadius: BorderRadius.circular(4),
+                      child: InputDecorator(
+                        decoration: const InputDecoration(labelText: '收藏夹'),
+                        child: Text(
+                          _folderId == null
+                              ? '未分类'
+                              : folderNodes
+                                    .firstWhere(
+                                      (node) => node.folder.id == _folderId,
+                                    )
+                                    .folder
+                                    .name,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+              FilledButton.icon(
+                onPressed: state.busy || _recognizing ? null : _save,
+                icon: state.busy
+                    ? const SizedBox.square(
+                        dimension: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.bookmark_add),
+                label: const Padding(
+                  padding: EdgeInsets.all(12),
+                  child: Text('保存'),
+                ),
+              ),
+              if (state.error != null) ...[
+                const SizedBox(height: 12),
+                Text(
+                  state.error!,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FolderPickerDialog extends StatefulWidget {
+  const _FolderPickerDialog({
+    required this.state,
+    required this.selectedFolderId,
+  });
+
+  final AppState state;
+  final String? selectedFolderId;
+
+  @override
+  State<_FolderPickerDialog> createState() => _FolderPickerDialogState();
+}
+
+class _FolderPickerDialogState extends State<_FolderPickerDialog> {
+  late String? selectedFolderId = widget.selectedFolderId;
+  final nameController = TextEditingController();
+  String? parentId;
+
+  @override
+  void dispose() {
+    nameController.dispose();
+    super.dispose();
+  }
+
+  Future<void> createFolder() async {
+    final name = nameController.text.trim();
+    if (name.isEmpty) return;
+    final folder = await widget.state.createFolder(name, parentId);
+    if (!mounted || folder == null) return;
+    Navigator.pop(context, folder.id);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final nodes = flattenFolderTree(widget.state.folderTree).toList();
+    final colors = Theme.of(context).colorScheme;
+    return AlertDialog(
+      title: const Text('选择收藏夹'),
+      content: SizedBox(
+        width: 440,
+        height: MediaQuery.sizeOf(context).height * .6,
+        child: Column(
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: nameController,
+                    decoration: const InputDecoration(
+                      isDense: true,
+                      hintText: '新建收藏夹',
+                      prefixIcon: Icon(Icons.create_new_folder_outlined),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                IconButton.filledTonal(
+                  onPressed: widget.state.busy ? null : createFolder,
+                  tooltip: '创建到选中的目录下',
+                  icon: const Icon(Icons.add),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                parentId == null ? '新目录将创建在根目录' : '新目录将创建在选中的目录下',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Expanded(
+              child: Card(
+                margin: EdgeInsets.zero,
+                clipBehavior: Clip.antiAlias,
+                child: ListView(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  children: [
+                    _FolderPickerTile(
+                      label: '未分类',
+                      depth: 0,
+                      selected: selectedFolderId == null,
+                      colorScheme: colors,
+                      onTap: () => setState(() => selectedFolderId = null),
+                    ),
+                    for (final node in nodes)
+                      _FolderPickerTile(
+                        label: node.folder.name,
+                        depth: node.depth,
+                        selected: selectedFolderId == node.folder.id,
+                        colorScheme: colors,
+                        onTap: () => setState(() {
+                          selectedFolderId = node.folder.id;
+                          parentId = node.folder.id;
+                        }),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('取消'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, selectedFolderId ?? ''),
+          child: const Text('选择'),
+        ),
+      ],
+    );
+  }
+}
+
+class _FolderPickerTile extends StatelessWidget {
+  const _FolderPickerTile({
+    required this.label,
+    required this.depth,
+    required this.selected,
+    required this.colorScheme,
+    required this.onTap,
+  });
+
+  final String label;
+  final int depth;
+  final bool selected;
+  final ColorScheme colorScheme;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(
+        left: depth == 0 ? 6 : 6 + (depth - 1) * 20.0,
+        right: 6,
+        top: 1,
+        bottom: 1,
+      ),
+      child: Material(
+        color: selected ? colorScheme.primaryContainer : Colors.transparent,
+        borderRadius: BorderRadius.circular(8),
+        child: ListTile(
+          dense: true,
+          visualDensity: const VisualDensity(vertical: -2),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+          leading: Icon(
+            depth == 0 ? Icons.inbox_outlined : Icons.folder_outlined,
+            size: 18,
+            color: selected
+                ? colorScheme.primary
+                : colorScheme.onSurfaceVariant,
+          ),
+          title: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (selected)
+                Icon(Icons.check_circle, size: 18, color: colorScheme.primary),
+            ],
+          ),
+          onTap: onTap,
+        ),
+      ),
+    );
+  }
+}

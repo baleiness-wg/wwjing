@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -118,6 +119,61 @@ void main() {
     );
   });
 
+  test('注册新账号成功后自动登录并写入安全存储', () async {
+    final tokens = MemoryTokenStore();
+    final preferences = MemoryPreferencesStore();
+    final requests = <String>[];
+    final client = MockClient((request) async {
+      requests.add(request.url.path);
+      if (request.url.path.endsWith('/auth/register')) {
+        expect(jsonDecode(request.body), {
+          'username': 'newuser',
+          'password': 'secretpassword',
+        });
+        return http.Response(
+          jsonEncode({
+            'user': {'id': 2, 'username': 'newuser'},
+          }),
+          201,
+        );
+      }
+      if (request.url.path.endsWith('/auth/login')) {
+        return http.Response(
+          jsonEncode({
+            'token': 'Bearer registered-jwt',
+            'user': {'id': 2, 'username': 'newuser'},
+          }),
+          200,
+        );
+      }
+      if (request.url.path.endsWith('/folders')) {
+        return http.Response('[]', 200);
+      }
+      return http.Response(
+        jsonEncode({'items': [], 'page': 1, 'totalPages': 1}),
+        200,
+      );
+    });
+    final api = ApiClient(
+      baseUrl: 'https://api.example/api',
+      space: 'cookie',
+      tokenStore: tokens,
+      httpClient: client,
+    );
+    final state = AppState(
+      api: api,
+      tokenStore: tokens,
+      preferences: preferences,
+    );
+
+    await state.register('newuser', 'secretpassword');
+
+    expect(requests, contains('/api/auth/register'));
+    expect(requests, contains('/api/auth/login'));
+    expect(tokens.value, 'Bearer registered-jwt');
+    expect(state.authenticated, isTrue);
+  });
+
   test('401 清除令牌但保留待收藏草稿供重新登录恢复', () async {
     final tokens = MemoryTokenStore('Bearer expired');
     final preferences = MemoryPreferencesStore();
@@ -232,6 +288,38 @@ void main() {
     expect(await api.getRandomItem(), isNull);
   });
 
+  test('随机接口传递多个目录并在 URL 中正确拼装 folderIds', () async {
+    final tokens = MemoryTokenStore('Bearer token');
+    final api = ApiClient(
+      baseUrl: 'https://api.example/api',
+      space: 'cookie',
+      tokenStore: tokens,
+      httpClient: MockClient((request) async {
+        expect(request.url.path, '/api/bookmarks/random');
+        expect(request.url.queryParameters['space'], 'cookie');
+        expect(request.url.queryParameters['folderIds'], '10,20,30');
+        return http.Response.bytes(
+          utf8.encode(
+            jsonEncode({
+              'item': {'id': '99', 'sourceUrl': 'https://example.com/target'},
+            }),
+          ),
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      }),
+    );
+    final preferences = MemoryPreferencesStore();
+    final state = AppState(
+      api: api,
+      tokenStore: tokens,
+      preferences: preferences,
+    );
+
+    final item = await state.randomItem(folderIds: ['10', '20', '30']);
+    expect(item?.id, '99');
+  });
+
   test('随机接口错误和 401 复用统一异常及清令牌流程', () async {
     final tokens = MemoryTokenStore('Bearer token');
     var unauthorized = false;
@@ -262,5 +350,117 @@ void main() {
     await expectLater(api.getRandomItem(), throwsA(isA<ApiException>()));
     expect(tokens.value, isNull);
     expect(unauthorized, isTrue);
+  });
+
+  test('拖入子目录后只刷新当前目录直属条目', () async {
+    final tokens = MemoryTokenStore('Bearer token');
+    var moved = false;
+    final api = ApiClient(
+      baseUrl: 'https://api.example/api',
+      space: 'cookie',
+      tokenStore: tokens,
+      httpClient: MockClient((request) async {
+        if (request.method == 'PATCH') {
+          expect(request.url.path, '/api/bookmarks/items/9');
+          expect(jsonDecode(request.body), {
+            'folderId': '2',
+            'space': 'cookie',
+          });
+          moved = true;
+          return http.Response('{}', 200);
+        }
+        if (request.url.path.endsWith('/folders')) {
+          return http.Response.bytes(
+            utf8.encode(
+              '[{"id":"1","name":"父目录"},{"id":"2","name":"子目录","parentId":"1"}]',
+            ),
+            200,
+            headers: {'content-type': 'application/json; charset=utf-8'},
+          );
+        }
+        expect(request.url.path, '/api/bookmarks/items');
+        expect(request.url.queryParameters['folderId'], '1');
+        expect(
+          request.url.queryParameters.containsKey('includeDescendants'),
+          isFalse,
+        );
+        return http.Response(
+          moved ? '{"items":[],"page":1,"totalPages":1}' : '{"items":[{"id":"9","folderId":"1","sourceUrl":"https://example.com"}],"page":1,"totalPages":1}',
+          200,
+        );
+      }),
+    );
+    final state =
+        AppState(
+            api: api,
+            tokenStore: tokens,
+            preferences: MemoryPreferencesStore(),
+          )
+          ..initialized = true
+          ..authenticated = true
+          ..view = BookmarkView.folder
+          ..selectedFolderId = '1';
+
+    await state.refresh();
+    expect(state.items.single.id, '9');
+    await state.moveItem('9', '2');
+
+    expect(moved, isTrue);
+    expect(state.items, isEmpty);
+  });
+
+  test('切换目录立即清空旧卡片且忽略滞后的旧响应', () async {
+    final tokens = MemoryTokenStore('Bearer token');
+    final firstItems = Completer<http.Response>();
+    final api = ApiClient(
+      baseUrl: 'https://api.example/api',
+      space: 'cookie',
+      tokenStore: tokens,
+      httpClient: MockClient((request) async {
+        if (request.url.path.endsWith('/folders')) {
+          return http.Response.bytes(
+            utf8.encode('[{"id":"1","name":"目录一"},{"id":"2","name":"目录二"}]'),
+            200,
+            headers: {'content-type': 'application/json; charset=utf-8'},
+          );
+        }
+        if (request.url.queryParameters['folderId'] == '1') {
+          return firstItems.future;
+        }
+        return http.Response(
+          '{"items":[{"id":"2","folderId":"2","sourceUrl":"https://example.com/new"}],"page":1,"totalPages":1}',
+          200,
+        );
+      }),
+    );
+    final state =
+        AppState(
+            api: api,
+            tokenStore: tokens,
+            preferences: MemoryPreferencesStore(),
+          )
+          ..initialized = true
+          ..authenticated = true
+          ..items = const [
+            BookmarkItem(id: 'old', sourceUrl: 'https://example.com/old'),
+          ];
+
+    final firstRequest = state.selectView(BookmarkView.folder, '1');
+    expect(state.busy, isTrue);
+    expect(state.items, isEmpty);
+
+    final secondRequest = state.selectView(BookmarkView.folder, '2');
+    await secondRequest;
+    expect(state.items.single.id, '2');
+
+    firstItems.complete(
+      http.Response(
+        '{"items":[{"id":"1","folderId":"1","sourceUrl":"https://example.com/stale"}],"page":1,"totalPages":1}',
+        200,
+      ),
+    );
+    await firstRequest;
+    expect(state.selectedFolderId, '2');
+    expect(state.items.single.id, '2');
   });
 }

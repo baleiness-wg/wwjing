@@ -31,16 +31,20 @@ class AppState extends ChangeNotifier {
   List<BookmarkFolder> folders = [];
   List<BookmarkItem> items = [];
   List<String> recentFolderIds = [];
+  List<String>? selectedRandomFolderIds;
   BookmarkView view = BookmarkView.all;
   String? selectedFolderId;
   String query = '';
   int page = 1;
   int totalPages = 1;
+  int _viewRequestId = 0;
+  int _activeOperations = 0;
 
   List<FolderNode> get folderTree => buildFolderTree(folders);
 
   Future<void> initialize() async {
     recentFolderIds = await preferences.recentFolders();
+    selectedRandomFolderIds = await preferences.selectedRandomFolderIds();
     authenticated = await tokenStore.read() != null;
     initialized = true;
     notifyListeners();
@@ -49,6 +53,18 @@ class AppState extends ChangeNotifier {
 
   Future<void> login(String username, String password) async {
     await _run(() async {
+      final result = await api.login(username, password);
+      final token = result['token'] as String?;
+      if (token == null || token.isEmpty) throw const ApiException('登录响应缺少令牌');
+      await tokenStore.write(token);
+      authenticated = true;
+      await refresh();
+    });
+  }
+
+  Future<void> register(String username, String password) async {
+    await _run(() async {
+      await api.register(username, password);
       final result = await api.login(username, password);
       final token = result['token'] as String?;
       if (token == null || token.isEmpty) throw const ApiException('登录响应缺少令牌');
@@ -69,18 +85,31 @@ class AppState extends ChangeNotifier {
 
   Future<void> handleUnauthorized() => logout(expired: true);
 
-  Future<void> refresh({bool resetPage = false}) async {
+  Future<void> refresh({
+    bool resetPage = false,
+    bool clearItems = false,
+  }) async {
     if (!authenticated) return;
     if (resetPage) page = 1;
+    if (clearItems) {
+      items = [];
+      totalPages = 1;
+    }
+    final requestId = _viewRequestId;
+    final requestView = view;
+    final requestFolderId = selectedFolderId;
+    final requestQuery = query;
+    final requestPage = page;
     await _run(() async {
-      folders = await api.getFolders();
+      final nextFolders = await api.getFolders();
       final result = await api.getItems(
-        folderId: view == BookmarkView.folder ? selectedFolderId : null,
-        includeDescendants: view == BookmarkView.folder,
-        uncategorized: view == BookmarkView.uncategorized,
-        query: query,
-        page: page,
+        folderId: requestView == BookmarkView.folder ? requestFolderId : null,
+        uncategorized: requestView == BookmarkView.uncategorized,
+        query: requestQuery,
+        page: requestPage,
       );
+      if (requestId != _viewRequestId) return;
+      folders = nextFolders;
       items = result.items;
       page = result.page;
       totalPages = result.totalPages;
@@ -88,9 +117,10 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> selectView(BookmarkView nextView, [String? folderId]) async {
+    _viewRequestId++;
     view = nextView;
     selectedFolderId = folderId;
-    await refresh(resetPage: true);
+    await refresh(resetPage: true, clearItems: true);
   }
 
   Future<void> search(String value) async {
@@ -160,11 +190,18 @@ class AppState extends ChangeNotifier {
     return null;
   }
 
-  Future<BookmarkItem?> randomItem() async {
+  Future<void> updateSelectedRandomFolderIds(List<String>? folderIds) async {
+    selectedRandomFolderIds = folderIds;
+    await preferences.setSelectedRandomFolderIds(folderIds);
+    notifyListeners();
+  }
+
+  Future<BookmarkItem?> randomItem({Iterable<String>? folderIds}) async {
     error = null;
     notifyListeners();
     try {
-      return await api.getRandomItem();
+      final effectiveFolderIds = folderIds ?? selectedRandomFolderIds;
+      return await api.getRandomItem(folderIds: effectiveFolderIds);
     } on ApiException catch (exception) {
       error = exception.message;
     } catch (_) {
@@ -312,6 +349,7 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> _run(Future<void> Function() operation) async {
+    _activeOperations++;
     busy = true;
     error = null;
     errorCode = null;
@@ -326,7 +364,8 @@ class AppState extends ChangeNotifier {
     } catch (_) {
       error = '网络请求失败，请检查连接后重试';
     } finally {
-      busy = false;
+      _activeOperations--;
+      busy = _activeOperations > 0;
       notifyListeners();
     }
   }

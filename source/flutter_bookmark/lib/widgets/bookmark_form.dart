@@ -7,6 +7,7 @@ import '../models/shared_link.dart';
 import '../services/link_launcher.dart';
 import '../state/app_state.dart';
 import 'bookmark_cover.dart';
+import 'folder_picker_dialog.dart';
 
 class BookmarkForm extends StatefulWidget {
   const BookmarkForm({super.key});
@@ -47,7 +48,30 @@ class _BookmarkFormState extends State<BookmarkForm> {
     super.dispose();
   }
 
-  Future<void> _recognizeMetadata() async {
+  Future<void> _paste() async {
+    final text = (await Clipboard.getData(Clipboard.kTextPlain))?.text ?? '';
+    final shared = extractSharedLink(text);
+    if (!mounted) return;
+    if (shared == null) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('剪贴板中没有有效链接')));
+      return;
+    }
+    setState(() {
+      _url.text = shared.url;
+      // 粘贴时若有分享导言可作为兜底，但仍优先允许元数据填入网页真实标题
+      if (_title.text.isEmpty && shared.title.isNotEmpty) {
+        _title.text = shared.title;
+      }
+      if (_description.text.isEmpty && shared.originalText.isNotEmpty) {
+        _description.text = shared.originalText;
+      }
+    });
+    // 粘贴有效链接后自动异步识别封面与完整信息
+    await _recognizeMetadata(overrideTitle: true);
+  }
+
+  Future<void> _recognizeMetadata({bool overrideTitle = false}) async {
     final uri = Uri.tryParse(_url.text.trim());
     if (uri == null ||
         !uri.hasAuthority ||
@@ -63,7 +87,7 @@ class _BookmarkFormState extends State<BookmarkForm> {
     setState(() {
       _recognizing = false;
       if (metadata != null) {
-        if (_title.text.trim().isEmpty &&
+        if ((overrideTitle || _title.text.trim().isEmpty) &&
             metadata.title?.trim().isNotEmpty == true) {
           _title.text = metadata.title!.trim();
         }
@@ -89,22 +113,6 @@ class _BookmarkFormState extends State<BookmarkForm> {
     }
   }
 
-  Future<void> _paste() async {
-    final text = (await Clipboard.getData(Clipboard.kTextPlain))?.text ?? '';
-    final shared = extractSharedLink(text);
-    if (!mounted) return;
-    if (shared == null) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('剪贴板中没有有效链接')));
-      return;
-    }
-    setState(() {
-      _url.text = shared.url;
-      if (_title.text.isEmpty) _title.text = shared.title;
-      if (_description.text.isEmpty) _description.text = shared.originalText;
-    });
-  }
-
   Future<void> _save({bool allowDuplicate = false}) async {
     if (!_formKey.currentState!.validate()) return;
     final state = context.read<AppState>();
@@ -124,6 +132,14 @@ class _BookmarkFormState extends State<BookmarkForm> {
       }
       sourceUrl = finalUrl!;
       _url.text = sourceUrl;
+      if (_coverUrl.text.trim().isEmpty &&
+          metadata?.coverUrl?.trim().isNotEmpty == true) {
+        _coverUrl.text = metadata!.coverUrl!.trim();
+      }
+      if (_title.text.trim().isEmpty &&
+          metadata?.title?.trim().isNotEmpty == true) {
+        _title.text = metadata!.title!.trim();
+      }
     }
     final value = BookmarkDraft(
       sourceUrl: sourceUrl,
@@ -180,10 +196,13 @@ class _BookmarkFormState extends State<BookmarkForm> {
 
   Future<void> _chooseFolder(List<FolderNode> nodes) async {
     final state = context.read<AppState>();
-    final selected = await showDialog<String>(
+    final selected = await showFolderPicker(
       context: context,
-      builder: (context) =>
-          _FolderPickerDialog(state: state, selectedFolderId: _folderId),
+      state: state,
+      title: '选择收藏夹',
+      selectedFolderId: _folderId,
+      rootLabel: '未分类',
+      allowCreate: true,
     );
     if (!mounted || selected == null) return;
     setState(() => _folderId = selected.isEmpty ? null : selected);
@@ -292,30 +311,24 @@ class _BookmarkFormState extends State<BookmarkForm> {
                 ),
               ),
               const SizedBox(height: 14),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: InkWell(
-                      onTap: () => _chooseFolder(folderNodes),
-                      borderRadius: BorderRadius.circular(4),
-                      child: InputDecorator(
-                        decoration: const InputDecoration(labelText: '收藏夹'),
-                        child: Text(
-                          _folderId == null
-                              ? '未分类'
-                              : folderNodes
-                                    .firstWhere(
-                                      (node) => node.folder.id == _folderId,
-                                    )
-                                    .folder
-                                    .name,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ),
+              Card.outlined(
+                key: const Key('folder-picker-trigger'),
+                child: ListTile(
+                  leading: const Icon(Icons.folder_outlined),
+                  title: const Text('收藏夹'),
+                  subtitle: Text(
+                    _folderId == null
+                        ? '未分类'
+                        : folderNodes
+                              .firstWhere((node) => node.folder.id == _folderId)
+                              .folder
+                              .name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                ],
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => _chooseFolder(folderNodes),
+                ),
               ),
               const SizedBox(height: 24),
               FilledButton.icon(
@@ -340,177 +353,6 @@ class _BookmarkFormState extends State<BookmarkForm> {
               ],
             ],
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _FolderPickerDialog extends StatefulWidget {
-  const _FolderPickerDialog({
-    required this.state,
-    required this.selectedFolderId,
-  });
-
-  final AppState state;
-  final String? selectedFolderId;
-
-  @override
-  State<_FolderPickerDialog> createState() => _FolderPickerDialogState();
-}
-
-class _FolderPickerDialogState extends State<_FolderPickerDialog> {
-  late String? selectedFolderId = widget.selectedFolderId;
-  final nameController = TextEditingController();
-  String? parentId;
-
-  @override
-  void dispose() {
-    nameController.dispose();
-    super.dispose();
-  }
-
-  Future<void> createFolder() async {
-    final name = nameController.text.trim();
-    if (name.isEmpty) return;
-    final folder = await widget.state.createFolder(name, parentId);
-    if (!mounted || folder == null) return;
-    Navigator.pop(context, folder.id);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final nodes = flattenFolderTree(widget.state.folderTree).toList();
-    final colors = Theme.of(context).colorScheme;
-    return AlertDialog(
-      title: const Text('选择收藏夹'),
-      content: SizedBox(
-        width: 440,
-        height: MediaQuery.sizeOf(context).height * .6,
-        child: Column(
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: nameController,
-                    decoration: const InputDecoration(
-                      isDense: true,
-                      hintText: '新建收藏夹',
-                      prefixIcon: Icon(Icons.create_new_folder_outlined),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 6),
-                IconButton.filledTonal(
-                  onPressed: widget.state.busy ? null : createFolder,
-                  tooltip: '创建到选中的目录下',
-                  icon: const Icon(Icons.add),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                parentId == null ? '新目录将创建在根目录' : '新目录将创建在选中的目录下',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Expanded(
-              child: Card(
-                margin: EdgeInsets.zero,
-                clipBehavior: Clip.antiAlias,
-                child: ListView(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  children: [
-                    _FolderPickerTile(
-                      label: '未分类',
-                      depth: 0,
-                      selected: selectedFolderId == null,
-                      colorScheme: colors,
-                      onTap: () => setState(() => selectedFolderId = null),
-                    ),
-                    for (final node in nodes)
-                      _FolderPickerTile(
-                        label: node.folder.name,
-                        depth: node.depth,
-                        selected: selectedFolderId == node.folder.id,
-                        colorScheme: colors,
-                        onTap: () => setState(() {
-                          selectedFolderId = node.folder.id;
-                          parentId = node.folder.id;
-                        }),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('取消'),
-        ),
-        FilledButton(
-          onPressed: () => Navigator.pop(context, selectedFolderId ?? ''),
-          child: const Text('选择'),
-        ),
-      ],
-    );
-  }
-}
-
-class _FolderPickerTile extends StatelessWidget {
-  const _FolderPickerTile({
-    required this.label,
-    required this.depth,
-    required this.selected,
-    required this.colorScheme,
-    required this.onTap,
-  });
-
-  final String label;
-  final int depth;
-  final bool selected;
-  final ColorScheme colorScheme;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.only(
-        left: depth == 0 ? 6 : 6 + (depth - 1) * 20.0,
-        right: 6,
-        top: 1,
-        bottom: 1,
-      ),
-      child: Material(
-        color: selected ? colorScheme.primaryContainer : Colors.transparent,
-        borderRadius: BorderRadius.circular(8),
-        child: ListTile(
-          dense: true,
-          visualDensity: const VisualDensity(vertical: -2),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 8),
-          leading: Icon(
-            depth == 0 ? Icons.inbox_outlined : Icons.folder_outlined,
-            size: 18,
-            color: selected
-                ? colorScheme.primary
-                : colorScheme.onSurfaceVariant,
-          ),
-          title: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
-          trailing: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (selected)
-                Icon(Icons.check_circle, size: 18, color: colorScheme.primary),
-            ],
-          ),
-          onTap: onTap,
         ),
       ),
     );

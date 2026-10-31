@@ -11,7 +11,19 @@ const router = createRouter({
     { path: "/", name: "home", component: HomeView, meta: { requiresAuth: true } },
     { path: "/tools", name: "tools", component: ToolsView, meta: { requiresAuth: true } },
     { path: "/tools/transfer", name: "transfer", component: TransferView, meta: { requiresAuth: true } },
-    { path: "/tools/bookmarks", name: "bookmarks", component: BookmarksView, meta: { requiresAuth: true } },
+    { path: "/tools/bookmarks", redirect: "/tools/bookmarks/star" },
+    {
+      path: "/tools/bookmarks/kitchen",
+      name: "bookmarks-kitchen",
+      component: BookmarksView,
+      meta: { requiresAuth: true, space: "cookie", title: "疯狂的厨房" }
+    },
+    {
+      path: "/tools/bookmarks/star",
+      name: "bookmarks-star",
+      component: BookmarksView,
+      meta: { requiresAuth: true, space: "star", title: "鲸界" }
+    },
     { path: "/login", name: "login", component: LoginView }
   ]
 });

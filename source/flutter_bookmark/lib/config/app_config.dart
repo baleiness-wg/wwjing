@@ -20,14 +20,14 @@ class AppConfig {
 
   static const kitchen = AppConfig._(
     type: AppType.kitchen,
-    appName: '微微鲸厨房',
+    appName: '疯狂的厨房',
     space: 'cookie',
     supportsRandom: true,
   );
 
   static const star = AppConfig._(
     type: AppType.star,
-    appName: '微微鲸星标',
+    appName: '鲸界',
     space: 'star',
     supportsRandom: false,
   );

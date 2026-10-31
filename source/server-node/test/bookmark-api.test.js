@@ -7,6 +7,7 @@ const config = require("../src/config");
 const folderService = require("../src/services/bookmark-folder.service");
 const itemService = require("../src/services/bookmark-item.service");
 const metadataService = require("../src/services/bookmark-metadata.service");
+const randomService = require("../src/services/bookmark-random.service");
 
 async function withServer(callback) {
   const server = http.createServer(app);
@@ -112,5 +113,31 @@ test("bookmark CRUD routes use JWT subject rather than request data", async () =
   } finally {
     Object.assign(folderService, originalFolders);
     Object.assign(itemService, originalItems);
+  }
+});
+
+test("random route passes folderIds query to service", async () => {
+  const originalRandom = randomService.random;
+  let receivedInput;
+  randomService.random = async (userId, input) => {
+    receivedInput = { userId, input };
+    return { id: "10", title: "测试菜谱" };
+  };
+  const token = jwt.sign({ sub: "42" }, config.jwtSecretKey, { algorithm: "HS256" });
+  try {
+    await withServer(async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/api/bookmarks/random?space=cookie&folderIds=1,2,3`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      assert.equal(response.status, 200);
+      assert.deepEqual(await response.json(), {
+        item: { id: "10", title: "测试菜谱" }
+      });
+      assert.equal(receivedInput.userId, "42");
+      assert.equal(receivedInput.input.space, "cookie");
+      assert.equal(receivedInput.input.folderIds, "1,2,3");
+    });
+  } finally {
+    randomService.random = originalRandom;
   }
 });

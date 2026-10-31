@@ -86,7 +86,7 @@
 11. 模块规格必须使用中文编写；接口路径统一放在“接口说明”章节中，接口定义应同步生成或更新 `src/[模块]/README.http`，并添加便于阅读和调试的注释。
 12. 每次变更代码需要同步生成或更新 `src/[模块]/build.json`，内容为在页脚显示的版本信息，格式为 `{"built": "yyyyMMddHHmm", "llmodel": "当前所使用的 LLM 模型名称"}`。
 13. **BUILD_TIME 自动替换**：HTML 中标记 `// BUILD_TIME: YYYY/MM/DD HH:mm`，opencode 每次重新生成文件时，将该值替换为当前时间的 `YYYY/MM/DD HH:mm` 格式。禁止使用 `document.lastModified` 等运行时方式。
-14. **视觉风格**：实现页面样式前，先加载 `design-taste-frontend` skill，参照其色彩校准（第 4.2 节）、排版规则（第 4.1 节）、布局多元化（第 4.3 节）等约束指导代码生成，避免 AI 默认样式。
+14. **视觉风格**：仅当用户明确指定 `design-taste-frontend` skill 或调用对应命令时，才加载该 skill；不得仅因页面样式、色彩、排版或布局关键词自动加载。
 
 ---
 

@@ -9,6 +9,8 @@ import {
   Folder,
   FolderOpened,
   House,
+  KnifeFork,
+  Star,
   SwitchButton,
   Tools,
   User
@@ -19,6 +21,7 @@ const route = useRoute();
 const isMobile = () => window.matchMedia("(max-width: 640px)").matches;
 const menuVisible = ref(!isMobile());
 const toolsExpanded = ref(route.path.startsWith("/tools"));
+const bookmarksExpanded = ref(route.path.startsWith("/tools/bookmarks"));
 const user = JSON.parse(localStorage.getItem("wwjing_user") || "null");
 
 const navigationItems = [
@@ -30,7 +33,15 @@ const navigationItems = [
     children: [
       { path: "/tools", label: "工具首页", icon: FolderOpened },
       { path: "/tools/transfer", label: "数据传输", icon: Tools },
-      { path: "/tools/bookmarks", label: "收藏夹", icon: CollectionTag }
+      {
+        path: "/tools/bookmarks",
+        label: "收藏夹",
+        icon: CollectionTag,
+        children: [
+          { path: "/tools/bookmarks/kitchen", label: "疯狂的厨房", icon: KnifeFork },
+          { path: "/tools/bookmarks/star", label: "鲸界", icon: Star }
+        ]
+      }
     ]
   }
 ];
@@ -42,6 +53,7 @@ watch(
   () => route.path,
   (path) => {
     if (path.startsWith("/tools")) toolsExpanded.value = true;
+    if (path.startsWith("/tools/bookmarks")) bookmarksExpanded.value = true;
   }
 );
 
@@ -56,6 +68,10 @@ function toggleMenu() {
 
 function toggleTools() {
   toolsExpanded.value = !toolsExpanded.value;
+}
+
+function toggleBookmarks() {
+  bookmarksExpanded.value = !bookmarksExpanded.value;
 }
 
 function logout() {
@@ -115,16 +131,44 @@ function logout() {
           </button>
 
           <div v-if="item.children && menuVisible && toolsExpanded" id="tools-submenu" class="side-submenu">
-            <button
-              v-for="child in item.children"
-              :key="child.path"
-              class="side-menu-item side-submenu-item"
-              :class="{ 'is-active': route.path === child.path }"
-              @click="go(child.path)"
-            >
-              <el-icon><component :is="child.icon" /></el-icon>
-              <span>{{ child.label }}</span>
-            </button>
+            <template v-for="child in item.children" :key="child.path">
+              <button
+                v-if="!child.children"
+                class="side-menu-item side-submenu-item"
+                :class="{ 'is-active': route.path === child.path }"
+                @click="go(child.path)"
+              >
+                <el-icon><component :is="child.icon" /></el-icon>
+                <span>{{ child.label }}</span>
+              </button>
+
+              <template v-else>
+                <button
+                  class="side-menu-item side-submenu-item side-menu-group"
+                  :class="{ 'is-active': route.path.startsWith(child.path) }"
+                  :title="child.label"
+                  :aria-expanded="bookmarksExpanded"
+                  @click="toggleBookmarks"
+                >
+                  <el-icon><component :is="bookmarksExpanded ? FolderOpened : Folder" /></el-icon>
+                  <span>{{ child.label }}</span>
+                  <el-icon class="group-chevron"><ArrowLeft v-if="bookmarksExpanded" /><ArrowRight v-else /></el-icon>
+                </button>
+
+                <div v-if="bookmarksExpanded" class="side-sub-submenu">
+                  <button
+                    v-for="subChild in child.children"
+                    :key="subChild.path"
+                    class="side-menu-item side-sub-submenu-item"
+                    :class="{ 'is-active': route.path === subChild.path }"
+                    @click="go(subChild.path)"
+                  >
+                    <el-icon><component :is="subChild.icon" /></el-icon>
+                    <span>{{ subChild.label }}</span>
+                  </button>
+                </div>
+              </template>
+            </template>
           </div>
         </template>
       </nav>

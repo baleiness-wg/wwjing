@@ -13,7 +13,7 @@ import 'widgets/bookmark_form.dart';
 import 'widgets/home_page.dart';
 import 'widgets/login_page.dart';
 
-// BUILD_TIME: 2026/10/31 05:41
+// BUILD_TIME: 2026/10/31 19:27
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   final appConfig = AppConfig.current;
@@ -141,7 +141,15 @@ class _BookmarkAppState extends State<BookmarkApp> with WidgetsBindingObserver {
           inputDecorationTheme: const InputDecorationTheme(
             border: OutlineInputBorder(),
           ),
-          cardTheme: const CardThemeData(margin: EdgeInsets.zero),
+          cardTheme: CardThemeData(
+            margin: EdgeInsets.zero,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+            ),
+          ),
+          listTileTheme: const ListTileThemeData(
+            contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          ),
         ),
         home: Consumer<AppState>(
           builder: (context, state, _) {
@@ -150,7 +158,9 @@ class _BookmarkAppState extends State<BookmarkApp> with WidgetsBindingObserver {
                 body: Center(child: CircularProgressIndicator()),
               );
             }
-            if (!state.authenticated) return const LoginPage();
+            if (!state.authenticated) {
+              return LoginPage(appConfig: widget.appConfig);
+            }
             if (state.draft != null) return const BookmarkForm();
             return Scaffold(
               body: HomePage(appConfig: widget.appConfig),

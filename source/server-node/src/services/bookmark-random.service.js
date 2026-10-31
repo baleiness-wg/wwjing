@@ -5,7 +5,16 @@ async function random(userId, input = {}) {
   if (input.space !== "cookie") throw new BookmarkError(400, "INVALID_SPACE", "随机菜谱只支持 cookie 空间");
   const parameters = [userId, "cookie"];
   const conditions = ["item.user_id = $1", "item.space = $2"];
-  if (input.folderId) {
+
+  if (input.folderIds) {
+    const rawIds = Array.isArray(input.folderIds)
+      ? input.folderIds
+      : String(input.folderIds).split(",").map((s) => s.trim()).filter(Boolean);
+    if (rawIds.length > 0) {
+      parameters.push(rawIds);
+      conditions.push(`item.folder_id = ANY($${parameters.length}::bigint[])`);
+    }
+  } else if (input.folderId) {
     parameters.push(input.folderId);
     conditions.push(`item.folder_id = $${parameters.length}`);
   }

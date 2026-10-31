@@ -20,7 +20,9 @@ globalThis.fetch = async (url, options = {}) => {
 const {
   createBookmarkItem,
   detectBookmarkMetadata,
+  getBookmarkFolders,
   getBookmarkItems,
+  getRandomBookmark,
   updateBookmarkFolder,
   updateBookmarkItem
 } = await import("../src/api/bookmarks.js");
@@ -79,4 +81,19 @@ test("网页元数据检测请求符合服务端契约", async () => {
   assert.equal(request.options.method, "POST");
   assert.equal(request.options.headers.get("Content-Type"), "application/json");
   assert.deepEqual(JSON.parse(request.options.body), { sourceUrl: "https://example.com/article" });
+});
+
+test("支持指定 space 查询目录及随机菜谱请求", async () => {
+  await getBookmarkFolders("cookie");
+  const folderReq = requests.shift();
+  const folderUrl = new URL(folderReq.url, "https://example.test");
+  assert.equal(folderUrl.pathname, "/api/bookmarks/folders");
+  assert.equal(folderUrl.searchParams.get("space"), "cookie");
+
+  await getRandomBookmark("cookie", "2");
+  const randomReq = requests.shift();
+  const randomUrl = new URL(randomReq.url, "https://example.test");
+  assert.equal(randomUrl.pathname, "/api/bookmarks/random");
+  assert.equal(randomUrl.searchParams.get("space"), "cookie");
+  assert.equal(randomUrl.searchParams.get("folderId"), "2");
 });

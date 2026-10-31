@@ -5,11 +5,14 @@ abstract interface class PreferencesStore {
   Future<void> rememberFolder(String id);
   Future<String?> handledClipboardUrl();
   Future<void> setHandledClipboardUrl(String url);
+  Future<List<String>?> selectedRandomFolderIds();
+  Future<void> setSelectedRandomFolderIds(List<String>? folderIds);
 }
 
 class SharedPreferencesStore implements PreferencesStore {
   static const _recentKey = 'recent_folder_ids';
   static const _clipboardKey = 'handled_clipboard_url';
+  static const _randomFoldersKey = 'selected_random_folder_ids';
 
   Future<SharedPreferences> get _prefs => SharedPreferences.getInstance();
 
@@ -36,4 +39,20 @@ class SharedPreferencesStore implements PreferencesStore {
   @override
   Future<void> setHandledClipboardUrl(String url) async =>
       (await _prefs).setString(_clipboardKey, url);
+
+  @override
+  Future<List<String>?> selectedRandomFolderIds() async {
+    final prefs = await _prefs;
+    return prefs.getStringList(_randomFoldersKey);
+  }
+
+  @override
+  Future<void> setSelectedRandomFolderIds(List<String>? folderIds) async {
+    final prefs = await _prefs;
+    if (folderIds == null) {
+      await prefs.remove(_randomFoldersKey);
+    } else {
+      await prefs.setStringList(_randomFoldersKey, folderIds);
+    }
+  }
 }

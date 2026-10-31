@@ -1,15 +1,18 @@
 <script setup>
-import { computed, onMounted, reactive, ref } from "vue";
+import { computed, onMounted, reactive, ref, watch } from "vue";
+import { useRoute } from "vue-router";
 import { ElMessage, ElMessageBox } from "element-plus";
 import {
   ArrowDown,
   ArrowUp,
   Delete,
+  Dish,
   Edit,
   FolderAdd,
   Link,
   MoreFilled,
   Plus,
+  Refresh,
   Search
 } from "@element-plus/icons-vue";
 import {
@@ -20,9 +23,19 @@ import {
   deleteBookmarkItem,
   getBookmarkFolders,
   getBookmarkItems,
+  getRandomBookmark,
   updateBookmarkFolder,
   updateBookmarkItem
 } from "../api/bookmarks";
+
+const route = useRoute();
+const currentSpace = computed(() => route.meta.space || "star");
+const currentTitle = computed(() => route.meta.title || (currentSpace.value === "cookie" ? "疯狂的厨房" : "鲸界"));
+const currentLead = computed(() => {
+  return currentSpace.value === "cookie"
+    ? "分类保存菜谱与做饭链接，并在不同设备间统一整理。"
+    : "把散落的链接收进清晰的目录，随时搜索和整理。";
+});
 
 const pageSize = 12;
 const folders = ref([]);
@@ -43,11 +56,26 @@ const saving = ref(false);
 const detectingMetadata = ref(false);
 const previewCoverFailed = ref(false);
 const failedCoverUrls = ref(new Set());
+const randomDialogVisible = ref(false);
+const loadingRandom = ref(false);
+const randomItem = ref(null);
 
 const folderForm = reactive({ id: null, name: "", parentId: null, position: 0 });
 const itemForm = reactive({ id: null, sourceUrl: "", title: "", description: "", coverUrl: "", folderId: null });
 const bulkFolderId = ref(null);
 const draggingItemId = ref(null);
+
+watch(
+  () => currentSpace.value,
+  async () => {
+    activeFolderId.value = undefined;
+    query.value = "";
+    page.value = 1;
+    selectedIds.value = [];
+    await loadFolders();
+    await loadItems();
+  }
+);
 
 const folderMap = computed(() => new Map(folders.value.map((folder) => [String(folder.id), folder])));
 
@@ -138,7 +166,7 @@ const folderMoveOptions = computed(() => {
 async function loadFolders() {
   loadingFolders.value = true;
   try {
-    const result = await getBookmarkFolders();
+    const result = await getBookmarkFolders(currentSpace.value);
     folders.value = result.folders || [];
     if (activeFolderId.value && !folderMap.value.has(String(activeFolderId.value))) activeFolderId.value = undefined;
   } catch (error) {
@@ -155,7 +183,7 @@ async function loadItems() {
     const filters = { page: page.value, pageSize, query: query.value.trim() || undefined };
     if (activeFolderId.value === null) filters.uncategorized = true;
     else if (activeFolderId.value !== undefined) filters.folderId = activeFolderId.value;
-    const result = await getBookmarkItems(filters);
+    const result = await getBookmarkItems(filters, currentSpace.value);
     items.value = result.items || [];
     total.value = result.total || 0;
   } catch (error) {
@@ -208,8 +236,8 @@ async function saveFolder() {
   };
   try {
     let createdFolder;
-    if (folderDialogMode.value === "create") createdFolder = await createBookmarkFolder(data);
-    else await updateBookmarkFolder(folderForm.id, data);
+    if (folderDialogMode.value === "create") createdFolder = await createBookmarkFolder(data, currentSpace.value);
+    else await updateBookmarkFolder(folderForm.id, data, currentSpace.value);
     folderDialogVisible.value = false;
     ElMessage.success(folderDialogMode.value === "create" ? "目录已创建" : "目录已更新");
     await loadFolders();
@@ -230,7 +258,7 @@ async function dropItemOnFolder(folderId) {
   const itemId = draggingItemId.value;
   draggingItemId.value = null;
   try {
-    await updateBookmarkItem(itemId, { folderId });
+    await updateBookmarkItem(itemId, { folderId }, currentSpace.value);
     ElMessage.success(folderId ? "收藏已移动" : "收藏已移入未分类");
     await Promise.all([loadFolders(), loadItems()]);
   } catch (error) {
@@ -245,7 +273,7 @@ async function removeFolder(folder) {
       confirmButtonText: "删除",
       cancelButtonText: "取消"
     });
-    await deleteBookmarkFolder(folder.id);
+    await deleteBookmarkFolder(folder.id, currentSpace.value);
     if (String(activeFolderId.value) === String(folder.id)) activeFolderId.value = undefined;
     ElMessage.success("目录已删除");
     await Promise.all([loadFolders(), loadItems()]);
@@ -264,7 +292,7 @@ async function moveFolderStep(folder, direction) {
   [siblings[index], siblings[targetIndex]] = [siblings[targetIndex], siblings[index]];
   try {
     for (let position = 0; position < siblings.length; position += 1) {
-      await updateBookmarkFolder(siblings[position].id, { position });
+      await updateBookmarkFolder(siblings[position].id, { position }, currentSpace.value);
     }
     await loadFolders();
   } catch (error) {
@@ -334,8 +362,8 @@ async function submitItem(allowDuplicate = false) {
   if (!data.sourceUrl) return ElMessage.warning("请输入链接");
   saving.value = true;
   try {
-    if (itemDialogMode.value === "create") await createBookmarkItem({ ...data, allowDuplicate });
-    else await updateBookmarkItem(itemForm.id, data);
+    if (itemDialogMode.value === "create") await createBookmarkItem({ ...data, allowDuplicate }, currentSpace.value);
+    else await updateBookmarkItem(itemForm.id, data, currentSpace.value);
     itemDialogVisible.value = false;
     ElMessage.success(itemDialogMode.value === "create" ? "收藏已创建" : "收藏已更新");
     await loadItems();
@@ -368,7 +396,7 @@ async function removeItems(targetItems = selectedItems.value) {
       confirmButtonText: "删除",
       cancelButtonText: "取消"
     });
-    const results = await Promise.allSettled(targetItems.map((item) => deleteBookmarkItem(item.id)));
+    const results = await Promise.allSettled(targetItems.map((item) => deleteBookmarkItem(item.id, currentSpace.value)));
     const failed = results.filter((result) => result.status === "rejected");
     if (failed.length) ElMessage.error(`${failed.length} 条收藏删除失败`);
     else ElMessage.success("收藏已删除");
@@ -387,7 +415,7 @@ function openMoveItems(targetItems = selectedItems.value) {
 async function moveItems() {
   saving.value = true;
   const results = await Promise.allSettled(
-    selectedItems.value.map((item) => updateBookmarkItem(item.id, { folderId: bulkFolderId.value || null }))
+    selectedItems.value.map((item) => updateBookmarkItem(item.id, { folderId: bulkFolderId.value || null }, currentSpace.value))
   );
   const failed = results.filter((result) => result.status === "rejected");
   if (failed.length) ElMessage.error(`${failed.length} 条收藏移动失败`);
@@ -397,6 +425,80 @@ async function moveItems() {
   }
   saving.value = false;
   await loadItems();
+}
+
+const randomFilterVisible = ref(false);
+const selectedRandomFolderIds = ref([]);
+
+function openRandomFilterDialog() {
+  if (folders.value.length === 0) {
+    return ElMessage.warning("当前没有菜谱目录，请先创建目录并添加收藏");
+  }
+  // 默认全选所有当前目录（或保留有效选择）
+  if (!selectedRandomFolderIds.value.length) {
+    selectedRandomFolderIds.value = folders.value.map((f) => String(f.id));
+  } else {
+    const validIds = new Set(folders.value.map((f) => String(f.id)));
+    selectedRandomFolderIds.value = selectedRandomFolderIds.value.filter((id) => validIds.has(id));
+    if (!selectedRandomFolderIds.value.length) {
+      selectedRandomFolderIds.value = folders.value.map((f) => String(f.id));
+    }
+  }
+  randomFilterVisible.value = true;
+}
+
+function toggleRandomFolderSelectAll() {
+  if (selectedRandomFolderIds.value.length === folders.value.length) {
+    selectedRandomFolderIds.value = [];
+  } else {
+    selectedRandomFolderIds.value = folders.value.map((f) => String(f.id));
+  }
+}
+
+async function startRandomFromFilter() {
+  if (selectedRandomFolderIds.value.length === 0) {
+    return ElMessage.warning("请至少选择一个目录进行随机");
+  }
+  randomFilterVisible.value = false;
+  randomDialogVisible.value = true;
+  await fetchRandomDish();
+}
+
+async function fetchRandomDish() {
+  if (selectedRandomFolderIds.value.length === 0) {
+    randomItem.value = null;
+    return ElMessage.warning("请至少选择一个目录进行随机");
+  }
+  loadingRandom.value = true;
+  try {
+    // 收集所选目录及其所有子目录 ID，随机选取一个目录传参给后端 folderId
+    const candidateIds = [];
+    selectedRandomFolderIds.value.forEach((id) => {
+      descendantIds(id).forEach((subId) => candidateIds.push(subId));
+    });
+
+    const targetFolderId = candidateIds[Math.floor(Math.random() * candidateIds.length)];
+    const res = await getRandomBookmark(currentSpace.value, targetFolderId);
+    randomItem.value = res?.item || null;
+    if (!randomItem.value) {
+      ElMessage.info("所选目录中暂无可推荐的菜谱");
+    }
+  } catch (err) {
+    ElMessage.error(err.message || "获取随机菜谱失败");
+  } finally {
+    loadingRandom.value = false;
+  }
+}
+
+function openRandomUrl() {
+  if (randomItem.value?.sourceUrl) {
+    window.open(randomItem.value.sourceUrl, "_blank", "noopener,noreferrer");
+  }
+}
+
+function changeRandomFilter() {
+  randomDialogVisible.value = false;
+  randomFilterVisible.value = true;
 }
 
 function toggleItem(id, checked) {
@@ -419,11 +521,22 @@ onMounted(async () => {
   <div class="bookmarks-page">
     <header class="bookmarks-heading">
       <div>
-        <p class="eyebrow">工具 / 收藏夹</p>
-        <h1>收藏夹</h1>
-        <p class="lead">把散落的链接收进清晰的目录，随时搜索和整理。</p>
+        <p class="eyebrow">工具 / 收藏夹 / {{ currentTitle }}</p>
+        <h1>{{ currentTitle }}</h1>
+        <p class="lead">{{ currentLead }}</p>
       </div>
-      <el-button type="primary" :icon="Plus" @click="openCreateItem">添加收藏</el-button>
+      <div style="display: flex; gap: 10px; align-items: center;">
+        <el-button
+          v-if="currentSpace === 'cookie'"
+          type="success"
+          plain
+          :icon="Dish"
+          @click="openRandomFilterDialog"
+        >
+          今天吃什么
+        </el-button>
+        <el-button type="primary" :icon="Plus" @click="openCreateItem">添加收藏</el-button>
+      </div>
     </header>
 
     <div class="bookmarks-workspace">
@@ -659,6 +772,68 @@ onMounted(async () => {
       <template #footer>
         <el-button @click="moveItemsVisible = false">取消</el-button>
         <el-button type="primary" :loading="saving" @click="moveItems">移动</el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog v-model="randomFilterVisible" title="选择随机目录范围" width="min(460px, 92vw)">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+        <span class="muted">勾选要参与抽取的菜谱目录</span>
+        <el-button
+          v-if="folders.length"
+          size="small"
+          text
+          type="primary"
+          @click="toggleRandomFolderSelectAll"
+        >
+          {{ selectedRandomFolderIds.length === folders.length ? "全不选" : "全选" }}
+        </el-button>
+      </div>
+      <el-checkbox-group v-if="folderOptions.length" v-model="selectedRandomFolderIds" class="random-filter-list">
+        <div
+          v-for="folder in folderOptions"
+          :key="folder.id"
+          class="random-filter-item"
+        >
+          <el-checkbox :value="String(folder.id)" :label="String(folder.id)">
+            <span>{{ folder.label }}</span>
+          </el-checkbox>
+        </div>
+      </el-checkbox-group>
+      <el-empty v-else :image-size="48" description="暂无可选择的菜谱目录" />
+      <template #footer>
+        <el-button @click="randomFilterVisible = false">取消</el-button>
+        <el-button type="primary" :icon="Dish" @click="startRandomFromFilter">开始随机</el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog v-model="randomDialogVisible" title="今天吃什么" width="min(500px, 94vw)" destroy-on-close>
+      <div v-if="randomItem" class="random-dish-card">
+        <div class="random-dish-cover">
+          <img v-if="hasCover(randomItem)" :src="randomItem.coverUrl" alt="" />
+          <div v-else class="random-dish-fallback">
+            <strong>🍲</strong>
+            <small>{{ itemHost(randomItem) }}</small>
+          </div>
+        </div>
+        <div class="random-dish-content">
+          <h3>{{ randomItem.title || "推荐菜谱" }}</h3>
+          <p v-if="randomItem.description" class="random-dish-desc">{{ randomItem.description }}</p>
+          <div class="random-dish-meta">
+            <span class="host-chip">{{ itemHost(randomItem) }}</span>
+            <span v-if="randomItem.folderId" class="folder-chip">📁 {{ folderPath(randomItem.folderId) }}</span>
+          </div>
+        </div>
+      </div>
+      <div v-else class="empty-random">
+        <el-empty description="暂无可推荐的菜谱收藏，快去添加吧！" />
+      </div>
+      <template #footer>
+        <div class="random-dialog-footer">
+          <el-button @click="changeRandomFilter">调整范围</el-button>
+          <el-button v-if="randomItem" :icon="Refresh" :loading="loadingRandom" @click="fetchRandomDish">换一个</el-button>
+          <el-button v-if="randomItem" type="primary" :icon="Link" @click="openRandomUrl">打开菜谱</el-button>
+          <el-button @click="randomDialogVisible = false">关闭</el-button>
+        </div>
       </template>
     </el-dialog>
   </div>

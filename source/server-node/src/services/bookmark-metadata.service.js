@@ -151,6 +151,23 @@ function embeddedCoverUrl(html, finalUrl) {
   return null;
 }
 
+function cleanCoverUrl(rawUrl) {
+  if (!rawUrl || typeof rawUrl !== "string") return null;
+  let str = rawUrl.trim();
+  // 小红书图片清洗：提取真正的 sns-webpic / sns-img 域名直链
+  const xhsMatch = str.match(/https?:\/\/(sns-[^?]+(?:\?[^\s"']*)?)/i);
+  if (xhsMatch) {
+    return `https://${xhsMatch[1]}`;
+  }
+  const nestedHttpIndex = str.indexOf("http://", 8);
+  const nestedHttpsIndex = str.indexOf("https://", 8);
+  const targetIndex = nestedHttpsIndex !== -1 ? nestedHttpsIndex : nestedHttpIndex;
+  if (targetIndex > 0) {
+    str = str.slice(targetIndex).replace(/^http:\/\//i, "https://");
+  }
+  return str;
+}
+
 function parseMetadata(html, finalUrl) {
   const embeddedCover = embeddedCoverUrl(html, finalUrl);
   const document = html
@@ -168,8 +185,11 @@ function parseMetadata(html, finalUrl) {
     decodeHtml(titleTag?.[1]?.replace(/<[^>]*>/g, ""));
   const description = values.get("og:description") || values.get("twitter:description") ||
     values.get("description") || null;
-  const image = values.get("og:image") || values.get("og:image:url") ||
+  let image = values.get("og:image") || values.get("og:image:url") ||
     values.get("twitter:image") || values.get("twitter:image:src") || embeddedCover;
+  if (image) {
+    image = cleanCoverUrl(image);
+  }
   let coverUrl = null;
   if (image) {
     try {
@@ -193,13 +213,20 @@ function requestPage(url, addresses, requestImpl, timeoutMs) {
       settled = true;
       reject(error);
     };
+
+    const isBili = url.hostname.toLowerCase().endsWith("bilibili.com");
+    const referer = isBili ? "https://www.bilibili.com/" : "https://www.douyin.com/";
+    const userAgent = isBili
+      ? "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+      : "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36";
+
     const request = requestImpl(url, {
       headers: {
         Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
         "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
         "Cache-Control": "no-cache",
-        Referer: "https://www.douyin.com/",
-        "User-Agent": "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36"
+        Referer: referer,
+        "User-Agent": userAgent
       },
       lookup(hostname, options, callback) {
         const candidates = addresses.filter(({ family }) => !options.family || family === options.family);
@@ -232,6 +259,57 @@ async function readBody(response) {
     chunks.push(chunk);
   }
   return Buffer.concat(chunks).toString("utf8");
+}
+
+function resolveBilibiliData(finalUrl) {
+  try {
+    const url = new URL(finalUrl);
+    const host = url.hostname.toLowerCase();
+    if (!host.endsWith("bilibili.com")) return null;
+    const match = url.pathname.match(/\/(?:video\/)?(BV[a-zA-Z0-9]+)/i);
+    if (!match) return null;
+    const bvid = match[1];
+    return new Promise((resolve) => {
+      const apiUrl = `https://api.bilibili.com/x/web-interface/view?bvid=${encodeURIComponent(bvid)}`;
+      const req = https.get(apiUrl, {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+          Referer: "https://www.bilibili.com/"
+        },
+        timeout: 3000
+      }, (res) => {
+        let data = "";
+        res.on("data", (chunk) => data += chunk);
+        res.on("end", () => {
+          try {
+            const json = JSON.parse(data);
+            const d = json.data;
+            if (d) {
+              const pic = typeof d.pic === "string" && !d.pic.includes("transparent.png")
+                ? d.pic.replace(/^http:\/\//i, "https://")
+                : null;
+              resolve({
+                title: d.title || null,
+                description: d.desc || null,
+                coverUrl: pic
+              });
+              return;
+            }
+          } catch {
+            // ignore
+          }
+          resolve(null);
+        });
+      });
+      req.on("error", () => resolve(null));
+      req.on("timeout", () => {
+        req.destroy();
+        resolve(null);
+      });
+    });
+  } catch {
+    return null;
+  }
 }
 
 function createMetadataService(dependencies = {}) {
@@ -275,7 +353,22 @@ function createMetadataService(dependencies = {}) {
         response.resume();
         throw new BookmarkError(415, "METADATA_UNSUPPORTED_CONTENT", "目标内容不是 HTML 页面");
       }
-      return parseMetadata(await readBody(response), url.toString());
+      const metadata = parseMetadata(await readBody(response), url.toString());
+      if (url.hostname.toLowerCase().endsWith("bilibili.com")) {
+        const biliData = await resolveBilibiliData(url.toString());
+        if (biliData) {
+          if (biliData.coverUrl && (!metadata.coverUrl || metadata.coverUrl.includes("transparent.png"))) {
+            metadata.coverUrl = biliData.coverUrl;
+          }
+          if (biliData.title && !metadata.title) {
+            metadata.title = biliData.title;
+          }
+          if (biliData.description && !metadata.description) {
+            metadata.description = biliData.description;
+          }
+        }
+      }
+      return metadata;
     }
   };
 }

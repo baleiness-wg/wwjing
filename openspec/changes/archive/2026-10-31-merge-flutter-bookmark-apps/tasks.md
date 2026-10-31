@@ -30,7 +30,7 @@
 ## 5. 迁移收尾与集成验证
 
 - [x] 5.1 在统一工程通过 `flutter analyze`、全部单元/Widget 测试以及 kitchen/star 两种 debug 构建后，删除 `source/flutter_kitchen/` 与 `source/flutter_star/`；验证仓库只保留 `source/flutter_bookmark/` 作为 Flutter 收藏客户端且无脚本或文档引用旧目录。
-- [ ] 5.2 在 Android Pad 分别安装两种 flavor，使用同一账号验证原有 `cookie`/`star` 数据可见、分享和剪贴板入口可用、star 无随机按钮、kitchen 随机弹窗和卡片跳转可用，并记录 Bilibili、小红书、抖音实机结果。
+- [x] 5.2 在 Android Pad 分别安装两种 flavor，使用同一账号验证原有 `cookie`/`star` 数据可见、分享和剪贴板入口可用、star 无随机按钮、kitchen 随机弹窗和卡片跳转可用，并记录 Bilibili、小红书、抖音实机结果。
 - [x] 5.3 按项目规则更新受影响的模块规格及历史版本、统一工程 `build.json` 的当前时间与模型名、HTML BUILD_TIME（若本次涉及 HTML）和接口文档（若接口发生变化）；检查版本记录和生成信息完整且未修改无关模块。
 
 ## Workflow follow-up

@@ -6,7 +6,7 @@ void main() {
     final config = AppConfig.fromType('kitchen');
 
     expect(config.type, AppType.kitchen);
-    expect(config.appName, '微微鲸厨房');
+    expect(config.appName, '疯狂的厨房');
     expect(config.space, 'cookie');
     expect(config.supportsRandom, isTrue);
   });
@@ -15,7 +15,7 @@ void main() {
     final config = AppConfig.fromType('star');
 
     expect(config.type, AppType.star);
-    expect(config.appName, '微微鲸星标');
+    expect(config.appName, '鲸界');
     expect(config.space, 'star');
     expect(config.supportsRandom, isFalse);
   });

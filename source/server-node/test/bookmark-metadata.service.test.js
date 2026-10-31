@@ -130,6 +130,12 @@ test("metadata requests use browser-compatible headers for dynamic sites", async
   assert.equal(requestHeaders.Referer, "https://www.douyin.com/");
 });
 
+test("metadata parser cleans nested proxy url for Xiaohongshu covers", () => {
+  const html = '<meta property="og:image" content="https://ci.xiaohongshu.com/http://sns-webpic-qc.xhscdn.com/notes_pre_post/1040g.jpg?imageMogr2">';
+  const res = parseMetadata(html, "https://www.xiaohongshu.com/discovery/item/12345");
+  assert.equal(res.coverUrl, "https://sns-webpic-qc.xhscdn.com/notes_pre_post/1040g.jpg?imageMogr2");
+});
+
 test("metadata fetch blocks a redirect resolving to a private address before connecting", async () => {
   let requests = 0;
   const fetchMetadata = createMetadataService({

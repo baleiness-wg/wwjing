@@ -39,12 +39,12 @@ android {
         create("kitchen") {
             dimension = "appType"
             applicationIdSuffix = ".kitchen"
-            resValue("string", "app_name", "微微鲸厨房")
+            resValue("string", "app_name", "疯狂的厨房")
         }
         create("star") {
             dimension = "appType"
             applicationIdSuffix = ".star"
-            resValue("string", "app_name", "微微鲸星标")
+            resValue("string", "app_name", "鲸界")
         }
     }
 

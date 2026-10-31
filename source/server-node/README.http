@@ -47,8 +47,8 @@ Content-Type: application/json
   "name": "快手"
 }
 
-### Pick a random cookie recipe
-GET {{baseUrl}}/bookmarks/random?space=cookie
+### Pick a random cookie recipe (supports optional folderIds, e.g. folderIds=1,2,3)
+GET {{baseUrl}}/bookmarks/random?space=cookie&folderIds=1,2
 Authorization: Bearer {{TOKEN}}
 
 ### Save text content

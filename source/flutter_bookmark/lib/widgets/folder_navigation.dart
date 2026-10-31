@@ -1,13 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../config/app_config.dart';
 import '../models/bookmark.dart';
 import '../state/app_state.dart';
+import 'app_popup_menu.dart';
+import 'folder_picker_dialog.dart';
 
 class FolderNavigation extends StatelessWidget {
-  const FolderNavigation({super.key, this.closeAfterSelection = false});
+  const FolderNavigation({
+    super.key,
+    this.closeAfterSelection = false,
+    this.appConfig,
+  });
 
   final bool closeAfterSelection;
+  final AppConfig? appConfig;
 
   Future<void> _select(
     BuildContext context,
@@ -18,33 +26,32 @@ class FolderNavigation extends StatelessWidget {
     if (closeAfterSelection && context.mounted) Navigator.pop(context);
   }
 
-  Future<String?> _askName(
-    BuildContext context, {
-    String initial = '',
-    String title = '新建收藏夹',
-  }) {
-    final controller = TextEditingController(text: initial);
-    return showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(title),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: const InputDecoration(labelText: '名称'),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('取消'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, controller.text.trim()),
-            child: const Text('确定'),
-          ),
-        ],
-      ),
+  Set<String> _folderAndDescendants(AppState state, String folderId) {
+    final excluded = <String>{folderId};
+    var changed = true;
+    while (changed) {
+      changed = false;
+      for (final folder in state.folders) {
+        if (folder.parentId != null &&
+            excluded.contains(folder.parentId) &&
+            excluded.add(folder.id)) {
+          changed = true;
+        }
+      }
+    }
+    return excluded;
+  }
+
+  Future<void> _createFolder(
+    BuildContext context,
+    AppState state,
+    String? parentId,
+  ) async {
+    final name = await showFolderNameDialog(
+      context,
+      title: parentId == null ? '新增根目录' : '新增子目录',
     );
+    if (name?.isNotEmpty == true) await state.createFolder(name!, parentId);
   }
 
   Future<void> _folderAction(
@@ -58,29 +65,15 @@ class FolderNavigation extends StatelessWidget {
       return;
     }
     if (action == 'child') {
-      final name = await _askName(context, title: '新增子目录');
-      if (name?.isNotEmpty == true) await state.createFolder(name!, folder.id);
+      await _createFolder(context, state, folder.id);
     } else if (action == 'move') {
-      final parentId = await showDialog<String?>(
+      final parentId = await showFolderPicker(
         context: context,
-        builder: (context) => SimpleDialog(
-          title: const Text('移动目录到'),
-          children: [
-            SimpleDialogOption(
-              onPressed: () => Navigator.pop(context, ''),
-              child: const Text('根目录'),
-            ),
-            for (final node in flattenFolderTree(state.folderTree))
-              if (node.folder.id != folder.id)
-                SimpleDialogOption(
-                  onPressed: () => Navigator.pop(context, node.folder.id),
-                  child: Padding(
-                    padding: EdgeInsets.only(left: (node.depth - 1) * 12.0),
-                    child: Text(node.folder.name),
-                  ),
-                ),
-          ],
-        ),
+        state: state,
+        title: '移动目录到',
+        selectedFolderId: folder.parentId,
+        rootLabel: '根目录',
+        excludedFolderIds: _folderAndDescendants(state, folder.id),
       );
       if (parentId != null) {
         await state.moveFolder(folder, parentId.isEmpty ? null : parentId);
@@ -90,7 +83,11 @@ class FolderNavigation extends StatelessWidget {
     } else if (action == 'down') {
       await state.reorderFolder(folder, 1);
     } else if (action == 'rename') {
-      final name = await _askName(context, initial: folder.name, title: '重命名');
+      final name = await showFolderNameDialog(
+        context,
+        initial: folder.name,
+        title: '重命名目录',
+      );
       if (name?.isNotEmpty == true) await state.renameFolder(folder, name!);
     } else if (action == 'delete') {
       await state.deleteFolder(folder);
@@ -101,15 +98,20 @@ class FolderNavigation extends StatelessWidget {
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
     final nodes = flattenFolderTree(state.folderTree).toList();
+    final effectiveAppName =
+        appConfig?.appName ??
+        (const String.fromEnvironment('APP_TYPE').isNotEmpty
+            ? AppConfig.current.appName
+            : '鲸界');
     return SafeArea(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Padding(
-            padding: EdgeInsets.fromLTRB(20, 20, 20, 10),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
             child: Text(
-              '微微鲸收藏',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+              effectiveAppName,
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
             ),
           ),
           ListTile(
@@ -136,14 +138,10 @@ class FolderNavigation extends StatelessWidget {
                   ),
                 ),
                 IconButton(
+                  key: const Key('create-root-folder-button'),
                   tooltip: '新建根目录',
-                  onPressed: () async {
-                    final name = await _askName(context);
-                    if (name?.isNotEmpty == true && context.mounted) {
-                      await context.read<AppState>().createFolder(name!, null);
-                    }
-                  },
                   icon: const Icon(Icons.create_new_folder_outlined),
+                  onPressed: () => _createFolder(context, state, null),
                 ),
               ],
             ),
@@ -157,9 +155,15 @@ class FolderNavigation extends StatelessWidget {
                   padding: EdgeInsets.only(left: (node.depth - 1) * 14.0),
                   child: ListTile(
                     dense: true,
+                    visualDensity: const VisualDensity(vertical: -4),
+                    minTileHeight: 40,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12),
                     selected:
                         state.view == BookmarkView.folder &&
                         state.selectedFolderId == node.folder.id,
+                    selectedColor: Theme.of(context).colorScheme.primary,
+                    selectedTileColor: Theme.of(context).colorScheme.primary
+                        .withValues(alpha: 0.08),
                     leading: node.depth == 1
                         ? const Icon(Icons.folder_outlined)
                         : const SizedBox(width: 24),
@@ -172,16 +176,46 @@ class FolderNavigation extends StatelessWidget {
                         _select(context, BookmarkView.folder, node.folder.id),
                     trailing: PopupMenuButton<String>(
                       tooltip: '目录操作',
+                      icon: const Icon(Icons.more_vert),
                       onSelected: (action) =>
                           _folderAction(context, node.folder, action),
-                      itemBuilder: (_) => const [
-                        PopupMenuItem(value: 'bookmark', child: Text('添加收藏')),
-                        PopupMenuItem(value: 'child', child: Text('新增子目录')),
-                        PopupMenuItem(value: 'move', child: Text('移动目录')),
-                        PopupMenuItem(value: 'up', child: Text('向前排序')),
-                        PopupMenuItem(value: 'down', child: Text('向后排序')),
-                        PopupMenuItem(value: 'rename', child: Text('重命名')),
-                        PopupMenuItem(value: 'delete', child: Text('删除')),
+                      itemBuilder: (_) => [
+                        appPopupMenuItem(
+                          value: 'bookmark',
+                          icon: Icons.bookmark_add_outlined,
+                          label: '添加收藏',
+                        ),
+                        appPopupMenuItem(
+                          value: 'child',
+                          icon: Icons.create_new_folder_outlined,
+                          label: '新增子目录',
+                        ),
+                        appPopupMenuItem(
+                          value: 'move',
+                          icon: Icons.drive_file_move_outline,
+                          label: '移动',
+                        ),
+                        appPopupMenuItem(
+                          value: 'up',
+                          icon: Icons.arrow_upward,
+                          label: '向前排序',
+                        ),
+                        appPopupMenuItem(
+                          value: 'down',
+                          icon: Icons.arrow_downward,
+                          label: '向后排序',
+                        ),
+                        appPopupMenuItem(
+                          value: 'rename',
+                          icon: Icons.edit_outlined,
+                          label: '重命名',
+                        ),
+                        appPopupMenuItem(
+                          value: 'delete',
+                          icon: Icons.delete_outline,
+                          label: '删除',
+                          destructive: true,
+                        ),
                       ],
                     ),
                   ),

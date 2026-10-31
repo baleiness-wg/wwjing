@@ -7,6 +7,8 @@ import '../services/link_launcher.dart';
 import '../state/app_state.dart';
 import 'bookmark_item_card.dart';
 import 'folder_navigation.dart';
+import 'folder_picker_dialog.dart';
+import 'random_folders_filter_dialog.dart';
 
 sealed class _DragEntry {
   const _DragEntry();
@@ -42,7 +44,6 @@ class _HomePageState extends State<HomePage> {
   final _search = TextEditingController();
   double? _actionLeft;
   double? _actionTop;
-  bool _actionDragged = false;
   bool _editMode = false;
   bool _randomBusy = false;
   final Set<String> _selectedItemIds = {};
@@ -65,25 +66,12 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _move(BuildContext context, BookmarkItem item) async {
     final state = context.read<AppState>();
-    final folderId = await showDialog<String?>(
+    final folderId = await showFolderPicker(
       context: context,
-      builder: (context) => SimpleDialog(
-        title: const Text('移动到'),
-        children: [
-          SimpleDialogOption(
-            onPressed: () => Navigator.pop(context, ''),
-            child: const Text('未分类'),
-          ),
-          for (final node in flattenFolderTree(state.folderTree))
-            SimpleDialogOption(
-              onPressed: () => Navigator.pop(context, node.folder.id),
-              child: Padding(
-                padding: EdgeInsets.only(left: (node.depth - 1) * 12.0),
-                child: Text(node.folder.name),
-              ),
-            ),
-        ],
-      ),
+      state: state,
+      title: '移动到',
+      selectedFolderId: item.folderId,
+      rootLabel: '未分类',
     );
     if (folderId != null && context.mounted) {
       await state.moveItem(item.id, folderId.isEmpty ? null : folderId);
@@ -92,25 +80,11 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _moveSelected(BuildContext context) async {
     final state = context.read<AppState>();
-    final folderId = await showDialog<String?>(
+    final folderId = await showFolderPicker(
       context: context,
-      builder: (context) => SimpleDialog(
-        title: const Text('批量移动到'),
-        children: [
-          SimpleDialogOption(
-            onPressed: () => Navigator.pop(context, ''),
-            child: const Text('未分类'),
-          ),
-          for (final node in flattenFolderTree(state.folderTree))
-            SimpleDialogOption(
-              onPressed: () => Navigator.pop(context, node.folder.id),
-              child: Padding(
-                padding: EdgeInsets.only(left: (node.depth - 1) * 12.0),
-                child: Text(node.folder.name),
-              ),
-            ),
-        ],
-      ),
+      state: state,
+      title: '批量移动到',
+      rootLabel: '未分类',
     );
     if (folderId == null || !context.mounted) return;
     await state.moveItems(_selectedItemIds, folderId.isEmpty ? null : folderId);
@@ -149,32 +123,78 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _showRandom(BuildContext context) async {
-    if (_randomBusy) return;
+    final state = context.read<AppState>();
     final messenger = ScaffoldMessenger.of(context);
     final navigator = Navigator.of(context);
+
+    // 1. 先弹出目录多选范围确认窗口（默认全选所有目录）
+    final selected = await showRandomFoldersFilterDialog(
+      context: context,
+      state: state,
+    );
+    if (!mounted || selected == null) return;
+
+    await state.updateSelectedRandomFolderIds(
+      selected.isEmpty ? null : selected,
+    );
+
+    // 2. 确认选中的目录范围后，再触发随机抽取
+    if (_randomBusy) return;
     setState(() => _randomBusy = true);
-    final state = context.read<AppState>();
-    final item = await state.randomItem();
+    final item = await state.randomItem(
+      folderIds: selected.isEmpty ? null : selected,
+    );
     if (!mounted) return;
     setState(() => _randomBusy = false);
     if (item == null) {
-      final message = state.error ?? '暂无可推荐内容';
+      final message = state.error ?? '选中的目录中暂无可推荐内容';
       messenger.showSnackBar(SnackBar(content: Text(message)));
       return;
     }
+
+    // 3. 弹出低高度抽卡结果弹窗，支持“换一个”实时轮换
     await showDialog<void>(
       context: navigator.context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('今天吃什么'),
-        content: ConstrainedBox(
-          key: const Key('random-bookmark-content'),
-          constraints: const BoxConstraints(maxWidth: 520, maxHeight: 150),
-          child: BookmarkItemCard(
-            item: item,
-            onTap: () => _openLink(dialogContext, item),
-          ),
-        ),
-      ),
+      builder: (dialogContext) {
+        var currentItem = item;
+        return StatefulBuilder(
+          builder: (innerContext, setDialogState) {
+            return AlertDialog(
+              title: Row(
+                children: [
+                  const Expanded(child: Text('今天吃什么')),
+                  IconButton(
+                    key: const Key('random-again-button'),
+                    tooltip: '换一个',
+                    icon: const Icon(Icons.refresh),
+                    onPressed: () async {
+                      final nextItem = await state.randomItem(
+                        folderIds: state.selectedRandomFolderIds,
+                      );
+                      if (nextItem != null && innerContext.mounted) {
+                        setDialogState(() {
+                          currentItem = nextItem;
+                        });
+                      }
+                    },
+                  ),
+                ],
+              ),
+              content: ConstrainedBox(
+                key: const Key('random-bookmark-content'),
+                constraints: const BoxConstraints(
+                  maxWidth: 520,
+                  maxHeight: 150,
+                ),
+                child: BookmarkItemCard(
+                  item: currentItem,
+                  onTap: () => _openLink(innerContext, currentItem),
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
@@ -307,6 +327,13 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
+  void _exitEditMode() {
+    setState(() {
+      _editMode = false;
+      _selectedItemIds.clear();
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
@@ -315,6 +342,14 @@ class _HomePageState extends State<HomePage> {
         final wide = constraints.maxWidth >= 760;
         final scaffold = Scaffold(
           appBar: AppBar(
+            leadingWidth: _editMode ? 72 : null,
+            leading: _editMode
+                ? TextButton(
+                    key: const Key('cancel-selection-button'),
+                    onPressed: _exitEditMode,
+                    child: const Text('取消'),
+                  )
+                : null,
             title: Text(switch (state.view) {
               BookmarkView.all => '全部收藏',
               BookmarkView.uncategorized => '未分类',
@@ -326,7 +361,13 @@ class _HomePageState extends State<HomePage> {
                     '收藏夹',
             }),
             actions: [
-              if (widget.appConfig.supportsRandom)
+              if (_editMode)
+                TextButton(
+                  key: const Key('save-selection-button'),
+                  onPressed: _exitEditMode,
+                  child: const Text('保存'),
+                ),
+              if (!_editMode && widget.appConfig.supportsRandom)
                 IconButton(
                   key: const Key('random-bookmark-button'),
                   tooltip: '今天吃什么',
@@ -340,54 +381,28 @@ class _HomePageState extends State<HomePage> {
                         )
                       : const Icon(Icons.casino_outlined),
                 ),
-              if (state.items.isNotEmpty)
+              if (!_editMode && state.items.isNotEmpty)
                 IconButton(
-                  tooltip: _editMode ? '完成编辑' : '编辑收藏',
+                  tooltip: '编辑收藏',
                   onPressed: () => setState(() {
-                    _editMode = !_editMode;
-                    if (!_editMode) _selectedItemIds.clear();
+                    _editMode = true;
                   }),
-                  icon: Icon(_editMode ? Icons.check : Icons.edit_outlined),
+                  icon: const Icon(Icons.edit_outlined),
                 ),
-              IconButton(
-                onPressed: state.busy ? null : state.refresh,
-                tooltip: '刷新',
-                icon: const Icon(Icons.refresh),
-              ),
             ],
           ),
           drawer: wide
               ? null
-              : const Drawer(
-                  child: FolderNavigation(closeAfterSelection: true),
+              : Drawer(
+                  child: FolderNavigation(
+                    closeAfterSelection: true,
+                    appConfig: widget.appConfig,
+                  ),
                 ),
           body: Stack(
             children: [
               Column(
                 children: [
-                  if (_editMode && _selectedItemIds.isNotEmpty)
-                    MaterialBanner(
-                      content: Text('已选择 ${_selectedItemIds.length} 条收藏'),
-                      actions: [
-                        TextButton(
-                          onPressed: () => _moveSelected(context),
-                          child: const Text('批量移动'),
-                        ),
-                        TextButton(
-                          onPressed: () => _deleteSelected(context),
-                          style: TextButton.styleFrom(
-                            foregroundColor: Theme.of(context)
-                                .colorScheme
-                                .error,
-                          ),
-                          child: const Text('批量删除'),
-                        ),
-                        TextButton(
-                          onPressed: () => setState(_selectedItemIds.clear),
-                          child: const Text('取消选择'),
-                        ),
-                      ],
-                    ),
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
                     child: SearchBar(
@@ -421,7 +436,12 @@ class _HomePageState extends State<HomePage> {
                         : RefreshIndicator(
                             onRefresh: state.refresh,
                             child: ListView.separated(
-                              padding: const EdgeInsets.all(12),
+                              padding: EdgeInsets.fromLTRB(
+                                12,
+                                12,
+                                12,
+                                _editMode ? 92 : 12,
+                              ),
                               itemCount:
                                   _childFolders(state).length +
                                   state.items.length,
@@ -431,7 +451,7 @@ class _HomePageState extends State<HomePage> {
                                 final childFolders = _childFolders(state);
                                 if (index < childFolders.length) {
                                   final folder = childFolders[index];
-                                  final card = Card(
+                                  final card = Card.outlined(
                                     child: ListTile(
                                       leading: const Icon(
                                         Icons.folder_outlined,
@@ -508,74 +528,90 @@ class _HomePageState extends State<HomePage> {
                     ),
                 ],
               ),
-              Positioned(
-                left: _actionLeft,
-                top: _actionTop,
-                right: _actionLeft == null ? 20 : null,
-                bottom: _actionTop == null ? 20 : null,
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onPanStart: (_) => _actionDragged = false,
-                  onPanUpdate: (details) {
-                    final width = constraints.maxWidth;
-                    final height = constraints.maxHeight;
-                    setState(() {
-                      _actionLeft ??= width - 150;
-                      _actionTop ??= height - 76;
-                      _actionLeft = (_actionLeft! + details.delta.dx).clamp(
-                        8,
-                        width - 142,
-                      );
-                      _actionTop = (_actionTop! + details.delta.dy).clamp(
-                        8,
-                        height - 60,
-                      );
-                      _actionDragged = true;
-                    });
-                  },
-                  onPanCancel: () => _actionDragged = false,
-                  onTapUp: (_) {
-                    if (!_actionDragged) state.openDraft();
-                    _actionDragged = false;
-                  },
-                  child: Material(
-                    color: Theme.of(context).colorScheme.primary,
-                    elevation: 6,
-                    borderRadius: BorderRadius.circular(28),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 14,
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.add_link,
-                            color: Theme.of(context).colorScheme.onPrimary,
+              if (_editMode)
+                Positioned(
+                  right: 20,
+                  bottom: 20,
+                  child: SafeArea(
+                    top: false,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        FilledButton.tonalIcon(
+                          key: const Key('move-selection-button'),
+                          onPressed: _selectedItemIds.isEmpty
+                              ? null
+                              : () => _moveSelected(context),
+                          icon: const Icon(Icons.drive_file_move_outline),
+                          label: const Text('移动'),
+                        ),
+                        const SizedBox(width: 12),
+                        FilledButton.icon(
+                          key: const Key('delete-selection-button'),
+                          onPressed: _selectedItemIds.isEmpty
+                              ? null
+                              : () => _deleteSelected(context),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: Theme.of(context)
+                                .colorScheme
+                                .error,
+                            foregroundColor: Theme.of(context)
+                                .colorScheme
+                                .onError,
                           ),
-                          const SizedBox(width: 8),
-                          Text(
-                            '收藏链接',
-                            style: TextStyle(
-                              color: Theme.of(context).colorScheme.onPrimary,
-                            ),
-                          ),
-                        ],
-                      ),
+                          icon: const Icon(Icons.delete_outline),
+                          label: const Text('删除'),
+                        ),
+                      ],
                     ),
                   ),
                 ),
-              ),
+              if (!_editMode)
+                Positioned(
+                  left: _actionLeft,
+                  top: _actionTop,
+                  right: _actionLeft == null ? 20 : null,
+                  bottom: _actionTop == null ? 20 : null,
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onPanUpdate: (details) {
+                      final width = wide
+                          ? constraints.maxWidth - 301
+                          : constraints.maxWidth;
+                      final height = constraints.maxHeight;
+                      setState(() {
+                        _actionLeft ??= width - 150;
+                        _actionTop ??= height - 76;
+                        _actionLeft = (_actionLeft! + details.delta.dx).clamp(
+                          8,
+                          width - 142,
+                        );
+                        _actionTop = (_actionTop! + details.delta.dy).clamp(
+                          8,
+                          height - 60,
+                        );
+                      });
+                    },
+                    child: FloatingActionButton.extended(
+                      key: const Key('add-bookmark-fab'),
+                      heroTag: 'add-bookmark',
+                      onPressed: state.openDraft,
+                      icon: const Icon(Icons.add_link),
+                      label: const Text('收藏链接'),
+                    ),
+                  ),
+                ),
             ],
           ),
         );
         final content = wide
             ? Row(
                 children: [
-                  const SizedBox(
+                  SizedBox(
                     width: 300,
-                    child: Material(child: FolderNavigation()),
+                    child: Material(
+                      child: FolderNavigation(appConfig: widget.appConfig),
+                    ),
                   ),
                   const VerticalDivider(width: 1),
                   Expanded(child: scaffold),
