@@ -283,56 +283,35 @@ function resolveBilibiliData(finalUrl) {
     if (!host.endsWith("bilibili.com") && !host.endsWith("b23.tv")) return null;
 
     return new Promise((resolve) => {
-      // 优先调用专用解析接口（与 mcp-server-bilibili 方案一致），支持 b23.tv 与 bilibili.com 任意视频长短链
-      const bugpkUrl = `https://api.bugpk.com/api/bilibili?url=${encodeURIComponent(finalUrl)}`;
-      const bugpkReq = https.get(bugpkUrl, {
-        headers: {
-          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-          Accept: "application/json"
-        },
-        timeout: 4000
-      }, (res) => {
-        let raw = "";
-        res.on("data", (chunk) => raw += chunk);
-        res.on("end", () => {
-          try {
-            const parsed = JSON.parse(raw);
-            if (parsed.code === 200 && parsed.data && parsed.data.cover) {
-              const cover = String(parsed.data.cover).replace(/^http:\/\//i, "https://");
-              resolve({
-                title: parsed.data.title || null,
-                description: parsed.data.description || null,
-                coverUrl: cover
-              });
-              return;
-            }
-          } catch {
-            // parse failed, fallback to official view API
-          }
-          fallbackOfficial();
-        });
-      });
+      // 提取视频 ID (BV 或 av 号)
+      let bvid = null;
+      let aid = null;
+      const bvMatch = url.pathname.match(/\/(?:video\/)?(BV[a-zA-Z0-9]+)/i);
+      if (bvMatch) {
+        bvid = bvMatch[1];
+      } else {
+        const avMatch = url.pathname.match(/\/(?:video\/)?av(\d+)/i);
+        if (avMatch) aid = avMatch[1];
+      }
 
-      bugpkReq.on("error", () => fallbackOfficial());
-      bugpkReq.on("timeout", () => {
-        bugpkReq.destroy();
-        fallbackOfficial();
-      });
+      // 如果有直接的 bvid/aid，直接请求 Bilibili 官方开放 API (view 接口)，最权威、最秒级、无第三方依赖！
+      if (bvid || aid) {
+        callOfficialView(bvid, aid);
+        return;
+      }
 
-      function fallbackOfficial() {
-        const match = url.pathname.match(/\/(?:video\/)?(BV[a-zA-Z0-9]+)/i);
-        if (!match) {
-          resolve(null);
-          return;
-        }
-        const bvid = match[1];
-        const apiUrl = `https://api.bilibili.com/x/web-interface/view?bvid=${encodeURIComponent(bvid)}`;
+      // 否则尝试专用解析接口
+      callBugpk();
+
+      function callOfficialView(bv, av) {
+        const param = bv ? `bvid=${encodeURIComponent(bv)}` : `aid=${encodeURIComponent(av)}`;
+        const apiUrl = `https://api.bilibili.com/x/web-interface/view?${param}`;
         const req = https.get(apiUrl, {
           headers: {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             Referer: "https://www.bilibili.com/"
           },
-          timeout: 3000
+          timeout: 4000
         }, (res) => {
           let data = "";
           res.on("data", (chunk) => data += chunk);
@@ -340,7 +319,7 @@ function resolveBilibiliData(finalUrl) {
             try {
               const json = JSON.parse(data);
               const d = json.data;
-              if (d) {
+              if (d && d.pic) {
                 const pic = typeof d.pic === "string" && !d.pic.includes("transparent.png")
                   ? d.pic.replace(/^http:\/\//i, "https://")
                   : null;
@@ -352,14 +331,51 @@ function resolveBilibiliData(finalUrl) {
                 return;
               }
             } catch {
+              // fallback
+            }
+            callBugpk();
+          });
+        });
+        req.on("error", () => callBugpk());
+        req.on("timeout", () => {
+          req.destroy();
+          callBugpk();
+        });
+      }
+
+      function callBugpk() {
+        const bugpkUrl = `https://api.bugpk.com/api/bilibili?url=${encodeURIComponent(finalUrl)}`;
+        const bugpkReq = https.get(bugpkUrl, {
+          headers: {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            Accept: "application/json"
+          },
+          timeout: 4000
+        }, (res) => {
+          let raw = "";
+          res.on("data", (chunk) => raw += chunk);
+          res.on("end", () => {
+            try {
+              const parsed = JSON.parse(raw);
+              if (parsed.code === 200 && parsed.data && parsed.data.cover) {
+                const cover = String(parsed.data.cover).replace(/^http:\/\//i, "https://");
+                resolve({
+                  title: parsed.data.title || null,
+                  description: parsed.data.description || null,
+                  coverUrl: cover
+                });
+                return;
+              }
+            } catch {
               // ignore
             }
             resolve(null);
           });
         });
-        req.on("error", () => resolve(null));
-        req.on("timeout", () => {
-          req.destroy();
+
+        bugpkReq.on("error", () => resolve(null));
+        bugpkReq.on("timeout", () => {
+          bugpkReq.destroy();
           resolve(null);
         });
       }
