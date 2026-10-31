@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../models/bookmark.dart';
 import '../models/shared_link.dart';
+import '../services/bilibili_resolver.dart';
 import '../services/douyin_resolver.dart';
 import '../services/link_launcher.dart';
 import '../state/app_state.dart';
@@ -101,6 +102,35 @@ class _BookmarkFormState extends State<BookmarkForm> {
           if (_coverUrl.text.trim().isEmpty &&
               dyMetadata.coverUrl?.trim().isNotEmpty == true) {
             _coverUrl.text = dyMetadata.coverUrl!.trim();
+          }
+          if (_title.text.trim().isEmpty) {
+            _title.text = titleFallbackForUrl(uri);
+          }
+        });
+        return;
+      }
+    }
+
+    // 哔哩哔哩链接优先尝试客户端直连官方开放接口
+    if (BilibiliResolver.isBilibiliUrl(uri.toString())) {
+      final biliMetadata = await BilibiliResolver().resolve(uri.toString());
+      if (biliMetadata != null && mounted) {
+        setState(() {
+          _recognizing = false;
+          if ((overrideTitle || _title.text.trim().isEmpty) &&
+              biliMetadata.title?.trim().isNotEmpty == true) {
+            _title.text = biliMetadata.title!.trim();
+          }
+          if (_description.text.trim().isEmpty &&
+              biliMetadata.description?.trim().isNotEmpty == true) {
+            _description.text = biliMetadata.description!.trim();
+          }
+          if (_coverUrl.text.trim().isEmpty &&
+              biliMetadata.coverUrl?.trim().isNotEmpty == true) {
+            _coverUrl.text = biliMetadata.coverUrl!.trim();
+          }
+          if (biliMetadata.finalUrl.trim().isNotEmpty) {
+            _url.text = biliMetadata.finalUrl.trim();
           }
           if (_title.text.trim().isEmpty) {
             _title.text = titleFallbackForUrl(uri);

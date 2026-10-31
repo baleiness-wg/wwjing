@@ -8,6 +8,7 @@ import 'package:http/testing.dart';
 import 'package:provider/provider.dart';
 import 'package:wwjing_bookmark/models/bookmark.dart';
 import 'package:wwjing_bookmark/services/api_client.dart';
+import 'package:wwjing_bookmark/services/bilibili_resolver.dart';
 import 'package:wwjing_bookmark/services/douyin_resolver.dart';
 import 'package:wwjing_bookmark/state/app_state.dart';
 import 'package:wwjing_bookmark/widgets/bookmark_form.dart';
@@ -448,5 +449,30 @@ void main() {
     final res = await resolver.resolve('https://v.douyin.com/test');
     expect(res?.title, '测试抖音作品');
     expect(res?.coverUrl, 'https://p3-sign.douyinpic.com/test.jpg');
+  });
+
+  test('BilibiliResolver 格式检测与解析', () async {
+    expect(BilibiliResolver.isBilibiliUrl('https://b23.tv/vDq2m8W'), isTrue);
+    expect(BilibiliResolver.isBilibiliUrl('https://www.bilibili.com/video/BV123'), isTrue);
+    expect(BilibiliResolver.isBilibiliUrl('https://v.douyin.com/123'), isFalse);
+
+    final mockClient = MockClient((request) async {
+      return http.Response.bytes(
+        utf8.encode(jsonEncode({
+          'code': 0,
+          'data': {
+            'title': '测试B站视频',
+            'desc': 'B站简介',
+            'pic': 'http://i0.hdslb.com/test.jpg'
+          }
+        })),
+        200,
+        headers: {'content-type': 'application/json; charset=utf-8'},
+      );
+    });
+    final resolver = BilibiliResolver(client: mockClient);
+    final res = await resolver.resolve('https://www.bilibili.com/video/BV123');
+    expect(res?.title, '测试B站视频');
+    expect(res?.coverUrl, 'https://i0.hdslb.com/test.jpg');
   });
 }
