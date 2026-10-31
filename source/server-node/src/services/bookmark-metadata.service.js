@@ -6,7 +6,7 @@ const BookmarkError = require("./bookmark-errors");
 
 const MAX_BYTES = 1024 * 1024;
 const MAX_REDIRECTS = 4;
-const TIMEOUT_MS = 6000;
+const TIMEOUT_MS = 10000;
 
 function parseIpv4(address) {
   if (net.isIP(address) !== 4) return null;
@@ -398,7 +398,7 @@ function resolveDouyinData(finalUrl) {
           "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
           Accept: "application/json"
         },
-        timeout: 4000
+        timeout: 8000
       }, (res) => {
         let raw = "";
         res.on("data", (chunk) => raw += chunk);
@@ -437,6 +437,12 @@ function createMetadataService(dependencies = {}) {
   const requestImpl = dependencies.request || ((url, options, callback) =>
     (url.protocol === "https:" ? https : http).request(url, options, callback));
   return async function fetchMetadata(input = {}) {
+    const originalRawUrl = input.sourceUrl?.trim() || "";
+    // 如果是抖音短链或直链，提前并发发起专用解析，不用死等 HTML 慢响应
+    const douyinPromise = (originalRawUrl.includes("douyin.com"))
+      ? resolveDouyinData(originalRawUrl)
+      : null;
+
     let url = parseHttpUrl(input.sourceUrl);
     const deadline = Date.now() + (dependencies.timeoutMs || TIMEOUT_MS);
     for (let redirects = 0; ; redirects += 1) {
@@ -487,8 +493,8 @@ function createMetadataService(dependencies = {}) {
             metadata.description = biliData.description;
           }
         }
-      } else if (url.hostname.toLowerCase().endsWith("douyin.com")) {
-        const dyData = await resolveDouyinData(url.toString());
+      } else if (url.hostname.toLowerCase().endsWith("douyin.com") || originalRawUrl.includes("douyin.com")) {
+        const dyData = (await douyinPromise) || (await resolveDouyinData(url.toString()));
         if (dyData) {
           if (dyData.coverUrl && !metadata.coverUrl) {
             metadata.coverUrl = dyData.coverUrl;
