@@ -2,16 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
-import 'config/app_config.dart';
-import 'models/shared_link.dart';
-import 'services/api_client.dart';
-import 'services/preferences_store.dart';
-import 'services/share_service.dart';
-import 'services/token_store.dart';
-import 'state/app_state.dart';
-import 'widgets/bookmark_form.dart';
-import 'widgets/home_page.dart';
-import 'widgets/login_page.dart';
+import 'app/app_config.dart';
+import 'core/network/api_client.dart';
+import 'core/platform/share_service.dart';
+import 'core/storage/preferences_store.dart';
+import 'core/storage/token_store.dart';
+import 'features/auth/presentation/login_page.dart';
+import 'features/bookmarks/domain/services/shared_link_parser.dart';
+import 'features/bookmarks/presentation/bookmark_state.dart';
+import 'features/bookmarks/presentation/editor/bookmark_form.dart';
+import 'features/bookmarks/presentation/home/home_page.dart';
 
 // BUILD_TIME: 2026/10/31 19:27
 void main() {

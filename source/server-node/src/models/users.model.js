@@ -10,6 +10,14 @@ async function findByUsername(username) {
   return result.rows[0] || null;
 }
 
+async function findById(id) {
+  const result = await pool.query(
+    "SELECT id, username, password_hash AS \"passwordHash\" FROM users WHERE id = $1",
+    [id]
+  );
+  return result.rows[0] || null;
+}
+
 async function create({ username, passwordHash }) {
   const result = await pool.query(
      `INSERT INTO users (id, username, password_hash)
@@ -21,4 +29,11 @@ async function create({ username, passwordHash }) {
   return result.rows[0];
 }
 
-module.exports = { findByUsername, create };
+async function updatePassword(id, passwordHash) {
+  await pool.query(
+    "UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2",
+    [passwordHash, id]
+  );
+}
+
+module.exports = { findByUsername, findById, create, updatePassword };

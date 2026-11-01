@@ -1,5 +1,5 @@
-import 'package:wwjing_bookmark/services/preferences_store.dart';
-import 'package:wwjing_bookmark/services/token_store.dart';
+import 'package:wwjing_bookmark/core/storage/preferences_store.dart';
+import 'package:wwjing_bookmark/core/storage/token_store.dart';
 
 class MemoryTokenStore implements TokenStore {
   MemoryTokenStore([this.value]);

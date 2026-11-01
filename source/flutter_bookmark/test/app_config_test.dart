@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:wwjing_bookmark/config/app_config.dart';
+import 'package:wwjing_bookmark/app/app_config.dart';
 
 void main() {
   test('kitchen 模式映射到 cookie 空间和随机能力', () {

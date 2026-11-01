@@ -13,3 +13,10 @@ export function login(payload) {
     body: JSON.stringify(payload)
   });
 }
+
+export function changePassword(payload) {
+  return request("/api/auth/change-password", {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
+}

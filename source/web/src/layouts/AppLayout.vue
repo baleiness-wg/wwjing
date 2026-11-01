@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, watch } from "vue";
+import { computed, reactive, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import {
   ArrowLeft,
@@ -15,6 +15,8 @@ import {
   Tools,
   User
 } from "@element-plus/icons-vue";
+import { ElMessage } from "element-plus";
+import { changePassword } from "../api/auth";
 
 const router = useRouter();
 const route = useRoute();
@@ -23,6 +25,9 @@ const menuVisible = ref(!isMobile());
 const toolsExpanded = ref(route.path.startsWith("/tools"));
 const bookmarksExpanded = ref(route.path.startsWith("/tools/bookmarks"));
 const user = JSON.parse(localStorage.getItem("wwjing_user") || "null");
+const passwordDialogVisible = ref(false);
+const passwordLoading = ref(false);
+const passwordForm = reactive({ currentPassword: "", newPassword: "", confirmPassword: "" });
 
 const navigationItems = [
   { path: "/", label: "首页", icon: House },
@@ -78,6 +83,38 @@ function logout() {
   localStorage.removeItem("wwjing_token");
   localStorage.removeItem("wwjing_user");
   router.replace("/login");
+}
+
+function handleUserCommand(command) {
+  if (command === "change-password") openPasswordDialog();
+  if (command === "logout") logout();
+}
+
+function openPasswordDialog() {
+  Object.assign(passwordForm, { currentPassword: "", newPassword: "", confirmPassword: "" });
+  passwordDialogVisible.value = true;
+}
+
+async function submitPassword() {
+  if (!passwordForm.currentPassword || !passwordForm.newPassword || !passwordForm.confirmPassword) {
+    ElMessage.warning("请填写完整密码信息");
+    return;
+  }
+  if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+    ElMessage.warning("两次输入的新密码不一致");
+    return;
+  }
+  passwordLoading.value = true;
+  try {
+    await changePassword(passwordForm);
+    ElMessage.success("密码修改成功，请重新登录");
+    passwordDialogVisible.value = false;
+    logout();
+  } catch (error) {
+    ElMessage.error(error.message);
+  } finally {
+    passwordLoading.value = false;
+  }
 }
 </script>
 
@@ -193,13 +230,14 @@ function logout() {
           <el-button text :class="{ active: isHomeActive }" @click="go('/')">首页</el-button>
         </nav>
         <div class="header-actions">
-          <el-dropdown @command="logout">
+          <el-dropdown @command="handleUserCommand">
             <el-button text class="user-button">
               <el-icon><User /></el-icon>
               {{ user?.username || "用户" }}
             </el-button>
             <template #dropdown>
               <el-dropdown-menu>
+                <el-dropdown-item command="change-password" :icon="User">修改密码</el-dropdown-item>
                 <el-dropdown-item command="logout" :icon="SwitchButton">退出登录</el-dropdown-item>
               </el-dropdown-menu>
             </template>
@@ -211,4 +249,15 @@ function logout() {
       </el-main>
     </el-container>
   </el-container>
+  <el-dialog v-model="passwordDialogVisible" title="修改密码" width="min(92vw, 420px)">
+    <el-form label-position="top" @submit.prevent="submitPassword">
+      <el-form-item label="当前密码"><el-input v-model="passwordForm.currentPassword" type="password" show-password /></el-form-item>
+      <el-form-item label="新密码"><el-input v-model="passwordForm.newPassword" type="password" show-password /></el-form-item>
+      <el-form-item label="确认新密码"><el-input v-model="passwordForm.confirmPassword" type="password" show-password @keyup.enter="submitPassword" /></el-form-item>
+    </el-form>
+    <template #footer>
+      <el-button @click="passwordDialogVisible = false">取消</el-button>
+      <el-button type="primary" :loading="passwordLoading" @click="submitPassword">确认修改</el-button>
+    </template>
+  </el-dialog>
 </template>

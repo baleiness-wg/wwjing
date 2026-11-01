@@ -12,6 +12,17 @@ Content-Type: application/json
   "password": "{{password}}"
 }
 
+### Change password; success invalidates this client session
+POST {{baseUrl}}/auth/change-password
+Authorization: Bearer {{TOKEN}}
+Content-Type: application/json
+
+{
+  "currentPassword": "{{password}}",
+  "newPassword": "replace-with-new-password",
+  "confirmPassword": "replace-with-new-password"
+}
+
 ### Log in, then copy the response token without its leading "Bearer " into TOKEN
 POST {{baseUrl}}/auth/login
 Content-Type: application/json

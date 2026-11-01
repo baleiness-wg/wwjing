@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:wwjing_bookmark/services/link_launcher.dart';
+import 'package:wwjing_bookmark/core/platform/link_launcher.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -88,7 +88,7 @@ void main() {
     expect(external, isTrue);
   });
 
-  testWidgets('小红书和抖音优先使用内容 Deep Link', (tester) async {
+  testWidgets('小红书使用内容 Deep Link，抖音优先使用原始链接', (tester) async {
     final calls = <MethodCall>[];
     final channel = MethodChannel(
       'test.platform.${DateTime.now().microsecondsSinceEpoch}',
@@ -121,7 +121,7 @@ void main() {
     expect((calls[0].arguments as Map)['url'], 'xhsdiscover://item/abc123');
     expect(
       (calls[1].arguments as Map)['url'],
-      'snssdk1128://aweme/detail/987654',
+      'https://www.douyin.com/video/987654',
     );
   });
 }

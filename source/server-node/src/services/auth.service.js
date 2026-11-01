@@ -8,7 +8,7 @@ async function register({ username, password }) {
 
   const existingUser = await usersModel.findByUsername(username);
   if (existingUser) {
-    const error = new Error("用户名已存在zzzzzzzz");
+    const error = new Error("用户名已存在");
     error.status = 409;
     throw error;
   }
@@ -38,6 +38,26 @@ async function login({ username, password }) {
   return { user, token: `Bearer ${token}` };
 }
 
+async function changePassword(userId, { currentPassword, newPassword, confirmPassword }) {
+  if (!currentPassword || !newPassword || !confirmPassword) {
+    const error = new Error("当前密码、新密码和确认密码不能为空");
+    error.status = 400;
+    throw error;
+  }
+  if (newPassword !== confirmPassword) {
+    const error = new Error("两次输入的新密码不一致");
+    error.status = 400;
+    throw error;
+  }
+  const user = await usersModel.findById(userId);
+  if (!user || !(await bcrypt.compare(currentPassword, user.passwordHash))) {
+    const error = new Error("当前密码错误");
+    error.status = 401;
+    throw error;
+  }
+  await usersModel.updatePassword(userId, await bcrypt.hash(newPassword, 10));
+}
+
 function validateCredentials(username, password) {
   if (!username || !password) {
     const error = new Error("用户名和密码不能为空");
@@ -46,4 +66,4 @@ function validateCredentials(username, password) {
   }
 }
 
-module.exports = { register, login };
+module.exports = { register, login, changePassword };

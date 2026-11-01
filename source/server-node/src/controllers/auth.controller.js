@@ -21,4 +21,14 @@ async function login(req, res, next) {
   }
 }
 
-module.exports = { register, login };
+async function changePassword(req, res, next) {
+  try {
+    await authService.changePassword(req.auth.sub, req.body);
+    (req.log || logger).info({ userId: req.auth.sub }, "user changed password");
+    res.json({ message: "密码修改成功" });
+  } catch (error) {
+    next(error);
+  }
+}
+
+module.exports = { register, login, changePassword };
