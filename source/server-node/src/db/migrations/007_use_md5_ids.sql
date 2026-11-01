@@ -7,6 +7,7 @@ ALTER TABLE bookmark_items DROP CONSTRAINT IF EXISTS bookmark_items_folder_owner
 ALTER TABLE bookmark_tags DROP CONSTRAINT IF EXISTS bookmark_tags_user_id_fkey;
 ALTER TABLE bookmark_item_tags DROP CONSTRAINT IF EXISTS bookmark_item_tags_item_id_fkey;
 ALTER TABLE bookmark_item_tags DROP CONSTRAINT IF EXISTS bookmark_item_tags_tag_id_fkey;
+ALTER TABLE bookmark_folders DROP CONSTRAINT IF EXISTS bookmark_folders_parent_not_self;
 
 ALTER TABLE users ALTER COLUMN id DROP DEFAULT;
 ALTER TABLE transfer_contents ALTER COLUMN id DROP DEFAULT;
@@ -46,3 +47,5 @@ ALTER TABLE bookmark_item_tags ADD CONSTRAINT bookmark_item_tags_item_id_fkey
   FOREIGN KEY (item_id) REFERENCES bookmark_items(id) ON DELETE CASCADE;
 ALTER TABLE bookmark_item_tags ADD CONSTRAINT bookmark_item_tags_tag_id_fkey
   FOREIGN KEY (tag_id) REFERENCES bookmark_tags(id) ON DELETE CASCADE;
+ALTER TABLE bookmark_folders ADD CONSTRAINT bookmark_folders_parent_not_self
+  CHECK (parent_id IS NULL OR parent_id <> id);
