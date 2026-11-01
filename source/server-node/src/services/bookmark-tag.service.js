@@ -8,13 +8,13 @@ function spaceOf(value) {
 }
 
 function id(value) {
-  if (!/^\d+$/.test(String(value))) throw new BookmarkError(400, "INVALID_INPUT", "id 必须是有效标识");
+  if (!/^[a-f0-9]{32}$/i.test(String(value))) throw new BookmarkError(400, "INVALID_INPUT", "id 必须是有效标识");
   return String(value);
 }
 
 function parseTagIds(value) {
   if (value === undefined) return [];
-  if (!Array.isArray(value) || value.some((entry) => !/^\d+$/.test(String(entry)))) {
+  if (!Array.isArray(value) || value.some((entry) => !/^[a-f0-9]{32}$/i.test(String(entry)))) {
     throw new BookmarkError(400, "INVALID_INPUT", "tagIds 必须是标签标识数组");
   }
   return [...new Set(value.map(String))];

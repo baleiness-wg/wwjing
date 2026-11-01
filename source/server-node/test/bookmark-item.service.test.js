@@ -3,6 +3,8 @@ const assert = require("node:assert/strict");
 const itemService = require("../src/services/bookmark-item.service");
 const itemModel = require("../src/models/bookmark-item.model");
 const folderModel = require("../src/models/bookmark-folder.model");
+const itemId = "99999999999999999999999999999999";
+const folderId = "88888888888888888888888888888888";
 
 test("normalizeUrl removes fragments, default ports, tracking parameters, and trailing slashes", () => {
   const result = itemService.normalizeUrl(
@@ -29,18 +31,18 @@ test("create requires explicit confirmation for an equivalent duplicate", async 
   const originalDuplicate = itemModel.findDuplicate;
   const originalCreate = itemModel.create;
   itemModel.findDuplicate = async (userId, normalizedUrl) => ({
-    id: "9", title: "existing", folderId: null, userId, normalizedUrl
+     id: itemId, title: "existing", folderId: null, userId, normalizedUrl
   });
   let created;
   itemModel.create = async (userId, values) => {
     created = { userId, ...values };
-    return { id: "10", ...values };
+     return { id: itemId, ...values };
   };
 
   try {
     await assert.rejects(
       itemService.create("7", { sourceUrl: "https://example.com/?utm_source=x" }),
-      (error) => error.code === "DUPLICATE_BOOKMARK" && error.details.duplicate.id === "9"
+       (error) => error.code === "DUPLICATE_BOOKMARK" && error.details.duplicate.id === itemId
     );
     assert.equal(created, undefined);
 
@@ -48,7 +50,7 @@ test("create requires explicit confirmation for an equivalent duplicate", async 
       sourceUrl: "https://example.com/",
       allowDuplicate: true
     });
-    assert.equal(item.id, "10");
+     assert.equal(item.id, itemId);
     assert.equal(created.userId, "7");
   } finally {
     itemModel.findDuplicate = originalDuplicate;
@@ -94,7 +96,7 @@ test("create rejects another user's folder without creating an item", async () =
   itemModel.create = async () => { called = true; };
   try {
     await assert.rejects(
-      itemService.create("1", { folderId: "99", sourceUrl: "https://example.com" }),
+       itemService.create("11111111111111111111111111111111", { folderId: folderId, sourceUrl: "https://example.com" }),
       (error) => error.code === "FOLDER_NOT_FOUND"
     );
     assert.equal(called, false);
@@ -108,7 +110,7 @@ test("create and update validate and expose coverUrl values", async () => {
   const originalDuplicate = itemModel.findDuplicate;
   const originalCreate = itemModel.create;
   itemModel.findDuplicate = async () => null;
-  itemModel.create = async (userId, values) => ({ id: "12", userId, ...values });
+   itemModel.create = async (userId, values) => ({ id: itemId, userId, ...values });
   try {
     const item = await itemService.create("7", {
       sourceUrl: "https://example.com/article",

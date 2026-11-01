@@ -2,6 +2,9 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const folderService = require("../src/services/bookmark-folder.service");
 const folderModel = require("../src/models/bookmark-folder.model");
+const id1 = "11111111111111111111111111111111";
+const id2 = "22222222222222222222222222222222";
+const id5 = "55555555555555555555555555555555";
 
 function transactionDouble() {
   const queries = [];
@@ -20,7 +23,7 @@ test("create rejects a parent not owned by the authenticated user", async () => 
   folderModel.create = async () => { called = true; };
   try {
     await assert.rejects(
-      folderService.create("1", { name: "child", parentId: "20" }),
+      folderService.create(id1, { name: "child", parentId: id2 }),
       (error) => error.code === "FOLDER_NOT_FOUND"
     );
     assert.equal(called, false);
@@ -40,14 +43,14 @@ test("moving a folder below its descendant rolls back without updating", async (
   };
   folderModel.pool.connect = async () => client;
   folderModel.findById = async (userId, id) => ({
-    id, parentId: null, name: id === "1" ? "parent" : "child", position: 0, userId
+    id, parentId: null, name: id === id1 ? "parent" : "child", position: 0, userId
   });
   folderModel.isDescendant = async () => true;
   let updated = false;
   folderModel.update = async () => { updated = true; };
   try {
     await assert.rejects(
-      folderService.update("7", "1", { parentId: "2" }),
+      folderService.update(id1, id1, { parentId: id2 }),
       (error) => error.code === "FOLDER_CYCLE"
     );
     assert.equal(updated, false);
@@ -69,13 +72,13 @@ test("deleting a non-empty folder is rejected and rolled back", async () => {
     remove: folderModel.remove
   };
   folderModel.pool.connect = async () => client;
-  folderModel.findById = async () => ({ id: "5", name: "non-empty", position: 0 });
+  folderModel.findById = async () => ({ id: id5, name: "non-empty", position: 0 });
   folderModel.hasContents = async () => true;
   let removed = false;
   folderModel.remove = async () => { removed = true; };
   try {
     await assert.rejects(
-      folderService.remove("7", "5"),
+      folderService.remove(id1, id5),
       (error) => error.code === "FOLDER_NOT_EMPTY"
     );
     assert.equal(removed, false);

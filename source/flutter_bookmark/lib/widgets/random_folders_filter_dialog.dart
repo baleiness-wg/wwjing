@@ -3,6 +3,17 @@ import 'package:flutter/material.dart';
 import '../models/bookmark.dart';
 import '../state/app_state.dart';
 
+/// 递归收集 parentId 下所有子孙文件夹 ID（含自身）
+List<String> _collectAllDescendants(List<BookmarkFolder> folders, String parentId) {
+  final result = <String>[parentId];
+  for (final folder in folders) {
+    if (folder.parentId == parentId) {
+      result.addAll(_collectAllDescendants(folders, folder.id));
+    }
+  }
+  return result;
+}
+
 Future<List<String>?> showRandomFoldersFilterDialog({
   required BuildContext context,
   required AppState state,
@@ -41,14 +52,17 @@ class _RandomFoldersFilterDialogState
   @override
   void initState() {
     super.initState();
-    // 1. 如果当前处于特定文件夹下，默认只勾选该文件夹
+    // 如果当前处于特定文件夹下，默认勾选该文件夹及其所有子目录
     if (widget.currentFolderId != null &&
         allFolderIds.contains(widget.currentFolderId!)) {
-      selectedIds = {widget.currentFolderId!};
+      selectedIds = Set.from(_collectAllDescendants(
+        widget.state.folders,
+        widget.currentFolderId!,
+      ));
       return;
     }
 
-    // 2. 如果在全部收藏页面（currentFolderId == null），默认直接勾选所有文件夹
+    // 如果在全部收藏页面，默认直接勾选所有文件夹
     selectedIds = Set.from(allFolderIds);
   }
 
@@ -137,7 +151,7 @@ class _RandomFoldersFilterDialogState
           icon: const Icon(Icons.casino_outlined, size: 18),
           label: const Text('开始随机'),
           onPressed: () {
-            // 如果全选或全不选，返回空列表代表“不限制/全目录”，否则返回具体 ID
+            // 如果全选或全不选，返回空列表代表"不限制/全目录"，否则返回具体 ID
             if (selectedIds.isEmpty ||
                 selectedIds.length == allFolderIds.length) {
               Navigator.pop(context, <String>[]);

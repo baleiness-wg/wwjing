@@ -89,7 +89,7 @@ function logout() {
       <div class="aside-brand" :class="{ 'is-collapsed': !menuVisible }">
         <span class="brand-mark">鲸</span>
         <div v-if="menuVisible" class="aside-brand-copy">
-          <strong>鲸境</strong>
+          <strong>鲸界</strong>
           <small>工作空间</small>
         </div>
         <el-button
@@ -187,7 +187,7 @@ function logout() {
             @click="toggleMenu"
           />
           <span class="header-brand-mark">鲸</span>
-          <strong>鲸境</strong>
+          <strong>鲸界</strong>
         </div>
         <nav class="top-nav" aria-label="快捷导航">
           <el-button text :class="{ active: isHomeActive }" @click="go('/')">首页</el-button>

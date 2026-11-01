@@ -1,4 +1,5 @@
 const pool = require("../db");
+const { randomId } = require("../utils/id");
 
 const selectFields = `id, space, parent_id AS "parentId", name, position,
   created_at AS "createdAt", updated_at AS "updatedAt"`;
@@ -26,10 +27,10 @@ async function findById(userId, id, space = "star", client = pool, forUpdate = f
 
 async function create(userId, values, space = "star", client = pool) {
   const result = await client.query(
-    `INSERT INTO bookmark_folders (user_id, space, parent_id, name, position)
-      VALUES ($1, $2, $3, $4, $5)
+    `INSERT INTO bookmark_folders (id, user_id, space, parent_id, name, position)
+      VALUES ($1, $2, $3, $4, $5, $6)
      RETURNING ${selectFields}`,
-    [userId, space, values.parentId, values.name, values.position]
+    [randomId(), userId, space, values.parentId, values.name, values.position]
   );
   return result.rows[0];
 }

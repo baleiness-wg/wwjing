@@ -1,4 +1,5 @@
 const pool = require("../db");
+const { randomId } = require("../utils/id");
 
 const selectFields = `id, space, folder_id AS "folderId", item_type AS "itemType", title,
   description, cover_url AS "coverUrl", source_url AS "sourceUrl", normalized_url AS "normalizedUrl",
@@ -70,10 +71,10 @@ async function list(userId, filters) {
 async function create(userId, values) {
   const result = await pool.query(
      `INSERT INTO bookmark_items
-        (user_id, space, folder_id, title, description, cover_url, source_url, normalized_url, source_host)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+         (id, user_id, space, folder_id, title, description, cover_url, source_url, normalized_url, source_host)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
      RETURNING ${selectFields}`,
-    [userId, values.space, values.folderId, values.title, values.description, values.coverUrl, values.sourceUrl,
+    [randomId(), userId, values.space, values.folderId, values.title, values.description, values.coverUrl, values.sourceUrl,
       values.normalizedUrl, values.sourceHost]
   );
   return result.rows[0];
@@ -110,7 +111,7 @@ async function setTags(userId, itemId, space, tagIds) {
       await client.query(
         `INSERT INTO bookmark_item_tags (item_id, tag_id)
          SELECT $1, id FROM bookmark_tags
-         WHERE user_id = $2 AND space = $3 AND id = ANY($4::bigint[])`,
+         WHERE user_id = $2 AND space = $3 AND id = ANY($4::varchar[])`,
         [itemId, userId, space, tagIds]
       );
     }

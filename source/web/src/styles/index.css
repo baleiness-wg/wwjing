@@ -239,6 +239,16 @@ h3 { margin-bottom: 10px; color: #263d40; font-size: 17px; }
   border-radius: 0;
   box-shadow: none !important;
   transform: none !important;
+  min-width: 44px;
+  padding: 0 12px;
+}
+
+.el-input-group__append button.el-button:only-child {
+  width: 44px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .el-input-group__append button.el-button:hover {
@@ -337,7 +347,19 @@ h3 { margin-bottom: 10px; color: #263d40; font-size: 17px; }
 .list-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding-bottom: 20px; border-bottom: 1px solid #edf0ed; }
 .list-toolbar h2 { font-size: 28px; }
 .list-path { max-width: 480px; margin-bottom: 5px; overflow: hidden; color: #7d8d88; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
-.bookmark-search { width: min(420px, 48%); }
+.bookmark-search { width: min(560px, 60%); }
+.bookmark-search .el-input-group__append { min-width: 48px; }
+.el-input-group__append .meta-detect-btn {
+  width: 100px !important;
+  min-width: 100px !important;
+  max-width: 100px !important;
+  flex-shrink: 0 !important;
+  padding: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  height: 100% !important;
+}
 .bulk-bar { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 16px 0 0; border-radius: 10px; padding: 10px 14px; background: #eaf5f0; color: #155e56; }
 .bookmark-results { min-height: 350px; }
 .bookmark-card { position: relative; display: grid; grid-template-columns: 24px 132px minmax(0, 1fr) auto; gap: 13px; padding: 20px 0; border-bottom: 1px solid #edf0ed; }

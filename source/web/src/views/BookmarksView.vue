@@ -469,14 +469,19 @@ function openRandomFilterDialog() {
   if (folders.value.length === 0) {
     return ElMessage.warning("当前没有菜谱目录，请先创建目录并添加收藏");
   }
-  // 默认全选所有当前目录（或保留有效选择）
-  if (!selectedRandomFolderIds.value.length) {
-    selectedRandomFolderIds.value = folders.value.map((f) => String(f.id));
+  // 默认：若在特定文件夹下，只勾选该文件夹；若在全部收藏页，默认全选
+  const currentId = activeFolderId.value;
+  if (currentId !== undefined && currentId !== null && folderMap.value.has(String(currentId))) {
+    selectedRandomFolderIds.value = [String(currentId)];
   } else {
-    const validIds = new Set(folders.value.map((f) => String(f.id)));
-    selectedRandomFolderIds.value = selectedRandomFolderIds.value.filter((id) => validIds.has(id));
     if (!selectedRandomFolderIds.value.length) {
       selectedRandomFolderIds.value = folders.value.map((f) => String(f.id));
+    } else {
+      const validIds = new Set(folders.value.map((f) => String(f.id)));
+      selectedRandomFolderIds.value = selectedRandomFolderIds.value.filter((id) => validIds.has(id));
+      if (!selectedRandomFolderIds.value.length) {
+        selectedRandomFolderIds.value = folders.value.map((f) => String(f.id));
+      }
     }
   }
   randomFilterVisible.value = true;
@@ -653,7 +658,7 @@ onMounted(async () => {
             @keyup.enter="searchItems"
             @clear="searchItems"
           >
-            <template #append><el-button aria-label="执行搜索" @click="searchItems">搜索</el-button></template>
+            <template #append><el-button :icon="Search" aria-label="执行搜索" @click="searchItems" /></template>
           </el-input>
         </div>
 
@@ -755,7 +760,9 @@ onMounted(async () => {
         <el-form-item label="链接" required>
           <el-input v-model="itemForm.sourceUrl" type="url" placeholder="https://example.com">
             <template #append>
-              <el-button :loading="detectingMetadata" @click="detectMetadata">检测网页信息</el-button>
+              <el-button :loading="detectingMetadata" class="meta-detect-btn" aria-label="识别网页信息" @click="detectMetadata">
+                识别
+              </el-button>
             </template>
           </el-input>
         </el-form-item>

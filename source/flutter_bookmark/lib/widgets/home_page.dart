@@ -137,12 +137,22 @@ class _HomePageState extends State<HomePage> {
       selected.isEmpty ? null : selected,
     );
 
-    // 2. 确认选中的目录范围后，再触发随机抽取
+    // 2. 展开选中文件夹的所有子目录，随机选一个传给 API（与 web 端行为一致）
+    final candidateIds = <String>[];
+    for (final id in selected.isEmpty
+        ? state.folders.map((f) => f.id)
+        : selected) {
+      _collectDescendantIds(state.folders, id, candidateIds);
+    }
+    if (candidateIds.isEmpty) {
+      messenger.showSnackBar(const SnackBar(content: Text('选中的目录中没有可推荐内容')));
+      return;
+    }
+    final targetFolderId = candidateIds[DateTime.now().millisecondsSinceEpoch % candidateIds.length];
+
     if (_randomBusy) return;
     setState(() => _randomBusy = true);
-    final item = await state.randomItem(
-      folderIds: selected.isEmpty ? null : selected,
-    );
+    final item = await state.randomItem(folderIds: [targetFolderId]);
     if (!mounted) return;
     setState(() => _randomBusy = false);
     if (item == null) {
@@ -168,7 +178,7 @@ class _HomePageState extends State<HomePage> {
                     icon: const Icon(Icons.refresh),
                     onPressed: () async {
                       final nextItem = await state.randomItem(
-                        folderIds: state.selectedRandomFolderIds,
+                        folderIds: [targetFolderId],
                       );
                       if (nextItem != null && innerContext.mounted) {
                         setDialogState(() {
@@ -202,6 +212,15 @@ class _HomePageState extends State<HomePage> {
     BookmarkFolder folder,
   ) async {
     await context.read<AppState>().selectView(BookmarkView.folder, folder.id);
+  }
+
+  void _collectDescendantIds(List<BookmarkFolder> folders, String parentId, List<String> result) {
+    result.add(parentId);
+    for (final folder in folders) {
+      if (folder.parentId == parentId) {
+        _collectDescendantIds(folders, folder.id, result);
+      }
+    }
   }
 
   bool _isFolderDescendant(AppState state, String folderId, String targetId) {

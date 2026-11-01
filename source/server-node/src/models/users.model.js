@@ -1,4 +1,5 @@
 const pool = require("../db");
+const { randomId } = require("../utils/id");
 
 async function findByUsername(username) {
   const result = await pool.query(
@@ -11,10 +12,10 @@ async function findByUsername(username) {
 
 async function create({ username, passwordHash }) {
   const result = await pool.query(
-    `INSERT INTO users (username, password_hash)
-     VALUES ($1, $2)
+     `INSERT INTO users (id, username, password_hash)
+      VALUES ($1, $2, $3)
      RETURNING id, username`,
-    [username, passwordHash]
+     [randomId(), username, passwordHash]
   );
 
   return result.rows[0];

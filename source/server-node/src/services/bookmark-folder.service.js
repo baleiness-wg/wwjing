@@ -12,7 +12,7 @@ function parseSpace(value) {
 }
 
 function parseId(value, field) {
-  if (!/^\d+$/.test(String(value)) || Number(value) < 1) {
+  if (!/^[a-f0-9]{32}$/i.test(String(value))) {
     throw new BookmarkError(400, "INVALID_INPUT", `${field} 必须是有效标识`);
   }
   return String(value);

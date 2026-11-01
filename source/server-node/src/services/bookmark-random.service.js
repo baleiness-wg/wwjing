@@ -12,7 +12,7 @@ async function random(userId, input = {}) {
       : String(input.folderIds).split(",").map((s) => s.trim()).filter(Boolean);
     if (rawIds.length > 0) {
       parameters.push(rawIds);
-      conditions.push(`item.folder_id = ANY($${parameters.length}::bigint[])`);
+      conditions.push(`item.folder_id = ANY($${parameters.length}::varchar[])`);
     }
   } else if (input.folderId) {
     parameters.push(input.folderId);

@@ -1,4 +1,5 @@
 const pool = require("../db");
+const { randomId } = require("../utils/id");
 
 const fields = `id, space, name, created_at AS "createdAt", updated_at AS "updatedAt"`;
 
@@ -13,7 +14,7 @@ async function findById(userId, id, space, client = pool) {
 }
 
 async function create(userId, space, name) {
-  const result = await pool.query(`INSERT INTO bookmark_tags (user_id, space, name) VALUES ($1, $2, $3) RETURNING ${fields}`, [userId, space, name]);
+  const result = await pool.query(`INSERT INTO bookmark_tags (id, user_id, space, name) VALUES ($1, $2, $3, $4) RETURNING ${fields}`, [randomId(), userId, space, name]);
   return result.rows[0];
 }
 
@@ -30,7 +31,7 @@ async function remove(userId, id, space) {
 async function replaceItemTags(userId, itemId, space, tagIds, client = pool) {
   await client.query("DELETE FROM bookmark_item_tags WHERE item_id = $1", [itemId]);
   if (!tagIds.length) return;
-  await client.query(`INSERT INTO bookmark_item_tags (item_id, tag_id) SELECT $1, id FROM bookmark_tags WHERE user_id = $2 AND space = $3 AND id = ANY($4::bigint[])`, [itemId, userId, space, tagIds]);
+  await client.query(`INSERT INTO bookmark_item_tags (item_id, tag_id) SELECT $1, id FROM bookmark_tags WHERE user_id = $2 AND space = $3 AND id = ANY($4::varchar[])`, [itemId, userId, space, tagIds]);
 }
 
 module.exports = { pool, list, findById, create, update, remove, replaceItemTags };
