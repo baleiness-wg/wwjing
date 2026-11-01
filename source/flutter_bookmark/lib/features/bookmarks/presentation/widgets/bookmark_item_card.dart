@@ -20,6 +20,13 @@ class BookmarkItemCard extends StatelessWidget {
   final ValueChanged<bool?>? onSelectionChanged;
   final ValueChanged<String>? onAction;
 
+  String _displayTitle(String value) {
+    final runes = value.runes.toList();
+    return runes.length <= 30
+        ? value
+        : '${String.fromCharCodes(runes.take(30))}...';
+  }
+
   @override
   Widget build(BuildContext context) {
     final cover = BookmarkCover(
@@ -38,7 +45,11 @@ class BookmarkItemCard extends StatelessWidget {
               onChanged: onSelectionChanged,
               secondary: cover,
               title: Text(
-                item.title?.isNotEmpty == true ? item.title! : item.sourceUrl,
+                _displayTitle(
+                  item.title?.isNotEmpty == true ? item.title! : item.sourceUrl,
+                ),
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
               ),
               subtitle: Text(
                 item.sourceHost ?? item.sourceUrl,
@@ -49,7 +60,11 @@ class BookmarkItemCard extends StatelessWidget {
           : ListTile(
               leading: cover,
               title: Text(
-                item.title?.isNotEmpty == true ? item.title! : item.sourceUrl,
+                _displayTitle(
+                  item.title?.isNotEmpty == true ? item.title! : item.sourceUrl,
+                ),
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
               ),
               subtitle: Text(
                 item.sourceHost ?? item.sourceUrl,

@@ -27,6 +27,7 @@ class _BookmarkFormState extends State<BookmarkForm> {
   String? _folderId;
   bool _recognizing = false;
   BookmarkDraft? _lastObservedDraft;
+  int _metadataRequestId = 0;
 
   @override
   void initState() {
@@ -39,7 +40,9 @@ class _BookmarkFormState extends State<BookmarkForm> {
     _coverUrl = TextEditingController(text: draft.coverUrl);
     _folderId = draft.folderId;
     if (draft.fetchMetadataOnOpen && draft.sourceUrl.isNotEmpty) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _recognizeMetadata());
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _recognizeMetadata();
+      });
     }
   }
 
@@ -86,7 +89,7 @@ class _BookmarkFormState extends State<BookmarkForm> {
       }
     });
     // 粘贴有效链接后自动异步识别封面与完整信息
-    await _recognizeMetadata(overrideTitle: true);
+    _recognizeMetadata(overrideTitle: true);
   }
 
   Future<void> _recognizeMetadata({bool overrideTitle = false}) async {
@@ -98,13 +101,18 @@ class _BookmarkFormState extends State<BookmarkForm> {
           .showSnackBar(const SnackBar(content: Text('请先输入有效的 HTTP/HTTPS 链接')));
       return;
     }
+    final requestId = ++_metadataRequestId;
+    final requestUrl = uri.toString();
     setState(() => _recognizing = true);
     final state = context.read<AppState>();
 
     // 抖音短链或视频优先尝试客户端专用解析
     if (DouyinResolver.isDouyinUrl(uri.toString())) {
       final dyMetadata = await DouyinResolver().resolve(uri.toString());
-      if (dyMetadata != null && mounted) {
+      if (dyMetadata != null &&
+          mounted &&
+          requestId == _metadataRequestId &&
+          _url.text.trim() == requestUrl) {
         setState(() {
           _recognizing = false;
           if ((overrideTitle || _title.text.trim().isEmpty) &&
@@ -130,7 +138,10 @@ class _BookmarkFormState extends State<BookmarkForm> {
     // 哔哩哔哩链接优先尝试客户端直连官方开放接口
     if (BilibiliResolver.isBilibiliUrl(uri.toString())) {
       final biliMetadata = await BilibiliResolver().resolve(uri.toString());
-      if (biliMetadata != null && mounted) {
+      if (biliMetadata != null &&
+          mounted &&
+          requestId == _metadataRequestId &&
+          _url.text.trim() == requestUrl) {
         setState(() {
           _recognizing = false;
           if ((overrideTitle || _title.text.trim().isEmpty) &&
@@ -157,7 +168,11 @@ class _BookmarkFormState extends State<BookmarkForm> {
     }
 
     final metadata = await state.fetchBookmarkMetadata(uri.toString());
-    if (!mounted) return;
+    if (!mounted ||
+        requestId != _metadataRequestId ||
+        _url.text.trim() != requestUrl) {
+      return;
+    }
     setState(() {
       _recognizing = false;
       if (metadata != null) {
@@ -187,34 +202,19 @@ class _BookmarkFormState extends State<BookmarkForm> {
     }
   }
 
+  void _onUrlChanged(String value) {
+    _metadataRequestId++;
+    if (_recognizing) {
+      setState(() => _recognizing = false);
+    } else {
+      setState(() {});
+    }
+  }
+
   Future<void> _save({bool allowDuplicate = false}) async {
     if (!_formKey.currentState!.validate()) return;
     final state = context.read<AppState>();
-    var sourceUrl = _url.text.trim();
-    final uri = Uri.parse(sourceUrl);
-    if (isXiaohongshuShortLink(uri)) {
-      setState(() => _recognizing = true);
-      final metadata = await state.fetchBookmarkMetadata(sourceUrl);
-      if (!mounted) return;
-      setState(() => _recognizing = false);
-      final finalUrl = metadata?.finalUrl?.trim();
-      final finalUri = finalUrl == null ? null : Uri.tryParse(finalUrl);
-      if (finalUri == null || !isCompleteXiaohongshuUrl(finalUri)) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text('小红书短链解析失败，请稍后重试')));
-        return;
-      }
-      sourceUrl = finalUrl!;
-      _url.text = sourceUrl;
-      if (_coverUrl.text.trim().isEmpty &&
-          metadata?.coverUrl?.trim().isNotEmpty == true) {
-        _coverUrl.text = metadata!.coverUrl!.trim();
-      }
-      if (_title.text.trim().isEmpty &&
-          metadata?.title?.trim().isNotEmpty == true) {
-        _title.text = metadata!.title!.trim();
-      }
-    }
+    final sourceUrl = _url.text.trim();
     final value = BookmarkDraft(
       sourceUrl: sourceUrl,
       title: _title.text.trim(),
@@ -223,7 +223,8 @@ class _BookmarkFormState extends State<BookmarkForm> {
       coverUrl: _coverUrl.text.trim(),
     );
     final saved = await state.saveDraft(value, allowDuplicate: allowDuplicate);
-    if (!mounted || saved) return;
+    if (!mounted) return;
+    if (saved) return;
     if (state.errorCode == 'DUPLICATE_BOOKMARK') {
       final duplicate = DuplicateBookmarkInfo.fromJson(state.errorData);
       final action = await showDialog<String>(
@@ -327,7 +328,7 @@ class _BookmarkFormState extends State<BookmarkForm> {
                   ),
                 ),
                 keyboardType: TextInputType.url,
-                onChanged: (_) => setState(() {}),
+                onChanged: _onUrlChanged,
                 validator: (value) {
                   final uri = Uri.tryParse(value?.trim() ?? '');
                   return uri != null &&
@@ -412,7 +413,7 @@ class _BookmarkFormState extends State<BookmarkForm> {
               ),
               const SizedBox(height: 24),
               FilledButton.icon(
-                onPressed: state.busy || _recognizing ? null : _save,
+                onPressed: state.busy ? null : _save,
                 icon: state.busy
                     ? const SizedBox.square(
                         dimension: 18,

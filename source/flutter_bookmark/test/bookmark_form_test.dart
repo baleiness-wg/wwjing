@@ -210,7 +210,7 @@ void main() {
     expect(find.byKey(const Key('inline-folder-editor')), findsNothing);
   });
 
-  testWidgets('保存小红书短链前解析并持久化完整 finalUrl', (tester) async {
+  testWidgets('保存小红书短链不等待识别接口', (tester) async {
     tester.view.physicalSize = const Size(800, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -288,10 +288,10 @@ void main() {
     await tester.tap(saveButton);
     await tester.pumpAndSettle();
 
-    expect(savedUrl, finalUrl);
+    expect(savedUrl, 'https://xhslink.cn/o/short');
   });
 
-  testWidgets('小红书短链解析失败时保留表单并阻止保存', (tester) async {
+  testWidgets('小红书短链识别失败不阻止保存', (tester) async {
     tester.view.physicalSize = const Size(800, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -348,9 +348,7 @@ void main() {
     await tester.tap(saveButton);
     await tester.pumpAndSettle();
 
-    expect(createCalls, 0);
-    expect(find.text('小红书短链解析失败，请稍后重试'), findsOneWidget);
-    expect(find.text('https://xhslink.cn/o/short'), findsOneWidget);
+    expect(createCalls, 3);
   });
 
   testWidgets('点击粘贴后自动异步触发元数据与封面识别', (tester) async {

@@ -471,23 +471,39 @@ class _HomePageState extends State<HomePage> {
                         ? const Center(child: CircularProgressIndicator())
                         : state.items.isEmpty && _childFolders(state).isEmpty
                         ? const Center(child: Text('这里还没有收藏'))
-                        : RefreshIndicator(
-                            onRefresh: state.refresh,
-                            child: ListView.separated(
+                         : RefreshIndicator(
+                             onRefresh: state.refresh,
+                             child: NotificationListener<ScrollNotification>(
+                               onNotification: (notification) {
+                                 if (notification.metrics.extentAfter < 500) {
+                                   state.loadMore();
+                                 }
+                                 return false;
+                               },
+                               child: ListView.separated(
                               padding: EdgeInsets.fromLTRB(
                                 12,
                                 12,
                                 12,
                                 _editMode ? 92 : 12,
                               ),
-                              itemCount:
-                                  _childFolders(state).length +
-                                  state.items.length,
+                               itemCount: _childFolders(state).length +
+                                   state.items.length +
+                                   (state.loadingMore ? 1 : 0),
                               separatorBuilder: (_, _) =>
                                   const SizedBox(height: 8),
                               itemBuilder: (context, index) {
-                                final childFolders = _childFolders(state);
-                                if (index < childFolders.length) {
+                                 final childFolders = _childFolders(state);
+                                 if (index ==
+                                     childFolders.length + state.items.length) {
+                                   return const Padding(
+                                     padding: EdgeInsets.all(16),
+                                     child: Center(
+                                       child: CircularProgressIndicator(),
+                                     ),
+                                   );
+                                 }
+                                 if (index < childFolders.length) {
                                   final folder = childFolders[index];
                                   final card = Card.outlined(
                                     child: ListTile(
@@ -542,28 +558,10 @@ class _HomePageState extends State<HomePage> {
                                   child: card,
                                 );
                               },
-                            ),
-                          ),
-                  ),
-                  if (state.totalPages > 1)
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        IconButton(
-                          onPressed: state.page > 1
-                              ? () => state.goToPage(state.page - 1)
-                              : null,
-                          icon: const Icon(Icons.chevron_left),
-                        ),
-                        Text('${state.page} / ${state.totalPages}'),
-                        IconButton(
-                          onPressed: state.page < state.totalPages
-                              ? () => state.goToPage(state.page + 1)
-                              : null,
-                          icon: const Icon(Icons.chevron_right),
-                        ),
-                      ],
-                    ),
+                               ),
+                             ),
+                           ),
+                   ),
                 ],
               ),
               if (_editMode)

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 
 import '../domain/models/bookmark.dart';
@@ -37,6 +39,8 @@ class AppState extends ChangeNotifier {
   String query = '';
   int page = 1;
   int totalPages = 1;
+  bool loadingMore = false;
+  String? lastSavedItemId;
   int _viewRequestId = 0;
   int _activeOperations = 0;
 
@@ -130,6 +134,42 @@ class AppState extends ChangeNotifier {
     });
   }
 
+  Future<void> loadMore() async {
+    if (!authenticated || loadingMore || busy || page >= totalPages) return;
+    final requestId = _viewRequestId;
+    final requestView = view;
+    final requestFolderId = selectedFolderId;
+    final requestQuery = query;
+    final nextPage = page + 1;
+    loadingMore = true;
+    notifyListeners();
+    try {
+      final result = await api.getItems(
+        folderId: requestView == BookmarkView.folder ? requestFolderId : null,
+        uncategorized: requestView == BookmarkView.uncategorized,
+        query: requestQuery,
+        page: nextPage,
+      );
+      if (requestId == _viewRequestId &&
+          requestView == view &&
+          requestFolderId == selectedFolderId &&
+          requestQuery == query) {
+        items = [...items, ...result.items];
+        page = result.page;
+        totalPages = result.totalPages;
+      }
+    } on ApiException catch (exception) {
+      error = exception.message;
+      errorCode = exception.code;
+      errorData = exception.data;
+    } catch (_) {
+      error = '网络请求失败，请检查连接后重试';
+    } finally {
+      loadingMore = false;
+      notifyListeners();
+    }
+  }
+
   Future<void> selectView(BookmarkView nextView, [String? folderId]) async {
     _viewRequestId++;
     view = nextView;
@@ -204,6 +244,30 @@ class AppState extends ChangeNotifier {
     return null;
   }
 
+  Future<void> persistMetadataForItem(String itemId, String sourceUrl) async {
+    final metadata = await fetchBookmarkMetadata(sourceUrl);
+    if (metadata == null) return;
+    final changes = <String, Object?>{
+      if (metadata.title?.trim().isNotEmpty == true)
+        'title': metadata.title!.trim(),
+      if (metadata.description?.trim().isNotEmpty == true)
+        'description': metadata.description!.trim(),
+      if (metadata.coverUrl?.trim().isNotEmpty == true)
+        'coverUrl': metadata.coverUrl!.trim(),
+    };
+    if (changes.isEmpty) return;
+    try {
+      await api.updateItem(itemId, changes);
+      await refresh(resetPage: true);
+    } on ApiException catch (exception) {
+      metadataMessage = '封面保存失败：${exception.message}';
+      notifyListeners();
+    } catch (_) {
+      metadataMessage = '封面保存失败，请检查连接后重试';
+      notifyListeners();
+    }
+  }
+
   Future<void> updateSelectedRandomFolderIds(List<String>? folderIds) async {
     selectedRandomFolderIds = folderIds;
     await preferences.setSelectedRandomFolderIds(folderIds);
@@ -230,11 +294,17 @@ class AppState extends ChangeNotifier {
     bool allowDuplicate = false,
   }) async {
     draft = value;
+    lastSavedItemId = null;
     var saved = false;
     await _run(() async {
       if (editingItemId == null) {
-        await api.createItem(value, allowDuplicate: allowDuplicate);
+        final item = await api.createItem(
+          value,
+          allowDuplicate: allowDuplicate,
+        );
+        lastSavedItemId = item.id;
       } else {
+        lastSavedItemId = editingItemId;
         await api.updateItem(editingItemId!, {
           'sourceUrl': value.sourceUrl,
           'title': value.title.trim().isEmpty ? null : value.title.trim(),
@@ -256,6 +326,9 @@ class AppState extends ChangeNotifier {
       saved = true;
       await refresh(resetPage: true);
     });
+    if (saved && lastSavedItemId != null && value.sourceUrl.trim().isNotEmpty) {
+      unawaited(persistMetadataForItem(lastSavedItemId!, value.sourceUrl));
+    }
     return saved;
   }
 

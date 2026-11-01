@@ -58,6 +58,39 @@ test("create requires explicit confirmation for an equivalent duplicate", async 
   }
 });
 
+test("update rejects changing an item to another existing normalized URL", async () => {
+  const originalFindDuplicate = itemModel.findDuplicate;
+  const originalFindById = itemModel.findById;
+  const originalUpdate = itemModel.update;
+  itemModel.findById = async () => ({
+    id: itemId,
+    sourceUrl: "https://example.com/old",
+    folderId: null,
+    title: null,
+    description: null,
+    coverUrl: null
+  });
+  itemModel.findDuplicate = async () => ({
+    id: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    title: "existing",
+    folderId: null,
+    folderName: null
+  });
+  let updated = false;
+  itemModel.update = async () => { updated = true; };
+  try {
+    await assert.rejects(
+      itemService.update("7", itemId, { sourceUrl: "https://example.com/existing" }),
+      (error) => error.code === "DUPLICATE_BOOKMARK"
+    );
+    assert.equal(updated, false);
+  } finally {
+    itemModel.findDuplicate = originalFindDuplicate;
+    itemModel.findById = originalFindById;
+    itemModel.update = originalUpdate;
+  }
+});
+
 test("list supports uncategorized keyword search and stable pagination inputs", async () => {
   const originalList = itemModel.list;
   let received;

@@ -138,6 +138,10 @@ async function update(userId, idValue, input = {}) {
   const current = await get(userId, id, space);
   const sourceUrl = Object.hasOwn(input, "sourceUrl") ? input.sourceUrl : current.sourceUrl;
   const normalized = normalizeUrl(sourceUrl);
+  const duplicate = await itemModel.findDuplicate(userId, normalized.normalizedUrl, space);
+  if (duplicate && duplicate.id !== id) {
+    throw new BookmarkError(409, "DUPLICATE_BOOKMARK", "该链接已收藏", { duplicate });
+  }
   const folderId = Object.hasOwn(input, "folderId")
     ? await validateFolder(userId, input.folderId, space)
     : current.folderId;
