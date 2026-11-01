@@ -463,4 +463,40 @@ void main() {
     expect(state.selectedFolderId, '2');
     expect(state.items.single.id, '2');
   });
+
+  test('刷新列表总是回到第一页并清空旧的追加结果', () async {
+    final tokens = MemoryTokenStore('Bearer token');
+    final requestedPages = <String>[];
+    final api = ApiClient(
+      baseUrl: 'https://api.example/api',
+      space: 'cookie',
+      tokenStore: tokens,
+      httpClient: MockClient((request) async {
+        if (request.url.path.endsWith('/folders')) return http.Response('[]', 200);
+        requestedPages.add(request.url.queryParameters['page']!);
+        return http.Response(
+          request.url.queryParameters['page'] == '1'
+              ? '{"items":[{"id":"first","sourceUrl":"https://example.com/1"}],"page":1,"totalPages":2}'
+              : '{"items":[{"id":"second","sourceUrl":"https://example.com/2"}],"page":2,"totalPages":2}',
+          200,
+        );
+      }),
+    );
+    final state = AppState(
+      api: api,
+      tokenStore: tokens,
+      preferences: MemoryPreferencesStore(),
+    )
+      ..initialized = true
+      ..authenticated = true;
+
+    await state.refresh();
+    await state.loadMore();
+    expect(state.items.map((item) => item.id), ['first', 'second']);
+
+    await state.refresh();
+    expect(requestedPages, ['1', '2', '1']);
+    expect(state.items.map((item) => item.id), ['first']);
+    expect(state.page, 1);
+  });
 }

@@ -28,6 +28,7 @@ class _BookmarkFormState extends State<BookmarkForm> {
   bool _recognizing = false;
   BookmarkDraft? _lastObservedDraft;
   int _metadataRequestId = 0;
+  Future<BookmarkMetadata?>? _metadataFuture;
 
   @override
   void initState() {
@@ -41,7 +42,7 @@ class _BookmarkFormState extends State<BookmarkForm> {
     _folderId = draft.folderId;
     if (draft.fetchMetadataOnOpen && draft.sourceUrl.isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        _recognizeMetadata();
+        _metadataFuture = _recognizeMetadata();
       });
     }
   }
@@ -56,7 +57,7 @@ class _BookmarkFormState extends State<BookmarkForm> {
       _folderId = draft.folderId;
     });
     if (draft.fetchMetadataOnOpen && draft.sourceUrl.isNotEmpty) {
-      _recognizeMetadata(overrideTitle: true);
+      _metadataFuture = _recognizeMetadata(overrideTitle: true);
     }
   }
 
@@ -89,17 +90,19 @@ class _BookmarkFormState extends State<BookmarkForm> {
       }
     });
     // 粘贴有效链接后自动异步识别封面与完整信息
-    _recognizeMetadata(overrideTitle: true);
+    _metadataFuture = _recognizeMetadata(overrideTitle: true);
   }
 
-  Future<void> _recognizeMetadata({bool overrideTitle = false}) async {
+  Future<BookmarkMetadata?> _recognizeMetadata({
+    bool overrideTitle = false,
+  }) async {
     final uri = Uri.tryParse(_url.text.trim());
     if (uri == null ||
         !uri.hasAuthority ||
         (uri.scheme != 'http' && uri.scheme != 'https')) {
       ScaffoldMessenger.of(context)
           .showSnackBar(const SnackBar(content: Text('请先输入有效的 HTTP/HTTPS 链接')));
-      return;
+      return null;
     }
     final requestId = ++_metadataRequestId;
     final requestUrl = uri.toString();
@@ -109,6 +112,14 @@ class _BookmarkFormState extends State<BookmarkForm> {
     // 抖音短链或视频优先尝试客户端专用解析
     if (DouyinResolver.isDouyinUrl(uri.toString())) {
       final dyMetadata = await DouyinResolver().resolve(uri.toString());
+      final metadata = dyMetadata == null
+          ? null
+          : BookmarkMetadata(
+              finalUrl: dyMetadata.finalUrl,
+              title: dyMetadata.title,
+              description: dyMetadata.description,
+              coverUrl: dyMetadata.coverUrl,
+            );
       if (dyMetadata != null &&
           mounted &&
           requestId == _metadataRequestId &&
@@ -131,13 +142,22 @@ class _BookmarkFormState extends State<BookmarkForm> {
             _title.text = titleFallbackForUrl(uri);
           }
         });
-        return;
+        return metadata;
       }
+      if (metadata != null) return metadata;
     }
 
     // 哔哩哔哩链接优先尝试客户端直连官方开放接口
     if (BilibiliResolver.isBilibiliUrl(uri.toString())) {
       final biliMetadata = await BilibiliResolver().resolve(uri.toString());
+      final metadata = biliMetadata == null
+          ? null
+          : BookmarkMetadata(
+              finalUrl: biliMetadata.finalUrl,
+              title: biliMetadata.title,
+              description: biliMetadata.description,
+              coverUrl: biliMetadata.coverUrl,
+            );
       if (biliMetadata != null &&
           mounted &&
           requestId == _metadataRequestId &&
@@ -163,15 +183,16 @@ class _BookmarkFormState extends State<BookmarkForm> {
             _title.text = titleFallbackForUrl(uri);
           }
         });
-        return;
+        return metadata;
       }
+      if (metadata != null) return metadata;
     }
 
     final metadata = await state.fetchBookmarkMetadata(uri.toString());
     if (!mounted ||
         requestId != _metadataRequestId ||
         _url.text.trim() != requestUrl) {
-      return;
+      return metadata;
     }
     setState(() {
       _recognizing = false;
@@ -200,10 +221,12 @@ class _BookmarkFormState extends State<BookmarkForm> {
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text(state.metadataMessage!)));
     }
+    return metadata;
   }
 
   void _onUrlChanged(String value) {
     _metadataRequestId++;
+    _metadataFuture = null;
     if (_recognizing) {
       setState(() => _recognizing = false);
     } else {
@@ -215,6 +238,8 @@ class _BookmarkFormState extends State<BookmarkForm> {
     if (!_formKey.currentState!.validate()) return;
     final state = context.read<AppState>();
     final sourceUrl = _url.text.trim();
+    final metadataFuture =
+        _metadataFuture ??= _recognizeMetadata(overrideTitle: true);
     final value = BookmarkDraft(
       sourceUrl: sourceUrl,
       title: _title.text.trim(),
@@ -222,7 +247,11 @@ class _BookmarkFormState extends State<BookmarkForm> {
       folderId: _folderId,
       coverUrl: _coverUrl.text.trim(),
     );
-    final saved = await state.saveDraft(value, allowDuplicate: allowDuplicate);
+    final saved = await state.saveDraft(
+      value,
+      allowDuplicate: allowDuplicate,
+      metadataFuture: metadataFuture,
+    );
     if (!mounted) return;
     if (saved) return;
     if (state.errorCode == 'DUPLICATE_BOOKMARK') {
@@ -264,7 +293,11 @@ class _BookmarkFormState extends State<BookmarkForm> {
         final overwritten = await state.overwriteItem(duplicate.id, value);
         if (overwritten && mounted) state.closeDraft();
       } else if (action == 'duplicate') {
-        await state.saveDraft(value, allowDuplicate: true);
+        await state.saveDraft(
+          value,
+          allowDuplicate: true,
+          metadataFuture: metadataFuture,
+        );
       }
     }
   }
@@ -381,7 +414,11 @@ class _BookmarkFormState extends State<BookmarkForm> {
               Align(
                 alignment: Alignment.centerRight,
                 child: OutlinedButton.icon(
-                  onPressed: _recognizing ? null : _recognizeMetadata,
+                   onPressed: _recognizing
+                       ? null
+                       : () {
+                           _metadataFuture = _recognizeMetadata();
+                         },
                   icon: _recognizing
                       ? const SizedBox.square(
                           dimension: 16,

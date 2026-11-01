@@ -104,10 +104,11 @@ class AppState extends ChangeNotifier {
   Future<void> handleUnauthorized() => logout(expired: true);
 
   Future<void> refresh({
-    bool resetPage = false,
-    bool clearItems = false,
+    bool resetPage = true,
+    bool clearItems = true,
   }) async {
     if (!authenticated) return;
+    if (resetPage || clearItems) _viewRequestId++;
     if (resetPage) page = 1;
     if (clearItems) {
       items = [];
@@ -244,8 +245,10 @@ class AppState extends ChangeNotifier {
     return null;
   }
 
-  Future<void> persistMetadataForItem(String itemId, String sourceUrl) async {
-    final metadata = await fetchBookmarkMetadata(sourceUrl);
+  Future<void> persistMetadataForItem(
+    String itemId,
+    BookmarkMetadata? metadata,
+  ) async {
     if (metadata == null) return;
     final changes = <String, Object?>{
       if (metadata.title?.trim().isNotEmpty == true)
@@ -292,6 +295,7 @@ class AppState extends ChangeNotifier {
   Future<bool> saveDraft(
     BookmarkDraft value, {
     bool allowDuplicate = false,
+    Future<BookmarkMetadata?>? metadataFuture,
   }) async {
     draft = value;
     lastSavedItemId = null;
@@ -326,8 +330,13 @@ class AppState extends ChangeNotifier {
       saved = true;
       await refresh(resetPage: true);
     });
-    if (saved && lastSavedItemId != null && value.sourceUrl.trim().isNotEmpty) {
-      unawaited(persistMetadataForItem(lastSavedItemId!, value.sourceUrl));
+    final savedItemId = lastSavedItemId;
+    if (saved && savedItemId != null && metadataFuture != null) {
+      unawaited(
+        metadataFuture.then(
+          (metadata) => persistMetadataForItem(savedItemId, metadata),
+        ),
+      );
     }
     return saved;
   }
