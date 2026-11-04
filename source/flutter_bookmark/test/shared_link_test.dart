@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:wwjing_bookmark/app/app_config.dart';
-import 'package:wwjing_bookmark/main.dart';
-import 'package:wwjing_bookmark/features/bookmarks/domain/models/bookmark.dart';
-import 'package:wwjing_bookmark/features/bookmarks/domain/services/shared_link_parser.dart';
-import 'package:wwjing_bookmark/core/network/api_client.dart';
-import 'package:wwjing_bookmark/core/platform/share_service.dart';
-import 'package:wwjing_bookmark/features/bookmarks/presentation/bookmark_state.dart';
-import 'package:wwjing_bookmark/features/bookmarks/presentation/editor/bookmark_form.dart';
+import 'package:wwjing_bookmark/constants/app_config.dart';
+import 'package:wwjing_bookmark/viewmodels/bookmark.dart';
+import 'package:wwjing_bookmark/utils/shared_link_parser.dart';
+import 'package:wwjing_bookmark/api/api_client.dart';
+import 'package:wwjing_bookmark/utils/share_service.dart';
+import 'package:wwjing_bookmark/stores/bookmark_state.dart';
+import 'package:wwjing_bookmark/pages/bookmark_form.dart';
+import 'package:wwjing_bookmark/routes/index.dart';
 import 'test_fakes.dart';
 
 class FakeShareService extends ShareService {

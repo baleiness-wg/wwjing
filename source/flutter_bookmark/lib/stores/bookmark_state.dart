@@ -1,0 +1,468 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
+
+import '../api/api_client.dart';
+import '../viewmodels/bookmark.dart';
+import '../utils/preferences_store.dart';
+import '../utils/shared_link_parser.dart';
+import '../utils/token_store.dart';
+
+enum BookmarkView { all, uncategorized, folder }
+
+class AppState extends ChangeNotifier {
+  AppState({
+    required this.api,
+    required this.tokenStore,
+    required this.preferences,
+  });
+
+  final ApiClient api;
+  final TokenStore tokenStore;
+  final PreferencesStore preferences;
+
+  bool initialized = false;
+  bool authenticated = false;
+  bool busy = false;
+  String? error;
+  String? errorCode;
+  Object? errorData;
+  String? metadataMessage;
+  BookmarkDraft? draft;
+  String? editingItemId;
+  List<BookmarkFolder> folders = [];
+  List<BookmarkItem> items = [];
+  List<String> recentFolderIds = [];
+  List<String>? selectedRandomFolderIds;
+  BookmarkView view = BookmarkView.all;
+  String? selectedFolderId;
+  String query = '';
+  int page = 1;
+  int totalPages = 1;
+  bool loadingMore = false;
+  String? lastSavedItemId;
+  int _viewRequestId = 0;
+  int _activeOperations = 0;
+
+  List<FolderNode> get folderTree => buildFolderTree(folders);
+
+  Future<void> initialize() async {
+    recentFolderIds = await preferences.recentFolders();
+    selectedRandomFolderIds = await preferences.selectedRandomFolderIds();
+    authenticated = await tokenStore.read() != null;
+    initialized = true;
+    notifyListeners();
+    if (authenticated) await refresh();
+  }
+
+  Future<void> login(String username, String password) async {
+    await _run(() async {
+      final result = await api.login(username, password);
+      final token = result['token'] as String?;
+      if (token == null || token.isEmpty) throw const ApiException('登录响应缺少令牌');
+      await tokenStore.write(token);
+      authenticated = true;
+      await refresh();
+    });
+  }
+
+  Future<void> register(String username, String password) async {
+    await _run(() async {
+      await api.register(username, password);
+      final result = await api.login(username, password);
+      final token = result['token'] as String?;
+      if (token == null || token.isEmpty) throw const ApiException('登录响应缺少令牌');
+      await tokenStore.write(token);
+      authenticated = true;
+      await refresh();
+    });
+  }
+
+  Future<bool> changePassword(String currentPassword, String newPassword, String confirmPassword) async {
+    var changed = false;
+    await _run(() async {
+      await api.changePassword(
+        currentPassword: currentPassword,
+        newPassword: newPassword,
+        confirmPassword: confirmPassword,
+      );
+      changed = true;
+    });
+    if (changed) await logout();
+    return changed;
+  }
+
+  Future<void> logout({bool expired = false}) async {
+    await tokenStore.clear();
+    authenticated = false;
+    folders = [];
+    items = [];
+    if (!expired) draft = null;
+    notifyListeners();
+  }
+
+  Future<void> handleUnauthorized() => logout(expired: true);
+
+  Future<void> refresh({
+    bool resetPage = true,
+    bool clearItems = true,
+  }) async {
+    if (!authenticated) return;
+    if (resetPage || clearItems) _viewRequestId++;
+    if (resetPage) page = 1;
+    if (clearItems) {
+      items = [];
+      totalPages = 1;
+    }
+    final requestId = _viewRequestId;
+    final requestView = view;
+    final requestFolderId = selectedFolderId;
+    final requestQuery = query;
+    final requestPage = page;
+    await _run(() async {
+      final nextFolders = await api.getFolders();
+      final result = await api.getItems(
+        folderId: requestView == BookmarkView.folder ? requestFolderId : null,
+        uncategorized: requestView == BookmarkView.uncategorized,
+        query: requestQuery,
+        page: requestPage,
+      );
+      if (requestId != _viewRequestId) return;
+      folders = nextFolders;
+      items = result.items;
+      page = result.page;
+      totalPages = result.totalPages;
+    });
+  }
+
+  Future<void> loadMore() async {
+    if (!authenticated || loadingMore || busy || page >= totalPages) return;
+    final requestId = _viewRequestId;
+    final requestView = view;
+    final requestFolderId = selectedFolderId;
+    final requestQuery = query;
+    final nextPage = page + 1;
+    loadingMore = true;
+    notifyListeners();
+    try {
+      final result = await api.getItems(
+        folderId: requestView == BookmarkView.folder ? requestFolderId : null,
+        uncategorized: requestView == BookmarkView.uncategorized,
+        query: requestQuery,
+        page: nextPage,
+      );
+      if (requestId == _viewRequestId &&
+          requestView == view &&
+          requestFolderId == selectedFolderId &&
+          requestQuery == query) {
+        items = [...items, ...result.items];
+        page = result.page;
+        totalPages = result.totalPages;
+      }
+    } on ApiException catch (exception) {
+      error = exception.message;
+      errorCode = exception.code;
+      errorData = exception.data;
+    } catch (_) {
+      error = '网络请求失败，请检查连接后重试';
+    } finally {
+      loadingMore = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> selectView(BookmarkView nextView, [String? folderId]) async {
+    _viewRequestId++;
+    view = nextView;
+    selectedFolderId = folderId;
+    await refresh(resetPage: true, clearItems: true);
+  }
+
+  Future<void> search(String value) async {
+    query = value;
+    await refresh(resetPage: true);
+  }
+
+  Future<void> goToPage(int value) async {
+    page = value.clamp(1, totalPages);
+    await refresh();
+  }
+
+  void openSharedText(String text) {
+    final shared = extractSharedLink(text);
+    if (shared == null) {
+      error = '未识别到 HTTP/HTTPS 链接';
+    } else {
+      draft = BookmarkDraft(
+        sourceUrl: shared.url,
+        title: shared.title,
+        description: shared.originalText,
+        fetchMetadataOnOpen: true,
+      );
+      editingItemId = null;
+      error = null;
+    }
+    notifyListeners();
+  }
+
+  void openDraft([BookmarkItem? item]) {
+    editingItemId = item?.id;
+    draft = item == null
+        ? const BookmarkDraft(sourceUrl: '')
+        : BookmarkDraft(
+            sourceUrl: item.sourceUrl,
+            title: item.title ?? '',
+            description: item.description ?? '',
+            folderId: item.folderId,
+            coverUrl: item.coverUrl ?? '',
+          );
+    notifyListeners();
+  }
+
+  void openDraftInFolder(String folderId) {
+    editingItemId = null;
+    draft = BookmarkDraft(sourceUrl: '', folderId: folderId);
+    notifyListeners();
+  }
+
+  void closeDraft() {
+    draft = null;
+    editingItemId = null;
+    notifyListeners();
+  }
+
+  Future<BookmarkMetadata?> fetchBookmarkMetadata(String sourceUrl) async {
+    metadataMessage = null;
+    notifyListeners();
+    try {
+      return await api.getBookmarkMetadata(sourceUrl);
+    } on ApiException catch (exception) {
+      metadataMessage = '封面识别失败：${exception.message}';
+    } catch (_) {
+      metadataMessage = '封面识别失败，请检查连接后重试';
+    }
+    notifyListeners();
+    return null;
+  }
+
+  Future<void> persistMetadataForItem(
+    String itemId,
+    BookmarkMetadata? metadata,
+  ) async {
+    if (metadata == null) return;
+    final changes = <String, Object?>{
+      if (metadata.title?.trim().isNotEmpty == true)
+        'title': metadata.title!.trim(),
+      if (metadata.description?.trim().isNotEmpty == true)
+        'description': metadata.description!.trim(),
+      if (metadata.coverUrl?.trim().isNotEmpty == true)
+        'coverUrl': metadata.coverUrl!.trim(),
+    };
+    if (changes.isEmpty) return;
+    try {
+      await api.updateItem(itemId, changes);
+      await refresh(resetPage: true);
+    } on ApiException catch (exception) {
+      metadataMessage = '封面保存失败：${exception.message}';
+      notifyListeners();
+    } catch (_) {
+      metadataMessage = '封面保存失败，请检查连接后重试';
+      notifyListeners();
+    }
+  }
+
+  Future<void> updateSelectedRandomFolderIds(List<String>? folderIds) async {
+    selectedRandomFolderIds = folderIds;
+    await preferences.setSelectedRandomFolderIds(folderIds);
+    notifyListeners();
+  }
+
+  Future<BookmarkItem?> randomItem({Iterable<String>? folderIds}) async {
+    error = null;
+    notifyListeners();
+    try {
+      final effectiveFolderIds = folderIds ?? selectedRandomFolderIds;
+      return await api.getRandomItem(folderIds: effectiveFolderIds);
+    } on ApiException catch (exception) {
+      error = exception.message;
+    } catch (_) {
+      error = '随机推荐失败，请检查连接后重试';
+    }
+    notifyListeners();
+    return null;
+  }
+
+  Future<bool> saveDraft(
+    BookmarkDraft value, {
+    bool allowDuplicate = false,
+    Future<BookmarkMetadata?>? metadataFuture,
+  }) async {
+    draft = value;
+    lastSavedItemId = null;
+    var saved = false;
+    await _run(() async {
+      if (editingItemId == null) {
+        final item = await api.createItem(
+          value,
+          allowDuplicate: allowDuplicate,
+        );
+        lastSavedItemId = item.id;
+      } else {
+        lastSavedItemId = editingItemId;
+        await api.updateItem(editingItemId!, {
+          'sourceUrl': value.sourceUrl,
+          'title': value.title.trim().isEmpty ? null : value.title.trim(),
+          'description': value.description.trim().isEmpty
+              ? null
+              : value.description.trim(),
+          'folderId': value.folderId,
+          'coverUrl': value.coverUrl.trim().isEmpty
+              ? null
+              : value.coverUrl.trim(),
+        });
+      }
+      if (value.folderId != null) {
+        await preferences.rememberFolder(value.folderId!);
+        recentFolderIds = await preferences.recentFolders();
+      }
+      draft = null;
+      editingItemId = null;
+      saved = true;
+      await refresh(resetPage: true);
+    });
+    final savedItemId = lastSavedItemId;
+    if (saved && savedItemId != null && metadataFuture != null) {
+      unawaited(
+        metadataFuture.then(
+          (metadata) => persistMetadataForItem(savedItemId, metadata),
+        ),
+      );
+    }
+    return saved;
+  }
+
+  Future<void> deleteItem(String id) async {
+    await _run(() async {
+      await api.deleteItem(id);
+      await refresh();
+    });
+  }
+
+  Future<void> moveItem(String id, String? folderId) async {
+    await _run(() async {
+      await api.updateItem(id, {'folderId': folderId});
+      await refresh();
+    });
+  }
+
+  Future<void> moveItems(Iterable<String> ids, String? folderId) async {
+    await _run(() async {
+      for (final id in ids) {
+        await api.updateItem(id, {'folderId': folderId});
+      }
+      await refresh(resetPage: true);
+    });
+  }
+
+  Future<void> deleteItems(Iterable<String> ids) async {
+    await _run(() async {
+      for (final id in ids) {
+        await api.deleteItem(id);
+      }
+      await refresh(resetPage: true);
+    });
+  }
+
+  Future<bool> overwriteItem(String id, BookmarkDraft value) async {
+    var updated = false;
+    await _run(() async {
+      await api.updateItem(id, {
+        'sourceUrl': value.sourceUrl,
+        'title': value.title.trim().isEmpty ? null : value.title.trim(),
+        'description': value.description.trim().isEmpty
+            ? null
+            : value.description.trim(),
+        'folderId': value.folderId,
+        'coverUrl': value.coverUrl.trim().isEmpty
+            ? null
+            : value.coverUrl.trim(),
+      });
+      updated = true;
+      await refresh(resetPage: true);
+    });
+    return updated;
+  }
+
+  Future<void> openFolder(String? folderId) async {
+    if (folderId == null) {
+      await selectView(BookmarkView.uncategorized);
+    } else {
+      await selectView(BookmarkView.folder, folderId);
+    }
+  }
+
+  Future<BookmarkFolder?> createFolder(String name, String? parentId) async {
+    BookmarkFolder? created;
+    await _run(() async {
+      created = await api.createFolder(name: name, parentId: parentId);
+      await refresh();
+    });
+    return created;
+  }
+
+  Future<void> renameFolder(BookmarkFolder folder, String name) async {
+    await _run(() async {
+      await api.updateFolder(folder.id, {'name': name});
+      await refresh();
+    });
+  }
+
+  Future<void> moveFolder(BookmarkFolder folder, String? parentId) async {
+    await _run(() async {
+      await api.updateFolder(folder.id, {'parentId': parentId});
+      await refresh();
+    });
+  }
+
+  Future<void> reorderFolder(BookmarkFolder folder, int delta) async {
+    await _run(() async {
+      await api.updateFolder(folder.id, {
+        'position': (folder.position + delta).clamp(0, 1 << 30),
+      });
+      await refresh();
+    });
+  }
+
+  Future<void> deleteFolder(BookmarkFolder folder) async {
+    await _run(() async {
+      await api.deleteFolder(folder.id);
+      if (selectedFolderId == folder.id) {
+        view = BookmarkView.all;
+        selectedFolderId = null;
+      }
+      await refresh();
+    });
+  }
+
+  Future<void> _run(Future<void> Function() operation) async {
+    _activeOperations++;
+    busy = true;
+    error = null;
+    errorCode = null;
+    errorData = null;
+    notifyListeners();
+    try {
+      await operation();
+    } on ApiException catch (exception) {
+      error = exception.message;
+      errorCode = exception.code;
+      errorData = exception.data;
+    } catch (_) {
+      error = '网络请求失败，请检查连接后重试';
+    } finally {
+      _activeOperations--;
+      busy = _activeOperations > 0;
+      notifyListeners();
+    }
+  }
+}

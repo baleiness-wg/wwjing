@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:wwjing_bookmark/features/bookmarks/domain/models/bookmark.dart';
+import 'package:wwjing_bookmark/viewmodels/bookmark.dart';
 
 void main() {
   test('构建多根、多层目录并将异常父标识提升到根', () {

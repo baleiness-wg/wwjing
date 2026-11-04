@@ -4,9 +4,9 @@ import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'package:wwjing_bookmark/features/bookmarks/domain/models/bookmark.dart';
-import 'package:wwjing_bookmark/core/network/api_client.dart';
-import 'package:wwjing_bookmark/features/bookmarks/presentation/bookmark_state.dart';
+import 'package:wwjing_bookmark/viewmodels/bookmark.dart';
+import 'package:wwjing_bookmark/api/api_client.dart';
+import 'package:wwjing_bookmark/stores/bookmark_state.dart';
 
 import 'test_fakes.dart';
 

@@ -6,13 +6,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:provider/provider.dart';
-import 'package:wwjing_bookmark/features/bookmarks/domain/models/bookmark.dart';
-import 'package:wwjing_bookmark/core/network/api_client.dart';
-import 'package:wwjing_bookmark/features/bookmarks/data/metadata/bilibili_resolver.dart';
-import 'package:wwjing_bookmark/features/bookmarks/data/metadata/douyin_resolver.dart';
-import 'package:wwjing_bookmark/features/bookmarks/presentation/bookmark_state.dart';
-import 'package:wwjing_bookmark/features/bookmarks/presentation/editor/bookmark_form.dart';
-import 'package:wwjing_bookmark/features/bookmarks/presentation/folders/folder_picker_dialog.dart';
+import 'package:wwjing_bookmark/viewmodels/bookmark.dart';
+import 'package:wwjing_bookmark/api/api_client.dart';
+import 'package:wwjing_bookmark/utils/bilibili_resolver.dart';
+import 'package:wwjing_bookmark/utils/douyin_resolver.dart';
+import 'package:wwjing_bookmark/stores/bookmark_state.dart';
+import 'package:wwjing_bookmark/pages/bookmark_form.dart';
+import 'package:wwjing_bookmark/components/folder_picker_dialog.dart';
 
 import 'test_fakes.dart';
 

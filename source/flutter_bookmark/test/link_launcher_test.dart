@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:wwjing_bookmark/core/platform/link_launcher.dart';
+import 'package:wwjing_bookmark/utils/link_launcher.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
