@@ -80,7 +80,7 @@ class BookmarkItem {
     this.title,
     this.description,
     this.sourceHost,
-    this.coverUrl,
+    this.images = const [],
   });
 
   factory BookmarkItem.fromJson(Map<String, dynamic> json) => BookmarkItem(
@@ -93,7 +93,8 @@ class BookmarkItem {
     title: json['title'] as String?,
     description: json['description'] as String?,
     sourceHost: json['sourceHost'] as String? ?? json['source_host'] as String?,
-    coverUrl: json['coverUrl'] as String? ?? json['cover_url'] as String?,
+    images: (json['images'] as List?)?.whereType<String>().toList() ??
+        _legacyImages(json),
   );
 
   final String id;
@@ -102,7 +103,14 @@ class BookmarkItem {
   final String? title;
   final String? description;
   final String? sourceHost;
-  final String? coverUrl;
+  final List<String> images;
+
+  String? get coverUrl => images.isEmpty ? null : images.first;
+}
+
+List<String> _legacyImages(Map<String, dynamic> json) {
+  final cover = json['coverUrl'] as String? ?? json['cover_url'] as String?;
+  return cover == null ? const [] : [cover];
 }
 
 class BookmarkMetadata {
@@ -133,7 +141,8 @@ class BookmarkDraft {
     this.title = '',
     this.description = '',
     this.folderId,
-    this.coverUrl = '',
+    this.images = const [],
+    @Deprecated('Use images') this.coverUrl = '',
     this.fetchMetadataOnOpen = false,
   });
 
@@ -141,6 +150,7 @@ class BookmarkDraft {
   final String title;
   final String description;
   final String? folderId;
+  final List<String> images;
   final String coverUrl;
   final bool fetchMetadataOnOpen;
 }

@@ -351,7 +351,7 @@ void main() {
     expect(createCalls, 3);
   });
 
-  testWidgets('点击粘贴后自动异步触发元数据与封面识别', (tester) async {
+  testWidgets('点击粘贴后填充链接和分享文本', (tester) async {
     final tokens = MemoryTokenStore('Bearer token');
     tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
       SystemChannels.platform,
@@ -369,7 +369,6 @@ void main() {
       );
     });
 
-    var metadataRequested = false;
     final state =
         AppState(
             api: ApiClient(
@@ -378,7 +377,6 @@ void main() {
               tokenStore: tokens,
               httpClient: MockClient((request) async {
                 if (request.url.path.endsWith('/metadata')) {
-                  metadataRequested = true;
                   return http.Response.bytes(
                     utf8.encode(
                       jsonEncode({
@@ -416,12 +414,7 @@ void main() {
     await tester.pump();
     await tester.pumpAndSettle();
 
-    expect(metadataRequested, isTrue);
-    expect(find.widgetWithText(TextField, '自动识别文章'), findsOneWidget);
-    expect(
-      find.widgetWithText(TextField, 'https://example.com/auto-cover.png'),
-      findsOneWidget,
-    );
+    expect(find.text('https://example.com/pasted'), findsOneWidget);
   });
 
   test('DouyinResolver 格式检测与解析回退', () async {

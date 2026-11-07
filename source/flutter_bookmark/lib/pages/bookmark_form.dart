@@ -2,12 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
-import '../components/bookmark_cover.dart';
 import '../components/folder_picker_dialog.dart';
 import '../stores/bookmark_state.dart';
 import '../viewmodels/bookmark.dart';
-import '../utils/bilibili_resolver.dart';
-import '../utils/douyin_resolver.dart';
 import '../utils/link_launcher.dart';
 import '../utils/shared_link_parser.dart';
 
@@ -23,12 +20,8 @@ class _BookmarkFormState extends State<BookmarkForm> {
   late final TextEditingController _url;
   late final TextEditingController _title;
   late final TextEditingController _description;
-  late final TextEditingController _coverUrl;
   String? _folderId;
-  bool _recognizing = false;
   BookmarkDraft? _lastObservedDraft;
-  int _metadataRequestId = 0;
-  Future<BookmarkMetadata?>? _metadataFuture;
 
   @override
   void initState() {
@@ -38,13 +31,7 @@ class _BookmarkFormState extends State<BookmarkForm> {
     _url = TextEditingController(text: draft.sourceUrl);
     _title = TextEditingController(text: draft.title);
     _description = TextEditingController(text: draft.description);
-    _coverUrl = TextEditingController(text: draft.coverUrl);
     _folderId = draft.folderId;
-    if (draft.fetchMetadataOnOpen && draft.sourceUrl.isNotEmpty) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _metadataFuture = _recognizeMetadata();
-      });
-    }
   }
 
   void _applyDraft(BookmarkDraft draft) {
@@ -53,12 +40,8 @@ class _BookmarkFormState extends State<BookmarkForm> {
       _url.text = draft.sourceUrl;
       _title.text = draft.title;
       _description.text = draft.description;
-      _coverUrl.text = draft.coverUrl;
       _folderId = draft.folderId;
     });
-    if (draft.fetchMetadataOnOpen && draft.sourceUrl.isNotEmpty) {
-      _metadataFuture = _recognizeMetadata(overrideTitle: true);
-    }
   }
 
   @override
@@ -66,7 +49,6 @@ class _BookmarkFormState extends State<BookmarkForm> {
     _url.dispose();
     _title.dispose();
     _description.dispose();
-    _coverUrl.dispose();
     super.dispose();
   }
 
@@ -89,168 +71,26 @@ class _BookmarkFormState extends State<BookmarkForm> {
         _description.text = shared.originalText;
       }
     });
-    // 粘贴有效链接后自动异步识别封面与完整信息
-    _metadataFuture = _recognizeMetadata(overrideTitle: true);
-  }
-
-  Future<BookmarkMetadata?> _recognizeMetadata({
-    bool overrideTitle = false,
-  }) async {
-    final uri = Uri.tryParse(_url.text.trim());
-    if (uri == null ||
-        !uri.hasAuthority ||
-        (uri.scheme != 'http' && uri.scheme != 'https')) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('请先输入有效的 HTTP/HTTPS 链接')));
-      return null;
-    }
-    final requestId = ++_metadataRequestId;
-    final requestUrl = uri.toString();
-    setState(() => _recognizing = true);
-    final state = context.read<AppState>();
-
-    // 抖音短链或视频优先尝试客户端专用解析
-    if (DouyinResolver.isDouyinUrl(uri.toString())) {
-      final dyMetadata = await DouyinResolver().resolve(uri.toString());
-      final metadata = dyMetadata == null
-          ? null
-          : BookmarkMetadata(
-              finalUrl: dyMetadata.finalUrl,
-              title: dyMetadata.title,
-              description: dyMetadata.description,
-              coverUrl: dyMetadata.coverUrl,
-            );
-      if (dyMetadata != null &&
-          mounted &&
-          requestId == _metadataRequestId &&
-          _url.text.trim() == requestUrl) {
-        setState(() {
-          _recognizing = false;
-          if ((overrideTitle || _title.text.trim().isEmpty) &&
-              dyMetadata.title?.trim().isNotEmpty == true) {
-            _title.text = dyMetadata.title!.trim();
-          }
-          if (_description.text.trim().isEmpty &&
-              dyMetadata.description?.trim().isNotEmpty == true) {
-            _description.text = dyMetadata.description!.trim();
-          }
-          if (_coverUrl.text.trim().isEmpty &&
-              dyMetadata.coverUrl?.trim().isNotEmpty == true) {
-            _coverUrl.text = dyMetadata.coverUrl!.trim();
-          }
-          if (_title.text.trim().isEmpty) {
-            _title.text = titleFallbackForUrl(uri);
-          }
-        });
-        return metadata;
-      }
-      if (metadata != null) return metadata;
-    }
-
-    // 哔哩哔哩链接优先尝试客户端直连官方开放接口
-    if (BilibiliResolver.isBilibiliUrl(uri.toString())) {
-      final biliMetadata = await BilibiliResolver().resolve(uri.toString());
-      final metadata = biliMetadata == null
-          ? null
-          : BookmarkMetadata(
-              finalUrl: biliMetadata.finalUrl,
-              title: biliMetadata.title,
-              description: biliMetadata.description,
-              coverUrl: biliMetadata.coverUrl,
-            );
-      if (biliMetadata != null &&
-          mounted &&
-          requestId == _metadataRequestId &&
-          _url.text.trim() == requestUrl) {
-        setState(() {
-          _recognizing = false;
-          if ((overrideTitle || _title.text.trim().isEmpty) &&
-              biliMetadata.title?.trim().isNotEmpty == true) {
-            _title.text = biliMetadata.title!.trim();
-          }
-          if (_description.text.trim().isEmpty &&
-              biliMetadata.description?.trim().isNotEmpty == true) {
-            _description.text = biliMetadata.description!.trim();
-          }
-          if (_coverUrl.text.trim().isEmpty &&
-              biliMetadata.coverUrl?.trim().isNotEmpty == true) {
-            _coverUrl.text = biliMetadata.coverUrl!.trim();
-          }
-          if (biliMetadata.finalUrl.trim().isNotEmpty) {
-            _url.text = biliMetadata.finalUrl.trim();
-          }
-          if (_title.text.trim().isEmpty) {
-            _title.text = titleFallbackForUrl(uri);
-          }
-        });
-        return metadata;
-      }
-      if (metadata != null) return metadata;
-    }
-
-    final metadata = await state.fetchBookmarkMetadata(uri.toString());
-    if (!mounted ||
-        requestId != _metadataRequestId ||
-        _url.text.trim() != requestUrl) {
-      return metadata;
-    }
-    setState(() {
-      _recognizing = false;
-      if (metadata != null) {
-        if ((overrideTitle || _title.text.trim().isEmpty) &&
-            metadata.title?.trim().isNotEmpty == true) {
-          _title.text = metadata.title!.trim();
-        }
-        if (_description.text.trim().isEmpty &&
-            metadata.description?.trim().isNotEmpty == true) {
-          _description.text = metadata.description!.trim();
-        }
-        if (_coverUrl.text.trim().isEmpty &&
-            metadata.coverUrl?.trim().isNotEmpty == true) {
-          _coverUrl.text = metadata.coverUrl!.trim();
-        }
-        if (metadata.finalUrl?.trim().isNotEmpty == true) {
-          _url.text = metadata.finalUrl!.trim();
-        }
-      }
-      if (_title.text.trim().isEmpty) {
-        _title.text = titleFallbackForUrl(uri);
-      }
-    });
-    if (metadata == null && state.metadataMessage != null) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(state.metadataMessage!)));
-    }
-    return metadata;
+    // 粘贴只填充链接和分享文本，不再自动识别网页封面。
   }
 
   void _onUrlChanged(String value) {
-    _metadataRequestId++;
-    _metadataFuture = null;
-    if (_recognizing) {
-      setState(() => _recognizing = false);
-    } else {
-      setState(() {});
-    }
+    setState(() {});
   }
 
   Future<void> _save({bool allowDuplicate = false}) async {
     if (!_formKey.currentState!.validate()) return;
     final state = context.read<AppState>();
     final sourceUrl = _url.text.trim();
-    final metadataFuture =
-        _metadataFuture ??= _recognizeMetadata(overrideTitle: true);
     final value = BookmarkDraft(
       sourceUrl: sourceUrl,
       title: _title.text.trim(),
       description: _description.text.trim(),
       folderId: _folderId,
-      coverUrl: _coverUrl.text.trim(),
     );
     final saved = await state.saveDraft(
       value,
       allowDuplicate: allowDuplicate,
-      metadataFuture: metadataFuture,
     );
     if (!mounted) return;
     if (saved) return;
@@ -296,7 +136,6 @@ class _BookmarkFormState extends State<BookmarkForm> {
         await state.saveDraft(
           value,
           allowDuplicate: true,
-          metadataFuture: metadataFuture,
         );
       }
     }
@@ -348,30 +187,6 @@ class _BookmarkFormState extends State<BookmarkForm> {
           child: ListView(
             padding: const EdgeInsets.all(20),
             children: [
-              TextFormField(
-                controller: _url,
-                autofocus: _url.text.isEmpty,
-                decoration: InputDecoration(
-                  labelText: '链接',
-                  prefixIcon: const Icon(Icons.link),
-                  suffixIcon: IconButton(
-                    onPressed: () => openExternalLink(context, _url.text),
-                    tooltip: '打开链接',
-                    icon: const Icon(Icons.open_in_new),
-                  ),
-                ),
-                keyboardType: TextInputType.url,
-                onChanged: _onUrlChanged,
-                validator: (value) {
-                  final uri = Uri.tryParse(value?.trim() ?? '');
-                  return uri != null &&
-                          uri.hasAuthority &&
-                          (uri.scheme == 'http' || uri.scheme == 'https')
-                      ? null
-                      : '请输入 HTTP/HTTPS 链接';
-                },
-              ),
-              const SizedBox(height: 14),
               TextField(
                 controller: _title,
                 decoration: const InputDecoration(labelText: '标题（可选）'),
@@ -383,50 +198,33 @@ class _BookmarkFormState extends State<BookmarkForm> {
                   labelText: '描述（可选）',
                   alignLabelWithHint: true,
                 ),
-                minLines: 3,
-                maxLines: 6,
+                minLines: 8,
+                maxLines: 16,
               ),
               const SizedBox(height: 14),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              ExpansionTile(
+                title: const Text('高级设置'),
+                subtitle: const Text('链接用于保存和去重，默认不显示'),
+                childrenPadding: const EdgeInsets.only(bottom: 8),
                 children: [
-                  BookmarkCover(
-                    sourceUrl: _url.text,
-                    coverUrl: _coverUrl.text,
-                    width: 88,
-                    height: 88,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: TextField(
-                      controller: _coverUrl,
-                      decoration: const InputDecoration(
-                        labelText: '封面 URL（可选）',
-                        prefixIcon: Icon(Icons.image_outlined),
-                      ),
-                      keyboardType: TextInputType.url,
-                      onChanged: (_) => setState(() {}),
+                  TextFormField(
+                    controller: _url,
+                    autofocus: _url.text.isEmpty,
+                    decoration: const InputDecoration(
+                      labelText: '链接（必填）',
+                      prefixIcon: Icon(Icons.link),
                     ),
+                    keyboardType: TextInputType.url,
+                    onChanged: _onUrlChanged,
+                    validator: (value) {
+                      final uri = Uri.tryParse(value?.trim() ?? '');
+                      return uri != null && uri.hasAuthority &&
+                              (uri.scheme == 'http' || uri.scheme == 'https')
+                          ? null
+                          : '请输入 HTTP/HTTPS 链接';
+                    },
                   ),
                 ],
-              ),
-              const SizedBox(height: 8),
-              Align(
-                alignment: Alignment.centerRight,
-                child: OutlinedButton.icon(
-                   onPressed: _recognizing
-                       ? null
-                       : () {
-                           _metadataFuture = _recognizeMetadata();
-                         },
-                  icon: _recognizing
-                      ? const SizedBox.square(
-                          dimension: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.auto_awesome_outlined),
-                  label: const Text('识别封面'),
-                ),
               ),
               const SizedBox(height: 14),
               Card.outlined(

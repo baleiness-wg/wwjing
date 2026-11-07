@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../viewmodels/bookmark.dart';
 import 'app_popup_menu.dart';
-import 'bookmark_cover.dart';
 
 class BookmarkItemCard extends StatelessWidget {
   const BookmarkItemCard({
@@ -29,13 +28,6 @@ class BookmarkItemCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cover = BookmarkCover(
-      sourceUrl: item.sourceUrl,
-      sourceHost: item.sourceHost,
-      coverUrl: item.coverUrl,
-      width: 58,
-      height: 58,
-    );
     return Card.outlined(
       color: Theme.of(context).colorScheme.surface,
       child: selectionValue != null
@@ -43,31 +35,29 @@ class BookmarkItemCard extends StatelessWidget {
               key: Key('bookmark-selection-${item.id}'),
               value: selectionValue,
               onChanged: onSelectionChanged,
-              secondary: cover,
               title: Text(
                 _displayTitle(
-                  item.title?.isNotEmpty == true ? item.title! : item.sourceUrl,
+                 item.title?.isNotEmpty == true ? item.title! : '未命名收藏',
                 ),
                 maxLines: 3,
                 overflow: TextOverflow.ellipsis,
               ),
               subtitle: Text(
-                item.sourceHost ?? item.sourceUrl,
+                 item.description?.isNotEmpty == true ? item.description! : '暂无描述',
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
             )
           : ListTile(
-              leading: cover,
               title: Text(
                 _displayTitle(
-                  item.title?.isNotEmpty == true ? item.title! : item.sourceUrl,
+                 item.title?.isNotEmpty == true ? item.title! : '未命名收藏',
                 ),
                 maxLines: 3,
                 overflow: TextOverflow.ellipsis,
               ),
               subtitle: Text(
-                item.sourceHost ?? item.sourceUrl,
+                 item.description?.isNotEmpty == true ? item.description! : '暂无描述',
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),

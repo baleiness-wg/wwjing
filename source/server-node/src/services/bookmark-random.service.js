@@ -24,7 +24,7 @@ async function random(userId, input = {}) {
   }
   const result = await pool.query(
     `SELECT item.id, item.space, item.folder_id AS "folderId", item.title, item.description,
-      item.cover_url AS "coverUrl", item.source_url AS "sourceUrl", item.source_host AS "sourceHost"
+      item.images, item.images->>0 AS "coverUrl", item.source_url AS "sourceUrl", item.source_host AS "sourceHost"
      FROM bookmark_items item WHERE ${conditions.join(" AND ")} ORDER BY RANDOM() LIMIT 1`,
     parameters
   );

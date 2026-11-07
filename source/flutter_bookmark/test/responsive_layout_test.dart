@@ -14,7 +14,6 @@ import 'package:wwjing_bookmark/pages/folder_navigation.dart';
 import 'package:wwjing_bookmark/components/folder_picker_dialog.dart';
 import 'package:wwjing_bookmark/pages/home_page.dart';
 import 'package:wwjing_bookmark/pages/bookmark_form.dart';
-import 'package:wwjing_bookmark/components/bookmark_cover.dart';
 import 'package:wwjing_bookmark/components/bookmark_item_card.dart';
 import 'package:wwjing_bookmark/pages/login_page.dart';
 
@@ -92,9 +91,6 @@ void main() {
     expect(find.byTooltip('新建根目录'), findsOneWidget);
     expect(find.byTooltip('目录操作'), findsOneWidget);
     expect(find.byTooltip('更多操作'), findsOneWidget);
-    expect(find.byType(BookmarkCover), findsOneWidget);
-    expect(find.byKey(const Key('bookmark-cover-placeholder')), findsOneWidget);
-    expect(find.text('example.com'), findsWidgets);
     expect(find.byKey(const Key('add-bookmark-button')), findsOneWidget);
     expect(find.byIcon(Icons.add), findsOneWidget);
     expect(find.byTooltip('刷新'), findsNothing);
@@ -234,10 +230,7 @@ void main() {
         child: const MaterialApp(home: BookmarkForm()),
       ),
     );
-    expect(find.byTooltip('打开链接'), findsOneWidget);
-    expect(find.text('识别封面'), findsOneWidget);
-    expect(find.widgetWithText(TextField, '封面 URL（可选）'), findsOneWidget);
-    expect(find.byKey(const Key('bookmark-cover-placeholder')), findsOneWidget);
+    expect(find.text('高级设置'), findsOneWidget);
   });
 
   testWidgets('共享收藏卡片按模式显示选择和操作控件', (tester) async {
@@ -267,7 +260,6 @@ void main() {
     expect(find.byType(Checkbox), findsOneWidget);
     expect(find.byType(CheckboxListTile), findsOneWidget);
     expect(find.byTooltip('更多操作'), findsOneWidget);
-    expect(find.byType(BookmarkCover), findsNWidgets(2));
     expect(find.byType(Card), findsNWidgets(2));
     final cards = tester.widgetList<Card>(find.byType(Card));
     final surface = Theme.of(tester.element(find.byType(Card).first))

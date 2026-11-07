@@ -197,7 +197,7 @@ class AppState extends ChangeNotifier {
         sourceUrl: shared.url,
         title: shared.title,
         description: shared.originalText,
-        fetchMetadataOnOpen: true,
+        fetchMetadataOnOpen: false,
       );
       editingItemId = null;
       error = null;
@@ -214,7 +214,7 @@ class AppState extends ChangeNotifier {
             title: item.title ?? '',
             description: item.description ?? '',
             folderId: item.folderId,
-            coverUrl: item.coverUrl ?? '',
+            images: const [],
           );
     notifyListeners();
   }
@@ -255,8 +255,6 @@ class AppState extends ChangeNotifier {
         'title': metadata.title!.trim(),
       if (metadata.description?.trim().isNotEmpty == true)
         'description': metadata.description!.trim(),
-      if (metadata.coverUrl?.trim().isNotEmpty == true)
-        'coverUrl': metadata.coverUrl!.trim(),
     };
     if (changes.isEmpty) return;
     try {
@@ -316,9 +314,7 @@ class AppState extends ChangeNotifier {
               ? null
               : value.description.trim(),
           'folderId': value.folderId,
-          'coverUrl': value.coverUrl.trim().isEmpty
-              ? null
-              : value.coverUrl.trim(),
+          'images': value.images,
         });
       }
       if (value.folderId != null) {
@@ -383,9 +379,7 @@ class AppState extends ChangeNotifier {
             ? null
             : value.description.trim(),
         'folderId': value.folderId,
-        'coverUrl': value.coverUrl.trim().isEmpty
-            ? null
-            : value.coverUrl.trim(),
+        'images': value.images,
       });
       updated = true;
       await refresh(resetPage: true);

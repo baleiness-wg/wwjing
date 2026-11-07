@@ -178,3 +178,11 @@ Authorization: Bearer {{TOKEN}}
 ### Search title, description, or source URL
 GET {{baseUrl}}/bookmarks/items?query=示例&page=1&pageSize=20
 Authorization: Bearer {{TOKEN}}
+### 收藏条目图片上传接口（预留）
+# 当前版本仅预留路由，尚未实现文件存储。
+POST {{baseUrl}}/api/bookmarks/items/{{itemId}}/images
+Authorization: Bearer {{token}}
+Content-Type: multipart/form-data
+
+# 未来字段：images[]，支持一次上传多张图片。
+# 当前返回 501 IMAGE_UPLOAD_NOT_IMPLEMENTED。

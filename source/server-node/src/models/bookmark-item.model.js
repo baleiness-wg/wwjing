@@ -2,7 +2,7 @@ const pool = require("../db");
 const { randomId } = require("../utils/id");
 
 const selectFields = `id, space, folder_id AS "folderId", item_type AS "itemType", title,
-  description, cover_url AS "coverUrl", source_url AS "sourceUrl", normalized_url AS "normalizedUrl",
+  description, images, images->>0 AS "coverUrl", source_url AS "sourceUrl", normalized_url AS "normalizedUrl",
   source_host AS "sourceHost", metadata, created_at AS "createdAt", updated_at AS "updatedAt"`;
 
 async function findById(userId, id, space = "star", client = pool) {
@@ -71,10 +71,10 @@ async function list(userId, filters) {
 async function create(userId, values) {
   const result = await pool.query(
      `INSERT INTO bookmark_items
-         (id, user_id, space, folder_id, title, description, cover_url, source_url, normalized_url, source_host)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+          (id, user_id, space, folder_id, title, description, images, source_url, normalized_url, source_host)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
      RETURNING ${selectFields}`,
-    [randomId(), userId, values.space, values.folderId, values.title, values.description, values.coverUrl, values.sourceUrl,
+    [randomId(), userId, values.space, values.folderId, values.title, values.description, values.images, values.sourceUrl,
       values.normalizedUrl, values.sourceHost]
   );
   return result.rows[0];
@@ -83,10 +83,10 @@ async function create(userId, values) {
 async function update(userId, id, values) {
   const result = await pool.query(
       `UPDATE bookmark_items SET folder_id = $4, title = $5, description = $6,
-        cover_url = $7, source_url = $8, normalized_url = $9, source_host = $10, updated_at = NOW()
+        images = $7, source_url = $8, normalized_url = $9, source_host = $10, updated_at = NOW()
       WHERE user_id = $1 AND id = $2 AND space = $3
      RETURNING ${selectFields}`,
-    [userId, id, values.space, values.folderId, values.title, values.description, values.coverUrl, values.sourceUrl,
+    [userId, id, values.space, values.folderId, values.title, values.description, values.images, values.sourceUrl,
       values.normalizedUrl, values.sourceHost]
   );
   return result.rows[0] || null;

@@ -155,9 +155,7 @@ class ApiClient {
             : draft.description.trim(),
         'folderId': draft.folderId,
         'space': space,
-        'coverUrl': draft.coverUrl.trim().isEmpty
-            ? null
-            : draft.coverUrl.trim(),
+        'images': draft.images,
         'allowDuplicate': allowDuplicate,
       },
     );

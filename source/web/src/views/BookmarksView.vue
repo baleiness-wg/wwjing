@@ -685,22 +685,14 @@ onMounted(async () => {
               :aria-label="`选择${item.title || itemHost(item)}`"
               @change="(checked) => toggleItem(item.id, checked)"
             />
-            <a class="bookmark-cover" :href="item.sourceUrl" target="_blank" rel="noopener noreferrer" tabindex="-1" aria-hidden="true">
-              <img v-if="hasCover(item)" :src="coverSrc(item)" referrerpolicy="no-referrer" alt="" @error="markCoverFailed(coverSrc(item))" />
-              <span v-else class="bookmark-cover__fallback">
-                <strong>{{ itemHost(item).slice(0, 1).toUpperCase() }}</strong>
-                <small>{{ itemHost(item) }}</small>
-              </span>
-            </a>
             <div class="bookmark-body">
               <div class="bookmark-meta">
                 <span class="host-chip">{{ itemHost(item) }}</span>
                 <span>{{ folderPath(item.folderId) }}</span>
                 <time :datetime="item.updatedAt">{{ formatDate(item.updatedAt) }}</time>
               </div>
-              <a :href="item.sourceUrl" target="_blank" rel="noopener noreferrer">{{ item.title || item.sourceUrl }}</a>
+              <a :href="item.sourceUrl" target="_blank" rel="noopener noreferrer">{{ item.title || "未命名收藏" }}</a>
               <p v-if="item.description">{{ item.description }}</p>
-              <small>{{ item.sourceUrl }}</small>
             </div>
             <div class="bookmark-actions">
               <el-button text circle :icon="Edit" title="编辑收藏" aria-label="编辑收藏" @click="openEditItem(item)" />
@@ -757,38 +749,16 @@ onMounted(async () => {
 
     <el-dialog v-model="itemDialogVisible" :title="itemDialogMode === 'create' ? '添加收藏' : '编辑收藏'" width="min(620px, 94vw)" :close-on-click-modal="false">
       <el-form label-position="top" @submit.prevent="submitItem()">
-        <el-form-item label="链接" required>
-          <el-input v-model="itemForm.sourceUrl" type="url" placeholder="https://example.com">
-            <template #append>
-              <el-button :loading="detectingMetadata" class="meta-detect-btn" aria-label="识别网页信息" @click="detectMetadata">
-                识别
-              </el-button>
-            </template>
-          </el-input>
-        </el-form-item>
         <el-form-item label="标题">
           <el-input v-model="itemForm.title" placeholder="可留空" />
         </el-form-item>
         <el-form-item label="描述">
-          <el-input v-model="itemForm.description" type="textarea" :rows="4" placeholder="记录为什么收藏这个链接" />
+          <el-input v-model="itemForm.description" type="textarea" :rows="10" placeholder="记录为什么收藏这个链接" />
         </el-form-item>
-        <el-form-item label="封面图片 URL">
-          <el-input
-            v-model="itemForm.coverUrl"
-            type="url"
-            clearable
-            placeholder="https://example.com/cover.jpg"
-            @input="previewCoverFailed = false"
-          />
+        <el-alert title="图片上传接口已预留，当前版本暂不上传图片。" type="info" :closable="false" />
+        <el-form-item label="高级设置">
+          <el-input v-model="itemForm.sourceUrl" type="url" placeholder="链接（用于保存和去重）" />
         </el-form-item>
-        <div v-if="itemForm.coverUrl" class="bookmark-cover-preview">
-          <img v-if="!previewCoverFailed" :src="cleanCoverUrl(itemForm.coverUrl)" referrerpolicy="no-referrer" alt="封面预览" @error="previewCoverFailed = true" />
-          <div v-else class="bookmark-cover__fallback">
-            <strong>{{ previewHost.slice(0, 1).toUpperCase() }}</strong>
-            <small>{{ previewHost }}</small>
-            <span>图片无法加载，将显示站点占位图</span>
-          </div>
-        </div>
         <el-form-item label="收藏目录">
           <div class="folder-select-row">
             <el-select v-model="itemForm.folderId" class="full-width" clearable placeholder="未分类">

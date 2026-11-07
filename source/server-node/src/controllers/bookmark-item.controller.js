@@ -47,4 +47,13 @@ async function remove(req, res, next) {
   }
 }
 
-module.exports = { list, create, get, update, remove };
+function uploadImages(req, res) {
+  res.status(501).json({
+    error: {
+      code: "IMAGE_UPLOAD_NOT_IMPLEMENTED",
+      message: "图片上传接口已预留，当前版本尚未启用文件存储"
+    }
+  });
+}
+
+module.exports = { list, create, get, update, remove, uploadImages };

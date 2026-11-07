@@ -71,6 +71,16 @@ function optionalUrl(value, field) {
   }
 }
 
+function imageUrls(value) {
+  if (value === undefined) return undefined;
+  if (value === null) return [];
+  if (typeof value === "string") value = [value];
+  if (!Array.isArray(value)) {
+    throw new BookmarkError(400, "INVALID_INPUT", "images 必须是 URL 数组");
+  }
+  return value.map((entry, index) => optionalUrl(entry, `images[${index}]`)).filter(Boolean);
+}
+
 async function validateFolder(userId, folderId, space = "star") {
   if (folderId === null || folderId === undefined) return null;
   const id = parseId(folderId, "folderId");
@@ -124,7 +134,8 @@ async function create(userId, input = {}) {
     folderId,
     title: optionalText(input.title, "title"),
     description: optionalText(input.description, "description"),
-    coverUrl: optionalUrl(input.coverUrl, "coverUrl"),
+    images: imageUrls(Object.hasOwn(input, "images") ? input.images : input.coverUrl) ?? [],
+    coverUrl: imageUrls(Object.hasOwn(input, "images") ? input.images : input.coverUrl)?.[0] || null,
     sourceUrl,
     ...normalized
   });
@@ -151,8 +162,12 @@ async function update(userId, idValue, input = {}) {
     title: Object.hasOwn(input, "title") ? optionalText(input.title, "title") : current.title,
     description: Object.hasOwn(input, "description")
       ? optionalText(input.description, "description") : current.description,
-    coverUrl: Object.hasOwn(input, "coverUrl")
-      ? optionalUrl(input.coverUrl, "coverUrl") : current.coverUrl,
+    images: Object.hasOwn(input, "images")
+      ? imageUrls(input.images)
+      : (Object.hasOwn(input, "coverUrl") ? imageUrls([input.coverUrl]) : (current.images || [])),
+    coverUrl: Object.hasOwn(input, "images")
+      ? imageUrls(input.images)?.[0] || null
+      : (Object.hasOwn(input, "coverUrl") ? optionalUrl(input.coverUrl, "coverUrl") : current.coverUrl),
     sourceUrl: sourceUrl.trim(),
     ...normalized
   });
@@ -167,4 +182,4 @@ async function remove(userId, idValue, space = "star") {
   }
 }
 
-module.exports = { normalizeUrl, list, get, create, update, remove, parseSpace };
+module.exports = { normalizeUrl, list, get, create, update, remove, parseSpace, imageUrls };
