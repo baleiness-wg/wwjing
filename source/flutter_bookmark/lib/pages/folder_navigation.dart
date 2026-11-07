@@ -7,7 +7,7 @@ import '../constants/app_config.dart';
 import '../stores/bookmark_state.dart';
 import '../viewmodels/bookmark.dart';
 
-class FolderNavigation extends StatelessWidget {
+class FolderNavigation extends StatefulWidget {
   const FolderNavigation({
     super.key,
     this.closeAfterSelection = false,
@@ -17,13 +17,21 @@ class FolderNavigation extends StatelessWidget {
   final bool closeAfterSelection;
   final AppConfig? appConfig;
 
+  @override
+  State<FolderNavigation> createState() => _FolderNavigationState();
+}
+
+class _FolderNavigationState extends State<FolderNavigation> {
+  final Set<String> _collapsedFolderIds = {};
+  String? _activeActionFolderId;
+
   Future<void> _select(
     BuildContext context,
     BookmarkView view, [
     String? folderId,
   ]) async {
     await context.read<AppState>().selectView(view, folderId);
-    if (closeAfterSelection && context.mounted) Navigator.pop(context);
+    if (widget.closeAfterSelection && context.mounted) Navigator.pop(context);
   }
 
   Set<String> _folderAndDescendants(AppState state, String folderId) {
@@ -138,12 +146,28 @@ class FolderNavigation extends StatelessWidget {
     }
   }
 
+  List<FolderNode> _visibleNodes(List<FolderNode> roots) {
+    final result = <FolderNode>[];
+    void visit(FolderNode node) {
+      result.add(node);
+      if (!_collapsedFolderIds.contains(node.folder.id)) {
+        for (final child in node.children) {
+          visit(child);
+        }
+      }
+    }
+    for (final root in roots) {
+      visit(root);
+    }
+    return result;
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
-    final nodes = flattenFolderTree(state.folderTree).toList();
+    final nodes = _visibleNodes(state.folderTree);
     final effectiveAppName =
-        appConfig?.appName ??
+        widget.appConfig?.appName ??
         (const String.fromEnvironment('APP_TYPE').isNotEmpty
             ? AppConfig.current.appName
             : '鲸界');
@@ -195,9 +219,14 @@ class FolderNavigation extends StatelessWidget {
               itemCount: nodes.length,
               itemBuilder: (context, index) {
                 final node = nodes[index];
+                final hasChildren = node.children.isNotEmpty;
+                final actionActive = _activeActionFolderId == node.folder.id;
                 return Padding(
                   padding: EdgeInsets.only(left: (node.depth - 1) * 14.0),
-                  child: ListTile(
+                   child: ListTile(
+                     tileColor: actionActive
+                         ? Theme.of(context).colorScheme.surfaceContainerHighest
+                         : null,
                     dense: true,
                     visualDensity: const VisualDensity(vertical: -4),
                     minTileHeight: 40,
@@ -208,9 +237,28 @@ class FolderNavigation extends StatelessWidget {
                     selectedColor: Theme.of(context).colorScheme.primary,
                     selectedTileColor: Theme.of(context).colorScheme.primary
                         .withValues(alpha: 0.08),
-                    leading: node.depth == 1
-                        ? const Icon(Icons.folder_outlined)
-                        : const SizedBox(width: 24),
+                     leading: Row(
+                       mainAxisSize: MainAxisSize.min,
+                       children: [
+                         if (hasChildren)
+                           IconButton(
+                             icon: Icon(_collapsedFolderIds.contains(node.folder.id)
+                                 ? Icons.chevron_right
+                                 : Icons.expand_more),
+                             tooltip: _collapsedFolderIds.contains(node.folder.id)
+                                 ? '展开目录'
+                                 : '收起目录',
+                             onPressed: () => setState(() {
+                               if (!_collapsedFolderIds.add(node.folder.id)) {
+                                 _collapsedFolderIds.remove(node.folder.id);
+                               }
+                             }),
+                           )
+                         else
+                           const SizedBox(width: 48),
+                         const Icon(Icons.folder_outlined),
+                       ],
+                     ),
                     title: Text(
                       node.folder.name,
                       maxLines: 1,
@@ -218,11 +266,21 @@ class FolderNavigation extends StatelessWidget {
                     ),
                     onTap: () =>
                         _select(context, BookmarkView.folder, node.folder.id),
-                    trailing: PopupMenuButton<String>(
-                      tooltip: '目录操作',
-                      icon: const Icon(Icons.more_vert),
-                      onSelected: (action) =>
-                          _folderAction(context, node.folder, action),
+                     trailing: PopupMenuButton<String>(
+                       tooltip: '目录操作',
+                       icon: const Icon(Icons.more_vert),
+                       onOpened: () => setState(() {
+                         _activeActionFolderId = node.folder.id;
+                       }),
+                       onCanceled: () => setState(() {
+                         _activeActionFolderId = null;
+                       }),
+                       onSelected: (action) async {
+                         await _folderAction(context, node.folder, action);
+                         if (mounted) {
+                           setState(() => _activeActionFolderId = null);
+                         }
+                       },
                       itemBuilder: (_) => [
                         appPopupMenuItem(
                           value: 'bookmark',

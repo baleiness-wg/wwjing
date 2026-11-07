@@ -352,6 +352,19 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
+  void _toggleSelectAll(AppState state) {
+    final ids = state.items.map((item) => item.id).toSet();
+    setState(() {
+      if (_selectedItemIds.length == ids.length && ids.isNotEmpty) {
+        _selectedItemIds.clear();
+      } else {
+        _selectedItemIds
+          ..clear()
+          ..addAll(ids);
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
@@ -400,6 +413,17 @@ class _HomePageState extends State<HomePage> {
               ],
             ),
             actions: [
+              if (_editMode)
+                TextButton(
+                  key: const Key('select-all-button'),
+                  onPressed: () => _toggleSelectAll(state),
+                  child: Text(
+                    _selectedItemIds.length == state.items.length &&
+                            state.items.isNotEmpty
+                        ? '取消全选'
+                        : '全选',
+                  ),
+                ),
               if (_editMode)
                 TextButton(
                   key: const Key('save-selection-button'),
