@@ -14,3 +14,9 @@ services:
       LOG_LEVEL: info
     ports:
       - "3000:3000"
+    networks:
+      - wwjing-network
+
+networks:
+  wwjing-network:
+    external: true
