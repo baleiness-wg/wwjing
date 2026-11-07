@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wwjing_bookmark/constants/app_config.dart';
 import 'package:wwjing_bookmark/viewmodels/bookmark.dart';
@@ -52,7 +51,7 @@ void main() {
     expect(extractSharedLink('ftp://example.com/a'), isNull);
   });
 
-  testWidgets('编辑状态下接收新分享链接弹出确认对话框', (tester) async {
+testWidgets('编辑状态下接收新分享链接直接切换草稿', (tester) async {
     final tokens = MemoryTokenStore('Bearer token');
     final state = AppState(
       api: ApiClient(
@@ -83,16 +82,6 @@ void main() {
     // 触发新链接
     shareCallback?.call('https://new.example.com');
     await tester.pump();
-
-    // 弹出确认对话框
-    expect(find.byType(AlertDialog), findsOneWidget);
-    expect(find.text('检测到新分享链接'), findsOneWidget);
-    expect(find.text('确定切换'), findsOneWidget);
-
-    // 点击确定切换
-    await tester.tap(find.text('确定切换'));
-    await tester.pump();
-    await tester.pumpAndSettle();
 
     expect(state.draft?.sourceUrl, 'https://new.example.com');
   });

@@ -60,7 +60,6 @@ class BookmarkApp extends StatefulWidget {
 
 class _BookmarkAppState extends State<BookmarkApp> with WidgetsBindingObserver {
   late final ShareService _shareService;
-  final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
   String? _clipboardCandidate;
   String? _clipboardText;
 
@@ -69,44 +68,17 @@ class _BookmarkAppState extends State<BookmarkApp> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _shareService = widget.shareService ?? ShareService();
-    _shareService.listen(_onIncomingShare);
+    _shareService.listen(widget.state.openSharedText);
     widget.state.initialize().then((_) async {
       try {
         final initial = await _shareService.initialText();
-        if (initial != null) _onIncomingShare(initial);
+        if (initial != null) widget.state.openSharedText(initial);
       } on PlatformException {
         // 非 Android 测试环境不提供分享通道。
       }
+      // 初始化会触发首页重建，首帧后再读剪贴板才能稳定显示首页提示。
       await _checkClipboard();
     });
-  }
-
-  Future<void> _onIncomingShare(String text) async {
-    if (widget.state.draft != null) {
-      final context = _navigatorKey.currentContext;
-      if (context != null) {
-        final accept = await showDialog<bool>(
-          context: context,
-          builder: (dialogContext) => AlertDialog(
-            title: const Text('检测到新分享链接'),
-            content: const Text('当前正在编辑链接，是否放弃当前编辑并切换至新识别到的链接？'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(dialogContext, false),
-                child: const Text('取消'),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.pop(dialogContext, true),
-                child: const Text('确定切换'),
-              ),
-            ],
-          ),
-        );
-        if (accept == true) widget.state.openSharedText(text);
-        return;
-      }
-    }
-    widget.state.openSharedText(text);
   }
 
   @override
@@ -121,7 +93,11 @@ class _BookmarkAppState extends State<BookmarkApp> with WidgetsBindingObserver {
   }
 
   Future<void> _checkClipboard() async {
-    if (!widget.state.initialized || !widget.state.authenticated) return;
+    if (!widget.state.initialized ||
+        !widget.state.authenticated ||
+        widget.state.draft != null) {
+      return;
+    }
     final text = (await Clipboard.getData(Clipboard.kTextPlain))?.text;
     final shared = text == null ? null : extractSharedLink(text);
     if (shared == null ||
@@ -129,32 +105,6 @@ class _BookmarkAppState extends State<BookmarkApp> with WidgetsBindingObserver {
       return;
     }
     if (!mounted) return;
-    if (widget.state.draft != null) {
-      final context = _navigatorKey.currentContext;
-      if (context != null) {
-        await widget.state.preferences.setHandledClipboardUrl(shared.url);
-        if (!context.mounted) return;
-        final accept = await showDialog<bool>(
-          context: context,
-          builder: (dialogContext) => AlertDialog(
-            title: const Text('检测到新分享链接'),
-            content: Text('检测到剪贴板中的新链接：\n${shared.title.isNotEmpty ? shared.title : shared.url}\n\n是否放弃当前编辑并切换至新链接？'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(dialogContext, false),
-                child: const Text('取消'),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.pop(dialogContext, true),
-                child: const Text('确定切换'),
-              ),
-            ],
-          ),
-        );
-        if (accept == true) widget.state.openSharedText(text ?? shared.url);
-      }
-      return;
-    }
     setState(() {
       _clipboardCandidate = shared.url;
       _clipboardText = text;
@@ -165,7 +115,7 @@ class _BookmarkAppState extends State<BookmarkApp> with WidgetsBindingObserver {
     final url = _clipboardCandidate;
     if (url == null) return;
     await widget.state.preferences.setHandledClipboardUrl(url);
-    if (accept) await _onIncomingShare(_clipboardText ?? url);
+    if (accept) widget.state.openSharedText(_clipboardText ?? url);
     if (!mounted) return;
     setState(() {
       _clipboardCandidate = null;
@@ -178,15 +128,47 @@ class _BookmarkAppState extends State<BookmarkApp> with WidgetsBindingObserver {
     return ChangeNotifierProvider.value(
       value: widget.state,
       child: MaterialApp(
-        navigatorKey: _navigatorKey,
         title: widget.appConfig.appName,
         debugShowCheckedModeBanner: false,
         theme: _buildTheme(),
-        initialRoute: '/',
-        routes: {
-          '/': (_) => const _RootPage(),
-          ...getRootRoutes(widget.appConfig),
-        },
+        home: Consumer<AppState>(
+          builder: (context, state, _) {
+            if (!state.initialized) {
+              return const Scaffold(body: Center(child: CircularProgressIndicator()));
+            }
+            if (!state.authenticated) {
+              return LoginPage(appConfig: widget.appConfig);
+            }
+            if (state.draft != null) return const BookmarkForm();
+            return Scaffold(
+              body: HomePage(appConfig: widget.appConfig),
+              bottomNavigationBar: _clipboardCandidate == null
+                  ? null
+                  : Material(
+                      color: Theme.of(context).colorScheme.secondaryContainer,
+                      child: SafeArea(
+                        top: false,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          child: Row(
+                            children: [
+                              const Expanded(child: Text('剪贴板中发现新链接，是否收藏？')),
+                              TextButton(
+                                onPressed: () => _handleClipboard(false),
+                                child: const Text('忽略'),
+                              ),
+                              FilledButton(
+                                onPressed: () => _handleClipboard(true),
+                                child: const Text('打开'),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+            );
+          },
+        ),
       ),
     );
   }
@@ -206,65 +188,6 @@ class _BookmarkAppState extends State<BookmarkApp> with WidgetsBindingObserver {
       listTileTheme: const ListTileThemeData(
         contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       ),
-    );
-  }
-}
-
-class _RootPage extends StatelessWidget {
-  const _RootPage();
-
-  @override
-  Widget build(BuildContext context) {
-    return Consumer<AppState>(
-      builder: (context, state, _) {
-        if (!state.initialized) {
-          return const Scaffold(body: Center(child: CircularProgressIndicator()));
-        }
-        if (!state.authenticated) {
-          return LoginPage(appConfig: _appConfig(context));
-        }
-        if (state.draft != null) return const BookmarkForm();
-        return const _HomeWithClipboard();
-      },
-    );
-  }
-
-  AppConfig _appConfig(BuildContext context) =>
-      context.findAncestorStateOfType<_BookmarkAppState>()!.widget.appConfig;
-}
-
-class _HomeWithClipboard extends StatelessWidget {
-  const _HomeWithClipboard();
-
-  @override
-  Widget build(BuildContext context) {
-    final app = context.findAncestorStateOfType<_BookmarkAppState>();
-    return Scaffold(
-      body: HomePage(appConfig: app!.widget.appConfig),
-      bottomNavigationBar: app._clipboardCandidate == null
-          ? null
-          : Material(
-              color: Theme.of(context).colorScheme.secondaryContainer,
-              child: SafeArea(
-                top: false,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  child: Row(
-                    children: [
-                      const Expanded(child: Text('剪贴板中发现新链接，是否收藏？')),
-                      TextButton(
-                        onPressed: () => app._handleClipboard(false),
-                        child: const Text('忽略'),
-                      ),
-                      FilledButton(
-                        onPressed: () => app._handleClipboard(true),
-                        child: const Text('打开'),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
     );
   }
 }
