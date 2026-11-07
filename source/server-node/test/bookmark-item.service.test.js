@@ -41,13 +41,14 @@ test("create requires explicit confirmation for an equivalent duplicate", async 
 
   try {
     await assert.rejects(
-      itemService.create("7", { sourceUrl: "https://example.com/?utm_source=x" }),
+      itemService.create("7", { sourceUrl: "https://example.com/?utm_source=x", title: "重复测试" }),
        (error) => error.code === "DUPLICATE_BOOKMARK" && error.details.duplicate.id === itemId
     );
     assert.equal(created, undefined);
 
     const item = await itemService.create("7", {
       sourceUrl: "https://example.com/",
+      title: "重复测试",
       allowDuplicate: true
     });
      assert.equal(item.id, itemId);
@@ -129,7 +130,7 @@ test("create rejects another user's folder without creating an item", async () =
   itemModel.create = async () => { called = true; };
   try {
     await assert.rejects(
-       itemService.create("11111111111111111111111111111111", { folderId: folderId, sourceUrl: "https://example.com" }),
+       itemService.create("11111111111111111111111111111111", { folderId: folderId, sourceUrl: "https://example.com", title: "目录测试" }),
       (error) => error.code === "FOLDER_NOT_FOUND"
     );
     assert.equal(called, false);
@@ -147,11 +148,12 @@ test("create and update validate and expose coverUrl values", async () => {
   try {
     const item = await itemService.create("7", {
       sourceUrl: "https://example.com/article",
+      title: "封面测试",
       coverUrl: "https://cdn.example.com/cover image.jpg"
     });
     assert.equal(item.coverUrl, "https://cdn.example.com/cover%20image.jpg");
     await assert.rejects(
-      itemService.create("7", { sourceUrl: "https://example.com", coverUrl: "file:///secret" }),
+       itemService.create("7", { sourceUrl: "https://example.com", title: "封面测试", coverUrl: "file:///secret" }),
       (error) => error.code === "INVALID_URL" && error.status === 400
     );
   } finally {

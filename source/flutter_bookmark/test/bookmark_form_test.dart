@@ -271,6 +271,7 @@ void main() {
           ..authenticated = true
           ..draft = const BookmarkDraft(
             sourceUrl: 'https://xhslink.cn/o/short',
+            title: '小红书短链',
           );
     await tester.pumpWidget(
       ChangeNotifierProvider.value(
@@ -331,6 +332,7 @@ void main() {
           ..authenticated = true
           ..draft = const BookmarkDraft(
             sourceUrl: 'https://xhslink.cn/o/short',
+            title: '小红书短链',
           );
     await tester.pumpWidget(
       ChangeNotifierProvider.value(

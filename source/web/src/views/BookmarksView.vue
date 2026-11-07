@@ -692,6 +692,7 @@ onMounted(async () => {
               </div>
               <a :href="item.sourceUrl" target="_blank" rel="noopener noreferrer">{{ item.title || "未命名收藏" }}</a>
               <p v-if="item.description">{{ item.description }}</p>
+              <small v-if="item.sourceUrl">{{ item.sourceUrl }}</small>
             </div>
             <div class="bookmark-actions">
               <el-button text circle :icon="Edit" title="编辑收藏" aria-label="编辑收藏" @click="openEditItem(item)" />
@@ -749,14 +750,14 @@ onMounted(async () => {
     <el-dialog v-model="itemDialogVisible" :title="itemDialogMode === 'create' ? '添加收藏' : '编辑收藏'" width="min(620px, 94vw)" :close-on-click-modal="false">
       <el-form label-position="top" @submit.prevent="submitItem()">
         <el-form-item label="标题">
-          <el-input v-model="itemForm.title" placeholder="可留空" />
+          <el-input v-model="itemForm.title" placeholder="请输入标题" />
         </el-form-item>
         <el-form-item label="描述">
           <el-input v-model="itemForm.description" type="textarea" :rows="10" placeholder="记录为什么收藏这个链接" />
         </el-form-item>
         <el-alert title="图片上传接口已预留，当前版本暂不上传图片。" type="info" :closable="false" />
         <el-form-item label="高级设置">
-          <el-input v-model="itemForm.sourceUrl" type="url" placeholder="链接（用于保存和去重）" />
+          <el-input v-model="itemForm.sourceUrl" type="url" placeholder="链接（可选，用于保存和去重）" />
         </el-form-item>
         <el-form-item label="收藏目录">
           <div class="folder-select-row">

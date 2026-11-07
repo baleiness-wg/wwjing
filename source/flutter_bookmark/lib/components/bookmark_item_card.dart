@@ -52,7 +52,9 @@ class BookmarkItemCard extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
               ),
               subtitle: Text(
-                 item.description?.isNotEmpty == true ? item.description! : '暂无描述',
+                 item.description?.isNotEmpty == true
+                     ? '${item.description!}${item.sourceUrl.isNotEmpty ? '\n${item.sourceUrl}' : ''}'
+                     : (item.sourceUrl.isNotEmpty ? item.sourceUrl : '暂无描述'),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -67,7 +69,9 @@ class BookmarkItemCard extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
               ),
               subtitle: Text(
-                 item.description?.isNotEmpty == true ? item.description! : '暂无描述',
+                 item.description?.isNotEmpty == true
+                     ? '${item.description!}${item.sourceUrl.isNotEmpty ? '\n${item.sourceUrl}' : ''}'
+                     : (item.sourceUrl.isNotEmpty ? item.sourceUrl : '暂无描述'),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),

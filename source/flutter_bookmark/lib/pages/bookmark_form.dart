@@ -80,6 +80,11 @@ class _BookmarkFormState extends State<BookmarkForm> {
 
   Future<void> _save({bool allowDuplicate = false}) async {
     if (!_formKey.currentState!.validate()) return;
+    if (_title.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('请输入标题')));
+      return;
+    }
     final state = context.read<AppState>();
     final sourceUrl = _url.text.trim();
     final value = BookmarkDraft(
@@ -189,7 +194,8 @@ class _BookmarkFormState extends State<BookmarkForm> {
             children: [
               TextField(
                 controller: _title,
-                decoration: const InputDecoration(labelText: '标题（可选）'),
+                decoration: const InputDecoration(labelText: '标题（必填）'),
+                onChanged: (_) => setState(() {}),
               ),
               const SizedBox(height: 14),
               TextField(

@@ -66,6 +66,12 @@ function optionalText(value, field) {
   return value.trim() || null;
 }
 
+function requiredTitle(value) {
+  const title = optionalText(value, "title");
+  if (!title) throw new BookmarkError(400, "INVALID_INPUT", "标题不能为空");
+  return title;
+}
+
 function optionalUrl(value, field) {
   const text = optionalText(value, field);
   if (text === null) return null;
@@ -141,7 +147,7 @@ async function create(userId, input = {}) {
   const item = await itemModel.create(userId, {
     space,
     folderId,
-    title: optionalText(input.title, "title"),
+    title: requiredTitle(input.title),
     description: optionalText(input.description, "description"),
     images: imageUrls(Object.hasOwn(input, "images") ? input.images : input.coverUrl) ?? [],
     coverUrl: imageUrls(Object.hasOwn(input, "images") ? input.images : input.coverUrl)?.[0] || null,
@@ -170,7 +176,7 @@ async function update(userId, idValue, input = {}) {
   const item = await itemModel.update(userId, id, {
     space,
     folderId,
-    title: Object.hasOwn(input, "title") ? optionalText(input.title, "title") : current.title,
+    title: Object.hasOwn(input, "title") ? requiredTitle(input.title) : current.title,
     description: Object.hasOwn(input, "description")
       ? optionalText(input.description, "description") : current.description,
     images: Object.hasOwn(input, "images")
