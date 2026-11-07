@@ -3,10 +3,13 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../components/folder_picker_dialog.dart';
+import '../components/bookmark_cover.dart';
 import '../stores/bookmark_state.dart';
 import '../viewmodels/bookmark.dart';
 import '../utils/link_launcher.dart';
 import '../utils/shared_link_parser.dart';
+import '../utils/bilibili_resolver.dart';
+import '../utils/douyin_resolver.dart';
 
 class BookmarkForm extends StatefulWidget {
   const BookmarkForm({super.key});
@@ -20,9 +23,11 @@ class _BookmarkFormState extends State<BookmarkForm> {
   late final TextEditingController _url;
   late final TextEditingController _title;
   late final TextEditingController _description;
+  late final TextEditingController _imageUrl;
   String? _folderId;
   List<String> _images = const [];
   bool _recognizing = false;
+  Future<BookmarkMetadata?>? _metadataFuture;
   BookmarkDraft? _lastObservedDraft;
 
   @override
@@ -33,8 +38,14 @@ class _BookmarkFormState extends State<BookmarkForm> {
     _url = TextEditingController(text: draft.sourceUrl);
     _title = TextEditingController(text: draft.title);
     _description = TextEditingController(text: draft.description);
+    _imageUrl = TextEditingController(text: draft.images.isEmpty ? '' : draft.images.first);
     _folderId = draft.folderId;
     _images = draft.images;
+    if (draft.fetchMetadataOnOpen && draft.sourceUrl.trim().isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _metadataFuture = _recognizeCover();
+      });
+    }
   }
 
   void _applyDraft(BookmarkDraft draft) {
@@ -43,9 +54,15 @@ class _BookmarkFormState extends State<BookmarkForm> {
       _url.text = draft.sourceUrl;
       _title.text = draft.title;
       _description.text = draft.description;
+      _imageUrl.text = draft.images.isEmpty ? '' : draft.images.first;
       _folderId = draft.folderId;
       _images = draft.images;
     });
+    if (draft.fetchMetadataOnOpen && draft.sourceUrl.trim().isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _metadataFuture = _recognizeCover();
+      });
+    }
   }
 
   @override
@@ -53,6 +70,7 @@ class _BookmarkFormState extends State<BookmarkForm> {
     _url.dispose();
     _title.dispose();
     _description.dispose();
+    _imageUrl.dispose();
     super.dispose();
   }
 
@@ -75,27 +93,53 @@ class _BookmarkFormState extends State<BookmarkForm> {
         _description.text = shared.originalText;
       }
     });
-    // 粘贴只填充链接和分享文本，不再自动识别网页封面。
+    _metadataFuture = _recognizeCover();
   }
 
   void _onUrlChanged(String value) {
     setState(() {});
   }
 
-  Future<void> _recognizeCover() async {
+  Future<BookmarkMetadata?> _recognizeCover() async {
     final url = _url.text.trim();
     if (url.isEmpty) {
       ScaffoldMessenger.of(context)
           .showSnackBar(const SnackBar(content: Text('请先输入链接')));
-      return;
+      return null;
     }
     setState(() => _recognizing = true);
-    final metadata = await context.read<AppState>().fetchBookmarkMetadata(url);
-    if (!mounted) return;
+    final state = context.read<AppState>();
+    BookmarkMetadata? metadata;
+    final requestUrl = url;
+    if (DouyinResolver.isDouyinUrl(url)) {
+      final value = await DouyinResolver().resolve(url);
+      if (value != null) {
+        metadata = BookmarkMetadata(
+          finalUrl: value.finalUrl,
+          title: value.title,
+          description: value.description,
+          coverUrl: value.coverUrl,
+        );
+      }
+    }
+    if (metadata == null && BilibiliResolver.isBilibiliUrl(requestUrl)) {
+      final value = await BilibiliResolver().resolve(requestUrl);
+      if (value != null) {
+        metadata = BookmarkMetadata(
+          finalUrl: value.finalUrl,
+          title: value.title,
+          description: value.description,
+          coverUrl: value.coverUrl,
+        );
+      }
+    }
+    metadata ??= await state.fetchBookmarkMetadata(requestUrl);
+    if (!mounted) return metadata;
     setState(() {
       _recognizing = false;
       if (metadata?.coverUrl?.trim().isNotEmpty == true) {
-        _images = [metadata!.coverUrl!.trim(), ..._images.where((value) => value != metadata.coverUrl!.trim())];
+        _imageUrl.text = metadata!.coverUrl!.trim();
+        _images = [_imageUrl.text, ..._images.where((value) => value != _imageUrl.text)];
       }
       if (_title.text.trim().isEmpty && metadata?.title?.trim().isNotEmpty == true) {
         _title.text = metadata!.title!.trim();
@@ -104,6 +148,7 @@ class _BookmarkFormState extends State<BookmarkForm> {
         _description.text = metadata!.description!.trim();
       }
     });
+    return metadata;
   }
 
   Future<void> _save({bool allowDuplicate = false}) async {
@@ -120,11 +165,12 @@ class _BookmarkFormState extends State<BookmarkForm> {
       title: _title.text.trim(),
       description: _description.text.trim(),
       folderId: _folderId,
-      images: _images,
+      images: _imageUrl.text.trim().isEmpty ? const [] : [_imageUrl.text.trim()],
     );
     final saved = await state.saveDraft(
       value,
       allowDuplicate: allowDuplicate,
+      metadataFuture: _metadataFuture,
     );
     if (!mounted) return;
     if (saved) return;
@@ -221,6 +267,30 @@ class _BookmarkFormState extends State<BookmarkForm> {
           child: ListView(
             padding: const EdgeInsets.all(20),
             children: [
+              TextFormField(
+                controller: _url,
+                autofocus: _url.text.isEmpty,
+                decoration: InputDecoration(
+                  labelText: '链接（可选）',
+                  prefixIcon: const Icon(Icons.link),
+                  suffixIcon: IconButton(
+                    onPressed: () => openExternalLink(context, _url.text),
+                    tooltip: '打开链接',
+                    icon: const Icon(Icons.open_in_new),
+                  ),
+                ),
+                keyboardType: TextInputType.url,
+                onChanged: _onUrlChanged,
+                validator: (value) {
+                  final uri = Uri.tryParse(value?.trim() ?? '');
+                  return value == null || value.trim().isEmpty ||
+                          (uri != null && uri.hasAuthority &&
+                              (uri.scheme == 'http' || uri.scheme == 'https'))
+                      ? null
+                      : '请输入有效的 HTTP/HTTPS 链接';
+                },
+              ),
+              const SizedBox(height: 14),
               TextField(
                 controller: _title,
                 decoration: const InputDecoration(labelText: '标题（必填）'),
@@ -233,45 +303,50 @@ class _BookmarkFormState extends State<BookmarkForm> {
                   labelText: '描述（可选）',
                   alignLabelWithHint: true,
                 ),
-                minLines: 8,
-                maxLines: 16,
+                minLines: 3,
+                maxLines: 6,
               ),
-              const SizedBox(height: 14),
-              ExpansionTile(
-                title: const Text('高级设置'),
-                subtitle: const Text('链接用于保存和去重，图片识别也使用此链接'),
-                childrenPadding: const EdgeInsets.only(bottom: 8),
+              const SizedBox(height: 8),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  TextFormField(
-                    controller: _url,
-                    autofocus: _url.text.isEmpty,
-                    decoration: const InputDecoration(
-                      labelText: '链接（可选）',
-                      prefixIcon: Icon(Icons.link),
+                  BookmarkCover(
+                    sourceUrl: _url.text,
+                    coverUrl: _imageUrl.text,
+                    width: 88,
+                    height: 88,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextField(
+                      controller: _imageUrl,
+                      decoration: const InputDecoration(
+                        labelText: '图片 URL（可选）',
+                        prefixIcon: Icon(Icons.image_outlined),
+                      ),
+                      keyboardType: TextInputType.url,
+                      onChanged: (value) => setState(() {
+                        _images = value.trim().isEmpty ? const [] : [value.trim()];
+                      }),
                     ),
-                    keyboardType: TextInputType.url,
-                    onChanged: _onUrlChanged,
-                    validator: (value) {
-                      final uri = Uri.tryParse(value?.trim() ?? '');
-                      return value == null || value.trim().isEmpty ||
-                              (uri != null && uri.hasAuthority &&
-                                  (uri.scheme == 'http' || uri.scheme == 'https'))
-                          ? null
-                          : '请输入有效的 HTTP/HTTPS 链接';
-                    },
                   ),
                 ],
               ),
               const SizedBox(height: 8),
-              OutlinedButton.icon(
-                onPressed: _recognizing ? null : _recognizeCover,
-                icon: _recognizing
-                    ? const SizedBox.square(
-                        dimension: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.auto_awesome_outlined),
-                label: Text(_images.isEmpty ? '识别封面' : '重新识别封面'),
+              Align(
+                alignment: Alignment.centerRight,
+                child: OutlinedButton.icon(
+                  onPressed: _recognizing
+                      ? null
+                      : () => _metadataFuture = _recognizeCover(),
+                  icon: _recognizing
+                      ? const SizedBox.square(
+                          dimension: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.auto_awesome_outlined),
+                  label: Text(_images.isEmpty ? '识别封面' : '重新识别封面'),
+                ),
               ),
               const SizedBox(height: 14),
               Card.outlined(

@@ -230,7 +230,7 @@ void main() {
         child: const MaterialApp(home: BookmarkForm()),
       ),
     );
-    expect(find.text('高级设置'), findsOneWidget);
+    expect(find.text('链接（可选）'), findsOneWidget);
   });
 
   testWidgets('共享收藏卡片按模式显示选择和操作控件', (tester) async {

@@ -197,7 +197,7 @@ class AppState extends ChangeNotifier {
         sourceUrl: shared.url,
         title: shared.title,
         description: shared.originalText,
-        fetchMetadataOnOpen: false,
+        fetchMetadataOnOpen: true,
       );
       editingItemId = null;
       error = null;
@@ -214,7 +214,7 @@ class AppState extends ChangeNotifier {
             title: item.title ?? '',
             description: item.description ?? '',
             folderId: item.folderId,
-            images: const [],
+            images: item.images,
           );
     notifyListeners();
   }
@@ -255,6 +255,8 @@ class AppState extends ChangeNotifier {
         'title': metadata.title!.trim(),
       if (metadata.description?.trim().isNotEmpty == true)
         'description': metadata.description!.trim(),
+      if (metadata.coverUrl?.trim().isNotEmpty == true)
+        'images': [metadata.coverUrl!.trim()],
     };
     if (changes.isEmpty) return;
     try {

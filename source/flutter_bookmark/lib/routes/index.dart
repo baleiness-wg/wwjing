@@ -60,6 +60,7 @@ class BookmarkApp extends StatefulWidget {
 
 class _BookmarkAppState extends State<BookmarkApp> with WidgetsBindingObserver {
   late final ShareService _shareService;
+  final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
   String? _clipboardCandidate;
   String? _clipboardText;
 
@@ -68,17 +69,47 @@ class _BookmarkAppState extends State<BookmarkApp> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _shareService = widget.shareService ?? ShareService();
-    _shareService.listen(widget.state.openSharedText);
+    _shareService.listen(_onIncomingShare);
     widget.state.initialize().then((_) async {
       try {
         final initial = await _shareService.initialText();
-        if (initial != null) widget.state.openSharedText(initial);
+        if (initial != null) _onIncomingShare(initial);
       } on PlatformException {
         // 非 Android 测试环境不提供分享通道。
       }
       // 初始化会触发首页重建，首帧后再读剪贴板才能稳定显示首页提示。
       await _checkClipboard();
     });
+  }
+
+  Future<void> _onIncomingShare(String text) async {
+    if (widget.state.draft == null) {
+      widget.state.openSharedText(text);
+      return;
+    }
+    final context = _navigatorKey.currentContext;
+    if (context == null) {
+      widget.state.openSharedText(text);
+      return;
+    }
+    final accept = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('检测到新分享链接'),
+        content: const Text('当前正在编辑链接，是否放弃当前编辑并切换至新识别到的链接？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('确定切换'),
+          ),
+        ],
+      ),
+    );
+    if (accept == true) widget.state.openSharedText(text);
   }
 
   @override
@@ -94,8 +125,7 @@ class _BookmarkAppState extends State<BookmarkApp> with WidgetsBindingObserver {
 
   Future<void> _checkClipboard() async {
     if (!widget.state.initialized ||
-        !widget.state.authenticated ||
-        widget.state.draft != null) {
+        !widget.state.authenticated) {
       return;
     }
     final text = (await Clipboard.getData(Clipboard.kTextPlain))?.text;
@@ -105,6 +135,12 @@ class _BookmarkAppState extends State<BookmarkApp> with WidgetsBindingObserver {
       return;
     }
     if (!mounted) return;
+    if (widget.state.draft != null) {
+      await widget.state.preferences.setHandledClipboardUrl(shared.url);
+      if (!mounted) return;
+      await _onIncomingShare(text ?? shared.url);
+      return;
+    }
     setState(() {
       _clipboardCandidate = shared.url;
       _clipboardText = text;
@@ -128,6 +164,7 @@ class _BookmarkAppState extends State<BookmarkApp> with WidgetsBindingObserver {
     return ChangeNotifierProvider.value(
       value: widget.state,
       child: MaterialApp(
+        navigatorKey: _navigatorKey,
         title: widget.appConfig.appName,
         debugShowCheckedModeBanner: false,
         theme: _buildTheme(),

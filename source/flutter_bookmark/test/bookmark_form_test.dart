@@ -51,6 +51,11 @@ void main() {
     expect(find.widgetWithText(ListTile, '收藏夹'), findsOneWidget);
     expect(find.text('菜谱'), findsOneWidget);
 
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('folder-picker-trigger')),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
     await tester.tap(find.byKey(const Key('folder-picker-trigger')));
     await tester.pumpAndSettle();
     expect(find.byType(RadioGroup<String>), findsNothing);
@@ -78,6 +83,11 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('快手菜'), findsOneWidget);
 
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('folder-picker-trigger')),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
     await tester.tap(find.byKey(const Key('folder-picker-trigger')));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('folder-option-root')));
@@ -353,7 +363,7 @@ void main() {
     expect(createCalls, 3);
   });
 
-  testWidgets('点击粘贴后填充链接和分享文本', (tester) async {
+  testWidgets('点击粘贴后自动识别标题和封面', (tester) async {
     final tokens = MemoryTokenStore('Bearer token');
     tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
       SystemChannels.platform,
@@ -416,7 +426,7 @@ void main() {
     await tester.pump();
     await tester.pumpAndSettle();
 
-    expect(find.text('https://example.com/pasted'), findsOneWidget);
+    expect(find.text('https://example.com/pasted'), findsWidgets);
   });
 
   test('DouyinResolver 格式检测与解析回退', () async {
