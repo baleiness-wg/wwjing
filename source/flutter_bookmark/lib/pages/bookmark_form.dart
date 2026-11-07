@@ -21,6 +21,8 @@ class _BookmarkFormState extends State<BookmarkForm> {
   late final TextEditingController _title;
   late final TextEditingController _description;
   String? _folderId;
+  List<String> _images = const [];
+  bool _recognizing = false;
   BookmarkDraft? _lastObservedDraft;
 
   @override
@@ -32,6 +34,7 @@ class _BookmarkFormState extends State<BookmarkForm> {
     _title = TextEditingController(text: draft.title);
     _description = TextEditingController(text: draft.description);
     _folderId = draft.folderId;
+    _images = draft.images;
   }
 
   void _applyDraft(BookmarkDraft draft) {
@@ -41,6 +44,7 @@ class _BookmarkFormState extends State<BookmarkForm> {
       _title.text = draft.title;
       _description.text = draft.description;
       _folderId = draft.folderId;
+      _images = draft.images;
     });
   }
 
@@ -78,6 +82,30 @@ class _BookmarkFormState extends State<BookmarkForm> {
     setState(() {});
   }
 
+  Future<void> _recognizeCover() async {
+    final url = _url.text.trim();
+    if (url.isEmpty) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('请先输入链接')));
+      return;
+    }
+    setState(() => _recognizing = true);
+    final metadata = await context.read<AppState>().fetchBookmarkMetadata(url);
+    if (!mounted) return;
+    setState(() {
+      _recognizing = false;
+      if (metadata?.coverUrl?.trim().isNotEmpty == true) {
+        _images = [metadata!.coverUrl!.trim(), ..._images.where((value) => value != metadata.coverUrl!.trim())];
+      }
+      if (_title.text.trim().isEmpty && metadata?.title?.trim().isNotEmpty == true) {
+        _title.text = metadata!.title!.trim();
+      }
+      if (_description.text.trim().isEmpty && metadata?.description?.trim().isNotEmpty == true) {
+        _description.text = metadata!.description!.trim();
+      }
+    });
+  }
+
   Future<void> _save({bool allowDuplicate = false}) async {
     if (!_formKey.currentState!.validate()) return;
     if (_title.text.trim().isEmpty) {
@@ -92,6 +120,7 @@ class _BookmarkFormState extends State<BookmarkForm> {
       title: _title.text.trim(),
       description: _description.text.trim(),
       folderId: _folderId,
+      images: _images,
     );
     final saved = await state.saveDraft(
       value,
@@ -210,7 +239,7 @@ class _BookmarkFormState extends State<BookmarkForm> {
               const SizedBox(height: 14),
               ExpansionTile(
                 title: const Text('高级设置'),
-                subtitle: const Text('链接用于保存和去重，默认不显示'),
+                subtitle: const Text('链接用于保存和去重，图片识别也使用此链接'),
                 childrenPadding: const EdgeInsets.only(bottom: 8),
                 children: [
                   TextFormField(
@@ -232,6 +261,17 @@ class _BookmarkFormState extends State<BookmarkForm> {
                     },
                   ),
                 ],
+              ),
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                onPressed: _recognizing ? null : _recognizeCover,
+                icon: _recognizing
+                    ? const SizedBox.square(
+                        dimension: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.auto_awesome_outlined),
+                label: Text(_images.isEmpty ? '识别封面' : '重新识别封面'),
               ),
               const SizedBox(height: 14),
               Card.outlined(

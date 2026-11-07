@@ -74,7 +74,7 @@ async function create(userId, values) {
           (id, user_id, space, folder_id, title, description, images, source_url, normalized_url, source_host)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
      RETURNING ${selectFields}`,
-    [randomId(), userId, values.space, values.folderId, values.title, values.description, values.images, values.sourceUrl,
+    [randomId(), userId, values.space, values.folderId, values.title, values.description, JSON.stringify(values.images || []), values.sourceUrl,
       values.normalizedUrl, values.sourceHost]
   );
   return result.rows[0];
@@ -86,7 +86,7 @@ async function update(userId, id, values) {
         images = $7, source_url = $8, normalized_url = $9, source_host = $10, updated_at = NOW()
       WHERE user_id = $1 AND id = $2 AND space = $3
      RETURNING ${selectFields}`,
-    [userId, id, values.space, values.folderId, values.title, values.description, values.images, values.sourceUrl,
+    [userId, id, values.space, values.folderId, values.title, values.description, JSON.stringify(values.images || []), values.sourceUrl,
       values.normalizedUrl, values.sourceHost]
   );
   return result.rows[0] || null;
