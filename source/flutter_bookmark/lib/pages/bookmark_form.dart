@@ -211,17 +211,18 @@ class _BookmarkFormState extends State<BookmarkForm> {
                     controller: _url,
                     autofocus: _url.text.isEmpty,
                     decoration: const InputDecoration(
-                      labelText: '链接（必填）',
+                      labelText: '链接（可选）',
                       prefixIcon: Icon(Icons.link),
                     ),
                     keyboardType: TextInputType.url,
                     onChanged: _onUrlChanged,
                     validator: (value) {
                       final uri = Uri.tryParse(value?.trim() ?? '');
-                      return uri != null && uri.hasAuthority &&
-                              (uri.scheme == 'http' || uri.scheme == 'https')
+                      return value == null || value.trim().isEmpty ||
+                              (uri != null && uri.hasAuthority &&
+                                  (uri.scheme == 'http' || uri.scheme == 'https'))
                           ? null
-                          : '请输入 HTTP/HTTPS 链接';
+                          : '请输入有效的 HTTP/HTTPS 链接';
                     },
                   ),
                 ],

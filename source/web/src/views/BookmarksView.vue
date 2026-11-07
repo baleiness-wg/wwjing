@@ -394,7 +394,6 @@ async function submitItem(allowDuplicate = false) {
     coverUrl: itemForm.coverUrl.trim() || null,
     folderId: itemForm.folderId || null
   };
-  if (!data.sourceUrl) return ElMessage.warning("请输入链接");
   saving.value = true;
   try {
     if (itemDialogMode.value === "create") await createBookmarkItem({ ...data, allowDuplicate }, currentSpace.value);

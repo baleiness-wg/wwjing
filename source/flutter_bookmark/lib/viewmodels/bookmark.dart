@@ -137,7 +137,7 @@ class BookmarkMetadata {
 
 class BookmarkDraft {
   const BookmarkDraft({
-    required this.sourceUrl,
+    this.sourceUrl = '',
     this.title = '',
     this.description = '',
     this.folderId,

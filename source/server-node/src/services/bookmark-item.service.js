@@ -44,6 +44,13 @@ function normalizeUrl(value) {
   return { normalizedUrl: url.toString(), sourceHost: url.hostname };
 }
 
+function optionalNormalizedUrl(value) {
+  if (value === null || value === undefined || value === '') {
+    return { normalizedUrl: null, sourceHost: null };
+  }
+  return normalizeUrl(value);
+}
+
 function parseId(value, field) {
   if (!/^[a-f0-9]{32}$/i.test(String(value))) {
     throw new BookmarkError(400, "INVALID_INPUT", `${field} 必须是有效标识`);
@@ -123,9 +130,11 @@ async function get(userId, idValue, space = "star") {
 async function create(userId, input = {}) {
   const space = parseSpace(input.space);
   const sourceUrl = typeof input.sourceUrl === "string" ? input.sourceUrl.trim() : input.sourceUrl;
-  const normalized = normalizeUrl(sourceUrl);
+  const normalized = optionalNormalizedUrl(sourceUrl);
   const folderId = await validateFolder(userId, input.folderId, space);
-  const duplicate = await itemModel.findDuplicate(userId, normalized.normalizedUrl, space);
+  const duplicate = normalized.normalizedUrl
+    ? await itemModel.findDuplicate(userId, normalized.normalizedUrl, space)
+    : null;
   if (duplicate && input.allowDuplicate !== true) {
     throw new BookmarkError(409, "DUPLICATE_BOOKMARK", "该链接已收藏", { duplicate });
   }
@@ -148,8 +157,10 @@ async function update(userId, idValue, input = {}) {
   const id = parseId(idValue, "id");
   const current = await get(userId, id, space);
   const sourceUrl = Object.hasOwn(input, "sourceUrl") ? input.sourceUrl : current.sourceUrl;
-  const normalized = normalizeUrl(sourceUrl);
-  const duplicate = await itemModel.findDuplicate(userId, normalized.normalizedUrl, space);
+  const normalized = optionalNormalizedUrl(sourceUrl);
+  const duplicate = normalized.normalizedUrl
+    ? await itemModel.findDuplicate(userId, normalized.normalizedUrl, space)
+    : null;
   if (duplicate && duplicate.id !== id) {
     throw new BookmarkError(409, "DUPLICATE_BOOKMARK", "该链接已收藏", { duplicate });
   }
@@ -168,7 +179,7 @@ async function update(userId, idValue, input = {}) {
     coverUrl: Object.hasOwn(input, "images")
       ? imageUrls(input.images)?.[0] || null
       : (Object.hasOwn(input, "coverUrl") ? optionalUrl(input.coverUrl, "coverUrl") : current.coverUrl),
-    sourceUrl: sourceUrl.trim(),
+    sourceUrl: typeof sourceUrl === "string" && sourceUrl.trim() ? sourceUrl.trim() : null,
     ...normalized
   });
   if (Object.hasOwn(input, "tagIds")) await itemModel.setTags(userId, id, space, tagService.parseTagIds(input.tagIds));
