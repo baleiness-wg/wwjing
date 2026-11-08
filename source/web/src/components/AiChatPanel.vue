@@ -37,13 +37,17 @@ function contextKey(context) {
 }
 
 function messageParts(content) {
+  content = content.replace(/https?:\/\/[^\s<（(]*[（(](https?:\/\/[^\s）)>]+)[）)>][^\s]*/gi, "$1");
   const parts = [];
-  const pattern = /\[([^\]]+)\]\((https?:\/\/[^)]+)\)|(https?:\/\/[^\s<>()]+)/g;
+  const pattern = /\[([^\]]+)\]\((https?:\/\/[^\s]+)\)|(https?:\/\/[^\s]+)/g;
   let cursor = 0;
   let match;
   while ((match = pattern.exec(content))) {
     if (match.index > cursor) parts.push({ text: content.slice(cursor, match.index) });
-    parts.push({ text: match[1] || match[2] || match[3], link: match[2] || match[3] });
+    const rawLink = match[2] || match[3];
+    const candidates = rawLink.match(/https?:\/\/[^\s<>()]+/gi) || [];
+    const link = candidates[candidates.length - 1] || rawLink;
+    parts.push({ text: match[1] || link, link });
     cursor = pattern.lastIndex;
   }
   if (cursor < content.length) parts.push({ text: content.slice(cursor) });

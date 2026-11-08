@@ -294,17 +294,21 @@ class _LinkText extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final normalizedContent = content.replaceAllMapped(
+      RegExp(r'https?://[^\s<（(]*[（(](https?://[^\s）)>]+)[）)>][^\s]*', caseSensitive: false),
+      (match) => match.group(1)!,
+    );
     final pattern = RegExp(
-      r'\[([^\]]+)\]\((https?://[^)]+)\)|(https?://[^\s<>()]+)',
+      r'\[([^\]]+)\]\((https?://[^\s]+)\)|(https?://[^\s]+)',
     );
     final spans = <TextSpan>[];
     var cursor = 0;
-    for (final match in pattern.allMatches(content)) {
+    for (final match in pattern.allMatches(normalizedContent)) {
       if (match.start > cursor) {
-        spans.add(TextSpan(text: content.substring(cursor, match.start)));
+        spans.add(TextSpan(text: normalizedContent.substring(cursor, match.start)));
       }
       final label = match.group(1);
-      final url = match.group(2) ?? match.group(3)!;
+      final url = LinkLauncher.cleanAiUrl(match.group(2) ?? match.group(3)!);
       spans.add(
         TextSpan(
           text: '${label ?? url} ↗',
@@ -318,11 +322,11 @@ class _LinkText extends StatelessWidget {
       );
       cursor = match.end;
     }
-    if (cursor < content.length) {
-      spans.add(TextSpan(text: content.substring(cursor)));
+    if (cursor < normalizedContent.length) {
+      spans.add(TextSpan(text: normalizedContent.substring(cursor)));
     }
     return SelectableText.rich(
-      text: TextSpan(
+      TextSpan(
         style: TextStyle(
           color: color ?? Theme.of(context).colorScheme.onSurface,
         ),

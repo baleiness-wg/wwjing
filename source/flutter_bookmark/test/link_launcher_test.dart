@@ -134,7 +134,9 @@ void main() {
 
   test('AI 嵌套错误链接取最内层真实 URL', () {
     expect(
-      LinkLauncher.cleanAiUrl('<https://v.douyin.com(https://v.douyin.com/IKMupVJyMEk/)/3dpoFkbK88g/>'),
+      LinkLauncher.cleanAiUrl(
+        '<https://v.douyin.com(https://v.douyin.com/IKMupVJyMEk/)/3dpoFkbK88g/>',
+      ),
       'https://v.douyin.com/IKMupVJyMEk/',
     );
   });

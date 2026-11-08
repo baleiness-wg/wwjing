@@ -213,3 +213,10 @@ test("AI reply appends the original link when it mentions a known item", () => {
     "这是泛泛讨论"
   );
 });
+
+test("AI reply normalizes nested malformed links", () => {
+  assert.equal(
+    aiService.appendMentionedItemLinks("视频 https://v.douyin.com（https://v.douyin.com/IKMupVJyMEk/）/3dpoFkbK88g/ ↗", { items: [] }),
+    "视频 https://v.douyin.com/IKMupVJyMEk/ ↗"
+  );
+});

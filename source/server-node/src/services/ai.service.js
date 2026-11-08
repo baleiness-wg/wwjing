@@ -92,7 +92,7 @@ function buildMessages({ context, message, history }) {
 }
 
 function appendMentionedItemLinks(answer, context) {
-  let enriched = answer;
+  let enriched = answer.replace(/https?:\/\/[^\s<（(]*[（(](https?:\/\/[^\s）)>]+)[）)>][^\s]*/gi, "$1");
   for (const item of context.items) {
     const title = limitedString(item.title, MAX_FIELD_LENGTH);
     const url = limitedString(item.sourceUrl, 1000);
