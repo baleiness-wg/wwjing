@@ -21,10 +21,9 @@ class AiChatSheet extends StatefulWidget {
 }
 
 class _ChatMessage {
-  const _ChatMessage(this.role, this.content, {this.sources = const []});
+  const _ChatMessage(this.role, this.content);
   final String role;
   final String content;
-  final List<Map<String, dynamic>> sources;
 }
 
 class _AiChatSheetState extends State<AiChatSheet> {
@@ -74,9 +73,7 @@ class _AiChatSheetState extends State<AiChatSheet> {
         history: history,
       );
       _messages.removeWhere((entry) => entry.role == 'thinking');
-      _messages.add(
-        _ChatMessage('assistant', result.answer, sources: result.sources),
-      );
+      _messages.add(_ChatMessage('assistant', result.answer));
       if (mounted) setState(() => _sending = false);
     } on ApiException catch (error) {
       _messages.removeWhere((entry) => entry.role == 'thinking');
@@ -182,7 +179,6 @@ class _AiChatSheetState extends State<AiChatSheet> {
                           return _MessageBubble(
                             role: message.role,
                             content: message.content,
-                            sources: message.sources,
                             onOpenLink: (url) =>
                                 widget.linkLauncher.open(context, url),
                           );
@@ -251,12 +247,10 @@ class _MessageBubble extends StatelessWidget {
     required this.role,
     required this.content,
     this.onOpenLink,
-    this.sources = const [],
   });
   final String role;
   final String content;
   final Future<bool> Function(String url)? onOpenLink;
-  final List<Map<String, dynamic>> sources;
 
   @override
   Widget build(BuildContext context) {
@@ -285,57 +279,6 @@ class _MessageBubble extends StatelessWidget {
               color: isUser ? colorScheme.onPrimary : null,
               onOpenLink: onOpenLink,
             ),
-            if (sources.isNotEmpty && !isUser) ...[
-              const SizedBox(height: 8),
-              const Text(
-                '推荐来源',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-              ),
-              for (
-                var sourceIndex = 0;
-                sourceIndex < sources.length;
-                sourceIndex++
-              )
-                InkWell(
-                  onTap: () =>
-                      onOpenLink?.call('${sources[sourceIndex]['url']}'),
-                  child: Padding(
-                    padding: const EdgeInsets.only(top: 5),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Container(
-                          width: 18,
-                          height: 18,
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            color: Colors.teal.shade50,
-                            shape: BoxShape.circle,
-                          ),
-                          child: Text(
-                            '${sourceIndex + 1}',
-                            style: const TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.teal,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        Expanded(
-                          child: Text(
-                            '${sources[sourceIndex]['title'] ?? '收藏'} ↗',
-                            style: const TextStyle(
-                              color: Colors.teal,
-                              decoration: TextDecoration.underline,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-            ],
           ],
         ),
       ),

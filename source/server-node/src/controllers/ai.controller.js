@@ -43,7 +43,7 @@ async function chat(req, res, next) {
       durationMs: Date.now() - startedAt,
       truncated: result.truncated
     }, "ai chat completed");
-    return res.json({ answer: result.answer, sources: result.sources, truncated: result.truncated });
+    return res.json({ answer: result.answer, truncated: result.truncated });
   } catch (error) {
     requestLogger.warn({
       userId: req.auth.sub,

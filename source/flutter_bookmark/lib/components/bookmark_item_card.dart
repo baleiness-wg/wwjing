@@ -57,7 +57,7 @@ class BookmarkItemCard extends StatelessWidget {
             tooltip: '更多操作',
             icon: const Icon(Icons.more_vert),
             position: PopupMenuPosition.under,
-            offset: const Offset(0, 8),
+            offset: const Offset(-150, 44),
             padding: EdgeInsets.zero,
             onSelected: onAction,
             itemBuilder: (_) => [

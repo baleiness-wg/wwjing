@@ -348,7 +348,8 @@ class _FolderNavigationState extends State<FolderNavigation> {
                           tooltip: '目录操作',
                           icon: const Icon(Icons.more_vert),
                           position: PopupMenuPosition.under,
-                          offset: const Offset(0, 8),
+                          // Keep the menu below and to the left of the trailing icon.
+                          offset: const Offset(-190, 44),
                           onOpened: () => setState(() {
                             _activeActionFolderId = node.folder.id;
                           }),
@@ -422,7 +423,8 @@ class _FolderNavigationState extends State<FolderNavigation> {
               tooltip: '设置选项',
               icon: const Icon(Icons.settings_outlined),
               position: PopupMenuPosition.under,
-              offset: const Offset(0, 8),
+              // The settings icon is on the left edge, so open to its right.
+              offset: const Offset(48, 8),
               onSelected: (action) async {
                 if (action == 'password') await _changePassword(context);
                 if (action == 'logout') await state.logout();

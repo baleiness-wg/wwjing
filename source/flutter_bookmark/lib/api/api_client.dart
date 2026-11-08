@@ -214,8 +214,7 @@ class ApiClient {
         : BookmarkItem.fromJson(item as Map<String, dynamic>);
   }
 
-  Future<({String answer, bool truncated, List<Map<String, dynamic>> sources})>
-  chatWithDirectory({
+  Future<({String answer, bool truncated})> chatWithDirectory({
     required Map<String, Object?> context,
     required String message,
     List<Map<String, String>> history = const [],
@@ -228,9 +227,6 @@ class ApiClient {
     return (
       answer: data['answer'] as String? ?? '',
       truncated: data['truncated'] as bool? ?? false,
-      sources: (data['sources'] as List? ?? const [])
-          .whereType<Map<String, dynamic>>()
-          .toList(),
     );
   }
 
