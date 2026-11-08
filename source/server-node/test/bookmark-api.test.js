@@ -116,7 +116,7 @@ test("bookmark CRUD routes use JWT subject rather than request data", async () =
   }
 });
 
-test("random route passes folderIds query to service", async () => {
+test("random route passes folderIds query and supports all spaces", async () => {
   const originalRandom = randomService.random;
   let receivedInput;
   randomService.random = async (userId, input) => {
@@ -126,7 +126,7 @@ test("random route passes folderIds query to service", async () => {
   const token = jwt.sign({ sub: "42" }, config.jwtSecretKey, { algorithm: "HS256" });
   try {
     await withServer(async (baseUrl) => {
-      const response = await fetch(`${baseUrl}/api/bookmarks/random?space=cookie&folderIds=1,2,3`, {
+      const response = await fetch(`${baseUrl}/api/bookmarks/random?space=star&folderIds=1,2,3`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       assert.equal(response.status, 200);
@@ -134,9 +134,30 @@ test("random route passes folderIds query to service", async () => {
         item: { id: "10", title: "测试菜谱" }
       });
       assert.equal(receivedInput.userId, "42");
-      assert.equal(receivedInput.input.space, "cookie");
+      assert.equal(receivedInput.input.space, "star");
       assert.equal(receivedInput.input.folderIds, "1,2,3");
     });
+  } finally {
+    randomService.random = originalRandom;
+  }
+});
+
+test("random route defaults to star when space is omitted", async () => {
+  const originalRandom = randomService.random;
+  let receivedInput;
+  randomService.random = async (userId, input) => {
+    receivedInput = input;
+    return null;
+  };
+  const token = jwt.sign({ sub: "42" }, config.jwtSecretKey, { algorithm: "HS256" });
+  try {
+    await withServer(async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/api/bookmarks/random`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      assert.equal(response.status, 200);
+    });
+    assert.equal(receivedInput.space, undefined);
   } finally {
     randomService.random = originalRandom;
   }

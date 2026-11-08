@@ -2,8 +2,9 @@ const pool = require("../db");
 const BookmarkError = require("./bookmark-errors");
 
 async function random(userId, input = {}) {
-  if (input.space !== "cookie") throw new BookmarkError(400, "INVALID_SPACE", "随机菜谱只支持 cookie 空间");
-  const parameters = [userId, "cookie"];
+  const space = input.space || "star";
+  if (!['star', 'cookie'].includes(space)) throw new BookmarkError(400, "INVALID_SPACE", "space 必须是 star 或 cookie");
+  const parameters = [userId, space];
   const conditions = ["item.user_id = $1", "item.space = $2"];
 
   if (input.folderIds) {
