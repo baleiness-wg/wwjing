@@ -143,12 +143,12 @@ function itemHost(item) {
 }
 
 function hasCover(item) {
-  const cleaned = cleanCoverUrl(item.coverUrl);
+  const cleaned = cleanCoverUrl(item.images?.[0] || item.coverUrl);
   return Boolean(cleaned) && !failedCoverUrls.value.has(cleaned);
 }
 
 function coverSrc(item) {
-  return cleanCoverUrl(item.coverUrl);
+  return cleanCoverUrl(item.images?.[0] || item.coverUrl);
 }
 
 function markCoverFailed(url) {
@@ -684,6 +684,13 @@ onMounted(async () => {
               :aria-label="`选择${item.title || itemHost(item)}`"
               @change="(checked) => toggleItem(item.id, checked)"
             />
+            <a class="bookmark-cover" :href="item.sourceUrl || undefined" target="_blank" rel="noopener noreferrer" tabindex="-1" :aria-hidden="item.sourceUrl ? 'true' : undefined">
+              <img v-if="hasCover(item)" :src="coverSrc(item)" referrerpolicy="no-referrer" alt="" @error="markCoverFailed(coverSrc(item))" />
+              <span v-else class="bookmark-cover__fallback">
+                <strong>{{ itemHost(item).slice(0, 1).toUpperCase() }}</strong>
+                <small>{{ itemHost(item) }}</small>
+              </span>
+            </a>
             <div class="bookmark-body">
               <div class="bookmark-meta">
                 <span class="host-chip">{{ itemHost(item) }}</span>
@@ -821,7 +828,7 @@ onMounted(async () => {
     <el-dialog v-model="randomDialogVisible" title="今天吃什么" width="min(500px, 94vw)" destroy-on-close>
       <div v-if="randomItem" class="random-dish-card">
         <div class="random-dish-cover">
-          <img v-if="hasCover(randomItem)" :src="randomItem.coverUrl" alt="" />
+           <img v-if="hasCover(randomItem)" :src="coverSrc(randomItem)" alt="" />
           <div v-else class="random-dish-fallback">
             <strong>🍲</strong>
             <small>{{ itemHost(randomItem) }}</small>

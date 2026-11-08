@@ -237,7 +237,15 @@ class _FolderNavigationState extends State<FolderNavigation> {
                     selectedColor: Theme.of(context).colorScheme.primary,
                     selectedTileColor: Theme.of(context).colorScheme.primary
                         .withValues(alpha: 0.08),
-                     leading: Row(
+                     leading: const Icon(Icons.folder_outlined),
+                    title: Text(
+                      node.folder.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    onTap: () =>
+                        _select(context, BookmarkView.folder, node.folder.id),
+                     trailing: Row(
                        mainAxisSize: MainAxisSize.min,
                        children: [
                          if (hasChildren)
@@ -253,35 +261,25 @@ class _FolderNavigationState extends State<FolderNavigation> {
                                  _collapsedFolderIds.remove(node.folder.id);
                                }
                              }),
-                           )
-                         else
-                           const SizedBox(width: 48),
-                         const Icon(Icons.folder_outlined),
-                       ],
-                     ),
-                    title: Text(
-                      node.folder.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    onTap: () =>
-                        _select(context, BookmarkView.folder, node.folder.id),
-                     trailing: PopupMenuButton<String>(
-                       tooltip: '目录操作',
-                       icon: const Icon(Icons.more_vert),
-                       onOpened: () => setState(() {
-                         _activeActionFolderId = node.folder.id;
-                       }),
-                       onCanceled: () => setState(() {
-                         _activeActionFolderId = null;
-                       }),
-                       onSelected: (action) async {
-                         await _folderAction(context, node.folder, action);
-                         if (mounted) {
-                           setState(() => _activeActionFolderId = null);
-                         }
-                       },
-                      itemBuilder: (_) => [
+                           ),
+                         PopupMenuButton<String>(
+                           tooltip: '目录操作',
+                           icon: const Icon(Icons.more_vert),
+                           position: PopupMenuPosition.under,
+                           offset: const Offset(0, 8),
+                           onOpened: () => setState(() {
+                             _activeActionFolderId = node.folder.id;
+                           }),
+                           onCanceled: () => setState(() {
+                             _activeActionFolderId = null;
+                           }),
+                           onSelected: (action) async {
+                             await _folderAction(context, node.folder, action);
+                             if (mounted) {
+                               setState(() => _activeActionFolderId = null);
+                             }
+                           },
+                           itemBuilder: (_) => [
                         appPopupMenuItem(
                           value: 'bookmark',
                           icon: Icons.bookmark_add_outlined,
@@ -318,8 +316,10 @@ class _FolderNavigationState extends State<FolderNavigation> {
                           label: '删除',
                           destructive: true,
                         ),
-                      ],
-                    ),
+                           ],
+                         ),
+                       ],
+                     ),
                   ),
                 );
               },

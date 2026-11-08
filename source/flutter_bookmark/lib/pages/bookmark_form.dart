@@ -267,6 +267,12 @@ class _BookmarkFormState extends State<BookmarkForm> {
           child: ListView(
             padding: const EdgeInsets.all(20),
             children: [
+              TextField(
+                controller: _title,
+                decoration: const InputDecoration(labelText: '标题（必填）'),
+                onChanged: (_) => setState(() {}),
+              ),
+              const SizedBox(height: 14),
               TextFormField(
                 controller: _url,
                 autofocus: _url.text.isEmpty,
@@ -292,19 +298,13 @@ class _BookmarkFormState extends State<BookmarkForm> {
               ),
               const SizedBox(height: 14),
               TextField(
-                controller: _title,
-                decoration: const InputDecoration(labelText: '标题（必填）'),
-                onChanged: (_) => setState(() {}),
-              ),
-              const SizedBox(height: 14),
-              TextField(
                 controller: _description,
                 decoration: const InputDecoration(
                   labelText: '描述（可选）',
                   alignLabelWithHint: true,
                 ),
-                minLines: 3,
-                maxLines: 6,
+                minLines: 8,
+                maxLines: 16,
               ),
               const SizedBox(height: 8),
               Row(
