@@ -57,7 +57,7 @@ void main() {
     final state = AppState(
       api: ApiClient(
         baseUrl: 'https://api.example/api',
-        space: 'cookie',
+        space: 'kitchen',
         tokenStore: tokens,
       ),
       tokenStore: tokens,

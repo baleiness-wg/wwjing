@@ -16,7 +16,7 @@ const router = createRouter({
       path: "/tools/bookmarks/kitchen",
       name: "bookmarks-kitchen",
       component: BookmarksView,
-      meta: { requiresAuth: true, space: "cookie", title: "疯狂的厨房" }
+       meta: { requiresAuth: true, space: "kitchen", title: "疯狂的厨房" }
     },
     {
       path: "/tools/bookmarks/star",

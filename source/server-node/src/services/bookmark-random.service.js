@@ -3,7 +3,7 @@ const BookmarkError = require("./bookmark-errors");
 
 async function random(userId, input = {}) {
   const space = input.space || "star";
-  if (!['star', 'cookie'].includes(space)) throw new BookmarkError(400, "INVALID_SPACE", "space 必须是 star 或 cookie");
+  if (!['star', 'kitchen'].includes(space)) throw new BookmarkError(400, "INVALID_SPACE", "space 必须是 star 或 kitchen");
   const parameters = [userId, space];
   const conditions = ["item.user_id = $1", "item.space = $2"];
 

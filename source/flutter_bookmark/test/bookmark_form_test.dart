@@ -23,7 +23,7 @@ void main() {
         AppState(
             api: ApiClient(
               baseUrl: 'https://api.example/api',
-              space: 'cookie',
+              space: 'kitchen',
               tokenStore: tokens,
               httpClient: MockClient((_) async => http.Response('{}', 200)),
             ),
@@ -103,7 +103,7 @@ void main() {
         AppState(
             api: ApiClient(
               baseUrl: 'https://api.example/api',
-              space: 'cookie',
+              space: 'kitchen',
               tokenStore: tokens,
               httpClient: MockClient((request) async {
                 if (request.method == 'POST' &&
@@ -193,7 +193,7 @@ void main() {
         AppState(
             api: ApiClient(
               baseUrl: 'https://api.example/api',
-              space: 'cookie',
+              space: 'kitchen',
               tokenStore: tokens,
               httpClient: MockClient((_) async => http.Response('{}', 200)),
             ),
@@ -233,7 +233,7 @@ void main() {
         AppState(
             api: ApiClient(
               baseUrl: 'https://api.example/api',
-              space: 'cookie',
+              space: 'kitchen',
               tokenStore: tokens,
               httpClient: MockClient((request) async {
                 if (request.url.path.endsWith('/metadata')) {
@@ -313,7 +313,7 @@ void main() {
         AppState(
             api: ApiClient(
               baseUrl: 'https://api.example/api',
-              space: 'cookie',
+              space: 'kitchen',
               tokenStore: tokens,
               httpClient: MockClient((request) async {
                 if (request.url.path.endsWith('/metadata')) {
@@ -385,7 +385,7 @@ void main() {
         AppState(
             api: ApiClient(
               baseUrl: 'https://api.example/api',
-              space: 'cookie',
+              space: 'kitchen',
               tokenStore: tokens,
               httpClient: MockClient((request) async {
                 if (request.url.path.endsWith('/metadata')) {

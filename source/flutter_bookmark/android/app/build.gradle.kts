@@ -76,9 +76,9 @@ gradle.taskGraph.whenReady {
             }
         }
         .toSet()
-    if (selectedFlavors.isNotEmpty() && (appType == null || appType !in selectedFlavors)) {
+    if (selectedFlavors.isNotEmpty() && appType != null && appType !in selectedFlavors) {
         throw GradleException(
-            "APP_TYPE 必须与 Flutter flavor 匹配：当前 flavor=${selectedFlavors.joinToString()}，APP_TYPE=${appType ?: "未提供"}"
+            "APP_TYPE 必须与 Flutter flavor 匹配：当前 flavor=${selectedFlavors.joinToString()}，APP_TYPE=$appType"
         )
     }
 }

@@ -85,7 +85,7 @@ test("mock Agnes integration keeps space and directory context across conversati
       const headers = { Authorization: `Bearer ${token()}`, "Content-Type": "application/json" };
       for (const context of [
         { space: "star", directoryId: "star-1", directoryName: "技术", directoryPath: "技术", items: [] },
-        { space: "cookie", directoryId: "cookie-2", directoryName: "晚餐", directoryPath: "菜谱 / 晚餐", items: [] }
+        { space: "kitchen", directoryId: "kitchen-2", directoryName: "晚餐", directoryPath: "菜谱 / 晚餐", items: [] }
       ]) {
         const first = await fetch(`${baseUrl}/api/ai/chat`, {
           method: "POST",
@@ -111,7 +111,7 @@ test("mock Agnes integration keeps space and directory context across conversati
     assert.equal(received.length, 4);
     assert.equal(received[1].history.length, 2);
     assert.equal(received[0].context.space, "star");
-    assert.equal(received[2].context.space, "cookie");
+    assert.equal(received[2].context.space, "kitchen");
   } finally {
     aiService.chat = originalChat;
   }

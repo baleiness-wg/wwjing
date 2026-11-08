@@ -52,7 +52,7 @@ void main() {
     });
     final api = ApiClient(
       baseUrl: 'https://api.example/api',
-      space: 'cookie',
+      space: 'kitchen',
       tokenStore: tokens,
       httpClient: client,
     );
@@ -73,7 +73,7 @@ void main() {
       expect(request.headers['Authorization'], 'Bearer ai-token');
       expect(jsonDecode(request.body), {
         'context': {
-          'space': 'cookie',
+          'space': 'kitchen',
           'directoryId': 'folder-1',
           'directoryPath': '晚餐',
           'loadedItemCount': 1,
@@ -92,14 +92,14 @@ void main() {
     });
     final api = ApiClient(
       baseUrl: 'https://api.example/api',
-      space: 'cookie',
+      space: 'kitchen',
       tokenStore: tokens,
       httpClient: client,
     );
 
     final result = await api.chatWithDirectory(
       context: {
-        'space': 'cookie',
+        'space': 'kitchen',
         'directoryId': 'folder-1',
         'directoryPath': '晚餐',
         'loadedItemCount': 1,
@@ -145,7 +145,7 @@ void main() {
     });
     final api = ApiClient(
       baseUrl: 'https://api.example/api',
-      space: 'cookie',
+      space: 'kitchen',
       tokenStore: tokens,
       httpClient: client,
     );
@@ -205,7 +205,7 @@ void main() {
     });
     final api = ApiClient(
       baseUrl: 'https://api.example/api',
-      space: 'cookie',
+      space: 'kitchen',
       tokenStore: tokens,
       httpClient: client,
     );
@@ -230,7 +230,7 @@ void main() {
     late final AppState state;
     final api = ApiClient(
       baseUrl: 'https://api.example/api',
-      space: 'cookie',
+      space: 'kitchen',
       tokenStore: tokens,
       httpClient: MockClient(
         (_) async => http.Response.bytes(
@@ -286,7 +286,7 @@ void main() {
     });
     final api = ApiClient(
       baseUrl: 'https://api.example/api',
-      space: 'cookie',
+      space: 'kitchen',
       tokenStore: tokens,
       httpClient: client,
     );
@@ -304,16 +304,16 @@ void main() {
     );
   });
 
-  test('随机接口解析收藏和空结果并携带 cookie 空间', () async {
+  test('随机接口解析收藏和空结果并携带 kitchen 空间', () async {
     final tokens = MemoryTokenStore('Bearer token');
     var empty = false;
     final api = ApiClient(
       baseUrl: 'https://api.example/api',
-      space: 'cookie',
+      space: 'kitchen',
       tokenStore: tokens,
       httpClient: MockClient((request) async {
         expect(request.url.path, '/api/bookmarks/random');
-        expect(request.url.queryParameters['space'], 'cookie');
+        expect(request.url.queryParameters['space'], 'kitchen');
         return http.Response.bytes(
           utf8.encode(
             jsonEncode({
@@ -341,11 +341,11 @@ void main() {
     final tokens = MemoryTokenStore('Bearer token');
     final api = ApiClient(
       baseUrl: 'https://api.example/api',
-      space: 'cookie',
+      space: 'kitchen',
       tokenStore: tokens,
       httpClient: MockClient((request) async {
         expect(request.url.path, '/api/bookmarks/random');
-        expect(request.url.queryParameters['space'], 'cookie');
+        expect(request.url.queryParameters['space'], 'kitchen');
         expect(request.url.queryParameters['folderIds'], '10,20,30');
         return http.Response.bytes(
           utf8.encode(
@@ -375,7 +375,7 @@ void main() {
     var status = 500;
     final api = ApiClient(
       baseUrl: 'https://api.example/api',
-      space: 'cookie',
+      space: 'kitchen',
       tokenStore: tokens,
       onUnauthorized: () async => unauthorized = true,
       httpClient: MockClient(
@@ -406,14 +406,14 @@ void main() {
     var moved = false;
     final api = ApiClient(
       baseUrl: 'https://api.example/api',
-      space: 'cookie',
+      space: 'kitchen',
       tokenStore: tokens,
       httpClient: MockClient((request) async {
         if (request.method == 'PATCH') {
           expect(request.url.path, '/api/bookmarks/items/9');
           expect(jsonDecode(request.body), {
             'folderId': '2',
-            'space': 'cookie',
+            'space': 'kitchen',
           });
           moved = true;
           return http.Response('{}', 200);
@@ -463,7 +463,7 @@ void main() {
     final firstItems = Completer<http.Response>();
     final api = ApiClient(
       baseUrl: 'https://api.example/api',
-      space: 'cookie',
+      space: 'kitchen',
       tokenStore: tokens,
       httpClient: MockClient((request) async {
         if (request.url.path.endsWith('/folders')) {
@@ -518,7 +518,7 @@ void main() {
     final requestedPages = <String>[];
     final api = ApiClient(
       baseUrl: 'https://api.example/api',
-      space: 'cookie',
+      space: 'kitchen',
       tokenStore: tokens,
       httpClient: MockClient((request) async {
         if (request.url.path.endsWith('/folders')) {

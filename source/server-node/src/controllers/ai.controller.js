@@ -1,7 +1,7 @@
 const aiService = require("../services/ai.service");
 const logger = require("../logger");
 
-const validSpaces = new Set(["cookie", "star"]);
+const validSpaces = new Set(["kitchen", "star"]);
 
 function validateInput(body = {}) {
   if (!body || typeof body !== "object") return "请求内容无效";

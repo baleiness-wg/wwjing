@@ -3,7 +3,7 @@ const BookmarkError = require("./bookmark-errors");
 
 function spaceOf(value) {
   const space = value || "star";
-  if (!['star', 'cookie'].includes(space)) throw new BookmarkError(400, "INVALID_SPACE", "space 必须是 star 或 cookie");
+  if (!['star', 'kitchen'].includes(space)) throw new BookmarkError(400, "INVALID_SPACE", "space 必须是 star 或 kitchen");
   return space;
 }
 

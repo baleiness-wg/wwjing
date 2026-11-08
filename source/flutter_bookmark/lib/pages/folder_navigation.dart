@@ -192,35 +192,6 @@ class _FolderNavigationState extends State<FolderNavigation> {
     }
   }
 
-  Future<void> _openSettings(BuildContext context) async {
-    final state = context.read<AppState>();
-    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
-    final box = context.findRenderObject() as RenderBox?;
-    final position = box == null
-        ? RelativeRect.fill
-        : RelativeRect.fromRect(
-            Rect.fromPoints(
-              box.localToGlobal(Offset.zero, ancestor: overlay),
-              box.localToGlobal(
-                box.size.bottomRight(Offset.zero),
-                ancestor: overlay,
-              ),
-            ),
-            Offset.zero & overlay.size,
-          );
-    final action = await showMenu<String>(
-      context: context,
-      position: position,
-      items: const [
-        PopupMenuItem(value: 'password', child: Text('修改密码')),
-        PopupMenuItem(value: 'logout', child: Text('退出登录')),
-      ],
-    );
-    if (!context.mounted) return;
-    if (action == 'password') await _changePassword(context);
-    if (action == 'logout') await state.logout();
-  }
-
   List<FolderNode> _visibleNodes(List<FolderNode> roots) {
     final result = <FolderNode>[];
     void visit(FolderNode node) {
@@ -449,7 +420,20 @@ class _FolderNavigationState extends State<FolderNavigation> {
           ListTile(
             leading: const Icon(Icons.settings_outlined),
             title: const Text('设置'),
-            onTap: () => _openSettings(context),
+            trailing: PopupMenuButton<String>(
+              tooltip: '设置选项',
+              position: PopupMenuPosition.under,
+              offset: const Offset(0, 8),
+              onSelected: (action) async {
+                if (action == 'password') await _changePassword(context);
+                if (action == 'logout') await state.logout();
+              },
+              itemBuilder: (_) => const [
+                PopupMenuItem(value: 'password', child: Text('修改密码')),
+                PopupMenuItem(value: 'logout', child: Text('退出登录')),
+              ],
+            ),
+            onTap: () {},
           ),
         ],
       ),

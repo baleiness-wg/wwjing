@@ -2,12 +2,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:wwjing_bookmark/constants/app_config.dart';
 
 void main() {
-  test('kitchen 模式映射到 cookie 空间和随机能力', () {
+  test('kitchen 模式映射到 kitchen 空间和随机能力', () {
     final config = AppConfig.fromType('kitchen');
 
     expect(config.type, AppType.kitchen);
     expect(config.appName, '疯狂的厨房');
-    expect(config.space, 'cookie');
+    expect(config.space, 'kitchen');
     expect(config.supportsRandom, isTrue);
   });
 
@@ -20,8 +20,8 @@ void main() {
     expect(config.supportsRandom, isTrue);
   });
 
-  test('缺失或非法 APP_TYPE 会明确失败', () {
-    expect(() => AppConfig.fromType(''), throwsArgumentError);
+  test('缺失 APP_TYPE 默认使用 star，非法值明确失败', () {
+    expect(AppConfig.fromType(''), AppConfig.star);
     expect(() => AppConfig.fromType('other'), throwsArgumentError);
   });
 }

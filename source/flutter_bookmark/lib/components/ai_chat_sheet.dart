@@ -109,8 +109,9 @@ class _AiChatSheetState extends State<AiChatSheet> {
   }
 
   void _scrollToEnd() {
+    if (!mounted) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollController.hasClients) {
+      if (mounted && _scrollController.hasClients) {
         _scrollController.animateTo(
           _scrollController.position.maxScrollExtent,
           duration: const Duration(milliseconds: 180),

@@ -36,7 +36,7 @@ const route = useRoute();
 const currentSpace = computed(() => route.meta.space || "star");
 const currentTitle = computed(() => route.meta.title || (currentSpace.value === "cookie" ? "疯狂的厨房" : "鲸界"));
 const currentLead = computed(() => {
-  return currentSpace.value === "cookie"
+  return currentSpace.value === "kitchen"
     ? "分类保存菜谱与做饭链接，并在不同设备间统一整理。"
     : "把散落的链接收进清晰的目录，随时搜索和整理。";
 });

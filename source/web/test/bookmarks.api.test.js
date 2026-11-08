@@ -84,16 +84,16 @@ test("网页元数据检测请求符合服务端契约", async () => {
 });
 
 test("支持指定 space 查询目录及随机菜谱请求", async () => {
-  await getBookmarkFolders("cookie");
+  await getBookmarkFolders("kitchen");
   const folderReq = requests.shift();
   const folderUrl = new URL(folderReq.url, "https://example.test");
   assert.equal(folderUrl.pathname, "/api/bookmarks/folders");
-  assert.equal(folderUrl.searchParams.get("space"), "cookie");
+  assert.equal(folderUrl.searchParams.get("space"), "kitchen");
 
-  await getRandomBookmark("cookie", "2");
+  await getRandomBookmark("kitchen", "2");
   const randomReq = requests.shift();
   const randomUrl = new URL(randomReq.url, "https://example.test");
   assert.equal(randomUrl.pathname, "/api/bookmarks/random");
-  assert.equal(randomUrl.searchParams.get("space"), "cookie");
+  assert.equal(randomUrl.searchParams.get("space"), "kitchen");
   assert.equal(randomUrl.searchParams.get("folderId"), "2");
 });

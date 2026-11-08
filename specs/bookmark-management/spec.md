@@ -60,6 +60,7 @@ bookmark-management 模块为同一账号提供跨 Android 与 Web 的私人链�
 - Web 与 Flutter 目录操作菜单弹层 SHALL 从目录操作按钮下方展开，不得覆盖触发菜单的点点点按钮。
 - Flutter 左侧导航底部 SHALL 只显示一个“设置”入口；修改密码和退出登录作为设置菜单项显示，不再分别占用导航底部位置。
 - Web 与 Flutter 所有收藏空间均 SHALL 显示随机入口，按钮和结果弹窗统一使用文案 `Today`。
+- `kitchen` 模式使用 `kitchen` 收藏空间；`star` 模式使用 `star` 收藏空间；未提供 `APP_TYPE` 时默认使用 `star`。旧 `cookie` 标识不再作为应用业务空间名称使用。
 
 ## 接口说明
 
@@ -250,4 +251,7 @@ bookmark-management 模块为同一账号提供跨 Android 与 Web 的私人链�
 | 2026-11-08 | 202611081940 | 移除随机功能的 cookie 专属限制，未指定空间默认使用 star |
 | 2026-11-08 | 202611081950 | AI 推荐输出收藏标题和原始链接，并在 Web/Flutter 中支持点击跳转 |
 | 2026-11-08 | 202611082000 | AI 对话收起后继续完成异步请求并保留上次结果；设置改为紧凑菜单 |
+| 2026-11-08 | 202611082010 | Flutter 未提供 APP_TYPE 时按默认 star flavor 启动，显式参数仍可覆盖 |
+| 2026-11-08 | 202611082030 | kitchen 使用 kitchen 业务空间，默认 APP_TYPE 改为 star，设置菜单和 AI 异步会话修复 |
+| 2026-11-08 | 202611082010 | Flutter 未提供 APP_TYPE 时按默认 kitchen flavor 启动，显式参数仍可覆盖 |
 | 2026-11-08 | 202611081920 | 完成 Web/Flutter 目录弹层避让、设置入口和 Today 随机交互验证 |

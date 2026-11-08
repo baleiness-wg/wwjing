@@ -11,6 +11,7 @@ class AppConfig {
   factory AppConfig.fromType(String value) => switch (value) {
     'kitchen' => kitchen,
     'star' => star,
+    '' => star,
     _ => throw ArgumentError.value(
       value,
       'APP_TYPE',
@@ -21,7 +22,7 @@ class AppConfig {
   static const kitchen = AppConfig._(
     type: AppType.kitchen,
     appName: '疯狂的厨房',
-    space: 'cookie',
+    space: 'kitchen',
     supportsRandom: true,
   );
 
