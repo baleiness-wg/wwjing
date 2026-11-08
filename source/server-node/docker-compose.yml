@@ -12,6 +12,7 @@ services:
       PORT: 3000
       NODE_ENV: production
       LOG_LEVEL: info
+      NODE_OPTIONS: --dns-result-order=ipv4first
     ports:
       - "3000:3000"
     networks:

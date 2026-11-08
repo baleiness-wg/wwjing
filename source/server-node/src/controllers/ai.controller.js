@@ -53,7 +53,8 @@ async function chat(req, res, next) {
       durationMs: Date.now() - startedAt,
       errorCode: error.code || "AI_PROVIDER_ERROR",
       providerStatus: error.providerStatus,
-      providerReason: error.providerReason
+      providerReason: error.providerReason,
+      attempts: error.attempts
     }, "ai chat failed");
     return next(error);
   }

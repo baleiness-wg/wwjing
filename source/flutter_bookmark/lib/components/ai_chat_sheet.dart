@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/gestures.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
 
 import '../api/api_client.dart';
 import '../utils/link_launcher.dart';
@@ -274,7 +274,7 @@ class _MessageBubble extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _LinkText(
+            _MarkdownMessage(
               content: content,
               color: isUser ? colorScheme.onPrimary : null,
               onOpenLink: onOpenLink,
@@ -286,8 +286,8 @@ class _MessageBubble extends StatelessWidget {
   }
 }
 
-class _LinkText extends StatelessWidget {
-  const _LinkText({required this.content, this.color, this.onOpenLink});
+class _MarkdownMessage extends StatelessWidget {
+  const _MarkdownMessage({required this.content, this.color, this.onOpenLink});
   final String content;
   final Color? color;
   final Future<bool> Function(String url)? onOpenLink;
@@ -295,42 +295,31 @@ class _LinkText extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final normalizedContent = content.replaceAllMapped(
-      RegExp(r'https?://[^\s<（(]*[（(](https?://[^\s）)>]+)[）)>][^\s]*', caseSensitive: false),
+      RegExp(
+        r'https?://[^\s<（(]*[（(](https?://[^\s）)>]+)[）)>][^\s]*',
+        caseSensitive: false,
+      ),
       (match) => match.group(1)!,
     );
-    final pattern = RegExp(
-      r'\[([^\]]+)\]\((https?://[^\s]+)\)|(https?://[^\s]+)',
+    final normalizedMarkdown = normalizedContent.replaceAllMapped(
+      RegExp(r'\[([^\]]+)\]\(([^\s\n]+)'),
+      (match) =>
+          '[${match.group(1)}](${LinkLauncher.cleanAiUrl(match.group(2)!)}',
     );
-    final spans = <TextSpan>[];
-    var cursor = 0;
-    for (final match in pattern.allMatches(normalizedContent)) {
-      if (match.start > cursor) {
-        spans.add(TextSpan(text: normalizedContent.substring(cursor, match.start)));
-      }
-      final label = match.group(1);
-      final url = LinkLauncher.cleanAiUrl(match.group(2) ?? match.group(3)!);
-      spans.add(
-        TextSpan(
-          text: '${label ?? url} ↗',
-          style: const TextStyle(
-            decoration: TextDecoration.underline,
+    return SelectionArea(
+      child: MarkdownBody(
+        data: normalizedMarkdown,
+        selectable: false,
+        onTapLink: (text, href, title) {
+          if (href != null) onOpenLink?.call(LinkLauncher.cleanAiUrl(href));
+        },
+        styleSheet: MarkdownStyleSheet.fromTheme(Theme.of(context)).copyWith(
+          p: TextStyle(color: color ?? Theme.of(context).colorScheme.onSurface),
+          a: const TextStyle(
             color: Colors.teal,
+            decoration: TextDecoration.underline,
           ),
-          recognizer: TapGestureRecognizer()
-            ..onTap = () => onOpenLink?.call(url),
         ),
-      );
-      cursor = match.end;
-    }
-    if (cursor < normalizedContent.length) {
-      spans.add(TextSpan(text: normalizedContent.substring(cursor)));
-    }
-    return SelectableText.rich(
-      TextSpan(
-        style: TextStyle(
-          color: color ?? Theme.of(context).colorScheme.onSurface,
-        ),
-        children: spans,
       ),
     );
   }

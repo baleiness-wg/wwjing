@@ -5,8 +5,8 @@ const MAX_HISTORY_MESSAGES = 20;
 const MAX_CONTEXT_ITEMS = 100;
 const MAX_FIELD_LENGTH = 500;
 const MAX_CONTEXT_LENGTH = 24000;
-const AI_MAX_ATTEMPTS = 3;
-const AI_RETRY_DELAYS_MS = [300, 900];
+const AI_MAX_ATTEMPTS = 5;
+const AI_RETRY_DELAYS_MS = [300, 900, 1800, 3000];
 
 class AiError extends Error {
   constructor(code, message, status = 503, providerStatus, providerReason) {
@@ -190,6 +190,7 @@ async function requestProvider(messages, fetchImpl = globalThis.fetch) {
       return await requestProviderOnce(messages, fetchImpl);
     } catch (error) {
       lastError = error;
+      error.attempts = attempt + 1;
       if (!isRetryableAiError(error) || attempt === AI_MAX_ATTEMPTS - 1) throw error;
       await wait(AI_RETRY_DELAYS_MS[attempt]);
     }

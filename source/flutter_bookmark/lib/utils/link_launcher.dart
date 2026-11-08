@@ -80,10 +80,13 @@ class LinkLauncher {
 
   static String cleanAiUrl(String value) {
     var cleaned = value.trim();
-    cleaned = cleaned.replaceFirst(
-      RegExp(r'https?://[^\s<（(]*[（(](https?://[^\s）)>]+)[）)>][^\s]*', caseSensitive: false),
-      (match) => match.group(1)!,
-    );
+    final nestedMatch = RegExp(
+      r'https?://[^\s<（(]*[（(](https?://[^\s）)>]+)[）)>][^\s]*',
+      caseSensitive: false,
+    ).firstMatch(cleaned);
+    if (nestedMatch != null) {
+      cleaned = nestedMatch.group(1)!;
+    }
     final candidates = RegExp(
       r'https?://[^\s<>()]+',
       caseSensitive: false,
