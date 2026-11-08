@@ -183,11 +183,16 @@ function extractXhsEmbeddedCover(html, finalUrl) {
   // Some pages serialize the state as escaped text instead of valid JSON.
   // Extract image CDN URLs directly as a final fallback, while excluding logos.
   const candidates = [];
-  const rawPattern = /https?:[^"'<>\s]*xhscdn\.com[^"'<>\s]*/gi;
-  for (const match of html.matchAll(rawPattern)) {
-    const candidate = cleanCoverUrl(
-      decodeHtml(decodeEmbeddedUrl(match[0])).replace(/(?:&quot;|\\["'])+$/gi, ""),
-    );
+  const normalizedHtml = decodeHtml(decodeEmbeddedUrl(html))
+    .replace(/\\u002f/gi, "/")
+    .replace(/\\u003a/gi, ":")
+    .replace(/\\\//g, "/");
+  const rawPattern = /(?:https?:\/\/|\/\/)?(?:sns-(?:webpic|img)[^"'<>\\\s]*\.xhscdn\.com[^"'<>\\\s]*)/gi;
+  for (const match of normalizedHtml.matchAll(rawPattern)) {
+    let raw = match[0].replace(/(?:&quot;|\\["'])+$/gi, "");
+    if (raw.startsWith("//")) raw = `https:${raw}`;
+    if (raw.startsWith("sns-")) raw = `https://${raw}`;
+    const candidate = cleanCoverUrl(raw);
     if (candidate && !/picasso-static|fe-platform/i.test(candidate)) {
       candidates.push(candidate);
     }
