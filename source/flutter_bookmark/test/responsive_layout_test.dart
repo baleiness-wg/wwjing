@@ -317,7 +317,7 @@ void main() {
     expect(state.selectedRandomFolderIds, ['1']);
 
     // 2. 接着展示随机结果弹窗
-    expect(find.text('今天吃什么'), findsOneWidget);
+    expect(find.text('Today'), findsOneWidget);
     expect(find.byKey(const Key('random-again-button')), findsOneWidget);
     expect(find.text('晚餐'), findsOneWidget);
     expect(find.byType(Checkbox), findsNothing);
@@ -338,7 +338,7 @@ void main() {
         child: const MaterialApp(home: HomePage(appConfig: AppConfig.star)),
       ),
     );
-    expect(find.byKey(const Key('random-bookmark-button')), findsNothing);
+    expect(find.byKey(const Key('random-bookmark-button')), findsOneWidget);
   });
 
   testWidgets('登录页面显示当前应用名称与注册按钮', (tester) async {
@@ -443,24 +443,25 @@ void main() {
 
   testWidgets('当前处于特定文件夹下时，随机弹窗与加号按钮默认使用该文件夹', (tester) async {
     final tokens = MemoryTokenStore('Bearer token');
-    state = AppState(
-      api: ApiClient(
-        baseUrl: 'https://api.example/api',
-        space: 'cookie',
-        tokenStore: tokens,
-        httpClient: MockClient((_) async => http.Response('{}', 200)),
-      ),
-      tokenStore: tokens,
-      preferences: MemoryPreferencesStore(),
-    )
-      ..initialized = true
-      ..authenticated = true
-      ..folders = const [
-        BookmarkFolder(id: '1', name: '快手菜'),
-        BookmarkFolder(id: '2', name: '硬菜'),
-      ]
-      ..view = BookmarkView.folder
-      ..selectedFolderId = '2';
+    state =
+        AppState(
+            api: ApiClient(
+              baseUrl: 'https://api.example/api',
+              space: 'cookie',
+              tokenStore: tokens,
+              httpClient: MockClient((_) async => http.Response('{}', 200)),
+            ),
+            tokenStore: tokens,
+            preferences: MemoryPreferencesStore(),
+          )
+          ..initialized = true
+          ..authenticated = true
+          ..folders = const [
+            BookmarkFolder(id: '1', name: '快手菜'),
+            BookmarkFolder(id: '2', name: '硬菜'),
+          ]
+          ..view = BookmarkView.folder
+          ..selectedFolderId = '2';
 
     await tester.pumpWidget(
       ChangeNotifierProvider.value(
@@ -484,8 +485,12 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('选择随机目录范围'), findsOneWidget);
-    final checkbox1 = tester.widget<CheckboxListTile>(find.byKey(const Key('random-folder-checkbox-1')));
-    final checkbox2 = tester.widget<CheckboxListTile>(find.byKey(const Key('random-folder-checkbox-2')));
+    final checkbox1 = tester.widget<CheckboxListTile>(
+      find.byKey(const Key('random-folder-checkbox-1')),
+    );
+    final checkbox2 = tester.widget<CheckboxListTile>(
+      find.byKey(const Key('random-folder-checkbox-2')),
+    );
     expect(checkbox1.value, isFalse);
     expect(checkbox2.value, isTrue);
   });

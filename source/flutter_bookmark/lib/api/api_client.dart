@@ -112,6 +112,26 @@ class ApiClient {
     );
   }
 
+  Future<List<Map<String, dynamic>>> getFolderShares(String id) async {
+    final data = await _request(
+      'GET',
+      '/bookmarks/folders/$id/shares',
+      query: {'space': space},
+    );
+    final shares = (data as Map<String, dynamic>)['shares'];
+    return (shares as List? ?? const [])
+        .whereType<Map<String, dynamic>>()
+        .toList();
+  }
+
+  Future<void> removeFolderShare(String id, String userId) async {
+    await _request(
+      'DELETE',
+      '/bookmarks/folders/$id/shares/$userId',
+      query: {'space': space},
+    );
+  }
+
   Future<void> deleteFolder(String id) async {
     await _request('DELETE', '/bookmarks/folders/$id?space=$space');
   }

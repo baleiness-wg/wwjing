@@ -340,8 +340,12 @@ h3 { margin-bottom: 10px; color: #263d40; font-size: 17px; }
 .folder-tree .el-tree-node__content { height: 40px; border-radius: 9px; }
 .folder-tree .el-tree-node.is-current > .el-tree-node__content { background: #dceee7; color: #155e56; font-weight: 700; }
 .folder-node { display: flex; min-width: 0; flex: 1; align-items: center; justify-content: space-between; gap: 2px; }
+.folder-tree .el-tree-node__content:has(.folder-node.is-pinned) { background: #eef0ef; }
+.folder-tree .el-tree-node__content:has(.folder-node.is-pinned):hover { background: #e4e7e5; }
+.folder-tree .el-tree-node.is-current > .el-tree-node__content:has(.folder-node.is-pinned) { background: #dfe3e1; }
 .folder-node__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .folder-node .el-button { opacity: 0; }
+.folder-tree .el-dropdown__popper { margin-top: 12px; }
 .folder-node:hover .el-button, .folder-node:focus-within .el-button { opacity: 1; }
 .bookmark-list-panel { width: 100%; min-width: 0; box-sizing: border-box; padding: 26px clamp(18px, 3vw, 36px); overflow-y: auto; height: 100%; }
 .list-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding-bottom: 20px; border-bottom: 1px solid #edf0ed; }
@@ -383,6 +387,9 @@ h3 { margin-bottom: 10px; color: #263d40; font-size: 17px; }
 .bookmark-cover-preview .bookmark-cover__fallback span { color: #748782; font-size: 12px; }
 .bookmark-pagination { justify-content: flex-end; margin-top: 24px; }
 .folder-select-row { display: flex; width: 100%; align-items: center; gap: 8px; }
+.folder-share-list { min-height: 48px; margin-bottom: 18px; }
+.folder-share-list .muted { margin: 0 0 8px; color: #7d8d88; font-size: 13px; }
+.folder-share-row { display: flex; align-items: center; justify-content: space-between; min-height: 36px; border-bottom: 1px solid #edf0ed; }
 @media (max-width: 640px) {
   .form-row { grid-template-columns: 1fr; gap: 0; }
   .app-main { padding: 22px 16px 32px; }

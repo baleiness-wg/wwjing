@@ -29,7 +29,7 @@ class AppConfig {
     type: AppType.star,
     appName: '鲸界',
     space: 'star',
-    supportsRandom: false,
+    supportsRandom: true,
   );
 
   static AppConfig get current =>

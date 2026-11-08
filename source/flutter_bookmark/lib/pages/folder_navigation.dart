@@ -24,6 +24,7 @@ class FolderNavigation extends StatefulWidget {
 class _FolderNavigationState extends State<FolderNavigation> {
   final Set<String> _collapsedFolderIds = {};
   Set<String> _initializedFolderIds = {};
+  String _initializedPinnedKey = '';
   String? _activeActionFolderId;
 
   Future<void> _select(
@@ -102,34 +103,17 @@ class _FolderNavigationState extends State<FolderNavigation> {
       await state.api.pinFolder(folder.id, !folder.pinned);
       await state.refresh();
     } else if (action == 'share') {
-      final controller = TextEditingController();
       final username = await showDialog<String>(
         context: context,
-        builder: (dialogContext) => AlertDialog(
-          title: const Text('共享目录'),
-          content: TextField(
-            controller: controller,
-            autofocus: true,
-            decoration: const InputDecoration(labelText: '用户名'),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('取消'),
-            ),
-            FilledButton(
-              onPressed: () =>
-                  Navigator.pop(dialogContext, controller.text.trim()),
-              child: const Text('共享'),
-            ),
-          ],
+        builder: (dialogContext) => _ShareFolderDialog(
+          folderId: folder.id,
+          onSubmit: (value) => Navigator.pop(dialogContext, value),
         ),
       );
-      controller.dispose();
       if (username?.isNotEmpty == true) {
         await state.api.shareFolder(folder.id, username!);
+        await state.refresh();
       }
-      await state.refresh();
     } else if (action == 'delete') {
       await state.deleteFolder(folder);
     }
@@ -208,6 +192,36 @@ class _FolderNavigationState extends State<FolderNavigation> {
     }
   }
 
+  Future<void> _openSettings(BuildContext context) async {
+    final state = context.read<AppState>();
+    await showModalBottomSheet<void>(
+      context: context,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.lock_reset_outlined),
+              title: const Text('修改密码'),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                _changePassword(context);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.logout),
+              title: const Text('退出登录'),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                state.logout();
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   List<FolderNode> _visibleNodes(List<FolderNode> roots) {
     final result = <FolderNode>[];
     void visit(FolderNode node) {
@@ -225,14 +239,32 @@ class _FolderNavigationState extends State<FolderNavigation> {
     return result;
   }
 
+  void _expandParentsOfPinned(AppState state) {
+    final byId = {for (final folder in state.folders) folder.id: folder};
+    for (final folder in state.folders.where((folder) => folder.pinned)) {
+      var parentId = folder.parentId;
+      while (parentId != null) {
+        _collapsedFolderIds.remove(parentId);
+        parentId = byId[parentId]?.parentId;
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
     final currentIds = state.folders.map((folder) => folder.id).toSet();
+    final pinnedKey = state.folders
+        .where((folder) => folder.pinned)
+        .map((folder) => folder.id)
+        .join(',');
     if (_initializedFolderIds.length != currentIds.length ||
-        !_initializedFolderIds.containsAll(currentIds)) {
+        !_initializedFolderIds.containsAll(currentIds) ||
+        _initializedPinnedKey != pinnedKey) {
       _collapsedFolderIds.addAll(currentIds);
+      _expandParentsOfPinned(state);
       _initializedFolderIds = currentIds;
+      _initializedPinnedKey = pinnedKey;
     }
     final nodes = _visibleNodes(state.folderTree);
     final effectiveAppName =
@@ -297,7 +329,9 @@ class _FolderNavigationState extends State<FolderNavigation> {
                 return Padding(
                   padding: EdgeInsets.only(left: (node.depth - 1) * 14.0),
                   child: ListTile(
-                    tileColor: actionActive
+                    tileColor: node.folder.pinned
+                        ? Colors.grey.shade200
+                        : actionActive
                         ? Theme.of(context).colorScheme.surfaceContainerHighest
                         : null,
                     dense: true,
@@ -344,7 +378,7 @@ class _FolderNavigationState extends State<FolderNavigation> {
                           tooltip: '目录操作',
                           icon: const Icon(Icons.more_vert),
                           position: PopupMenuPosition.under,
-                          offset: const Offset(-132, 44),
+                          offset: const Offset(-132, 16),
                           onOpened: () => setState(() {
                             _activeActionFolderId = node.folder.id;
                           }),
@@ -414,17 +448,108 @@ class _FolderNavigationState extends State<FolderNavigation> {
             ),
           ),
           ListTile(
-            leading: const Icon(Icons.lock_reset_outlined),
-            title: const Text('修改密码'),
-            onTap: () => _changePassword(context),
-          ),
-          ListTile(
-            leading: const Icon(Icons.logout),
-            title: const Text('退出登录'),
-            onTap: () => state.logout(),
+            leading: const Icon(Icons.settings_outlined),
+            title: const Text('设置'),
+            onTap: () => _openSettings(context),
           ),
         ],
       ),
+    );
+  }
+}
+
+class _ShareFolderDialog extends StatefulWidget {
+  const _ShareFolderDialog({required this.folderId, required this.onSubmit});
+
+  final String folderId;
+  final ValueChanged<String> onSubmit;
+
+  @override
+  State<_ShareFolderDialog> createState() => _ShareFolderDialogState();
+}
+
+class _ShareFolderDialogState extends State<_ShareFolderDialog> {
+  final _controller = TextEditingController();
+  List<Map<String, dynamic>> _shares = [];
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadShares();
+  }
+
+  Future<void> _loadShares() async {
+    final state = context.read<AppState>();
+    try {
+      final shares = await state.api.getFolderShares(widget.folderId);
+      if (mounted) {
+        setState(() {
+          _shares = shares;
+          _loading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('共享目录'),
+      content: SizedBox(
+        width: 420,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (_loading)
+              const LinearProgressIndicator()
+            else if (_shares.isEmpty)
+              const Align(alignment: Alignment.centerLeft, child: Text('暂未共享'))
+            else
+              ..._shares.map(
+                (share) => ListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  title: Text('${share['username'] ?? ''}'),
+                  trailing: IconButton(
+                    tooltip: '移除共享',
+                    icon: const Icon(Icons.person_remove_outlined),
+                    onPressed: () async {
+                      await context.read<AppState>().api.removeFolderShare(
+                        widget.folderId,
+                        '${share['userId']}',
+                      );
+                      await _loadShares();
+                    },
+                  ),
+                ),
+              ),
+            TextField(
+              controller: _controller,
+              autofocus: true,
+              decoration: const InputDecoration(labelText: '添加用户名'),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('取消'),
+        ),
+        FilledButton(
+          onPressed: () => widget.onSubmit(_controller.text.trim()),
+          child: const Text('共享'),
+        ),
+      ],
     );
   }
 }

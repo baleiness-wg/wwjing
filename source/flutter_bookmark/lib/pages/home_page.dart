@@ -203,7 +203,7 @@ class _HomePageState extends State<HomePage> {
             return AlertDialog(
               title: Row(
                 children: [
-                  const Expanded(child: Text('今天吃什么')),
+                  const Expanded(child: Text('Today')),
                   IconButton(
                     key: const Key('random-again-button'),
                     tooltip: '换一个',
@@ -339,11 +339,11 @@ class _HomePageState extends State<HomePage> {
                             ?.name ??
                         '收藏夹',
                 }),
-                if (!_editMode && widget.appConfig.supportsRandom) ...[
+                if (!_editMode) ...[
                   const SizedBox(width: 4),
                   IconButton(
                     key: const Key('random-bookmark-button'),
-                    tooltip: '今天吃什么',
+                    tooltip: 'Today',
                     onPressed: state.busy || _randomBusy
                         ? null
                         : () => _showRandom(context),

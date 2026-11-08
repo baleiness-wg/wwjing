@@ -34,6 +34,10 @@ export function getBookmarkFolderShares(id, space = "star") {
   return request(`${baseUrl}/folders/${id}/shares?space=${encodeURIComponent(space)}`);
 }
 
+export function removeBookmarkFolderShare(id, userId, space = "star") {
+  return request(`${baseUrl}/folders/${id}/shares/${userId}?space=${encodeURIComponent(space)}`, { method: "DELETE" });
+}
+
 export function getBookmarkItems(filters = {}, space = "star") {
   const query = new URLSearchParams();
   Object.entries(filters).forEach(([key, value]) => {

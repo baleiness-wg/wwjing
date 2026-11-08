@@ -11,7 +11,7 @@ const regularTools = [
 const bookmarkTools = [
   {
     name: "疯狂的厨房",
-    description: "分类保存菜谱与做饭链接，支持今天吃什么随机抽取菜谱。",
+    description: "分类保存链接，并支持 Today 随机抽取收藏。",
     path: "/tools/bookmarks/kitchen",
     icon: "厨"
   },

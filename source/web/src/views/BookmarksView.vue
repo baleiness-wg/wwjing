@@ -23,6 +23,8 @@ import {
   deleteBookmarkItem,
   getBookmarkFolders,
   getBookmarkItems,
+  getBookmarkFolderShares,
+  removeBookmarkFolderShare,
   shareBookmarkFolder,
   getRandomBookmark,
   updateBookmarkFolder,
@@ -49,6 +51,8 @@ const activeFolderId = ref(undefined);
 const folderShareDialogVisible = ref(false);
 const folderShareUsername = ref("");
 const folderShareTarget = ref(null);
+const folderShares = ref([]);
+const loadingFolderShares = ref(false);
 const loadingFolders = ref(false);
 const loadingItems = ref(false);
 let itemsRequestSequence = 0;
@@ -85,6 +89,17 @@ watch(
 );
 
 const folderMap = computed(() => new Map(folders.value.map((folder) => [String(folder.id), folder])));
+const pinnedFolderExpandedKeys = computed(() => {
+  const expanded = new Set();
+  folders.value.filter((folder) => folder.pinned).forEach((folder) => {
+    let parentId = folder.parentId;
+    while (parentId) {
+      expanded.add(String(parentId));
+      parentId = folderMap.value.get(String(parentId))?.parentId || null;
+    }
+  });
+  return [...expanded];
+});
 
 function buildTree(parentId = null, ancestors = new Set()) {
   return folders.value
@@ -305,6 +320,36 @@ function shareFolder(folder) {
   folderShareTarget.value = folder;
   folderShareUsername.value = "";
   folderShareDialogVisible.value = true;
+  loadFolderShares(folder);
+}
+
+async function loadFolderShares(folder = folderShareTarget.value) {
+  if (!folder) return;
+  loadingFolderShares.value = true;
+  try {
+    const result = await getBookmarkFolderShares(folder.id, currentSpace.value);
+    folderShares.value = result.shares || [];
+  } catch (error) { ElMessage.error(error.message); }
+  finally { loadingFolderShares.value = false; }
+}
+
+async function removeFolderShare(share) {
+  if (!folderShareTarget.value) return;
+  try {
+    await removeBookmarkFolderShare(folderShareTarget.value.id, share.userId, currentSpace.value);
+    await loadFolderShares();
+    ElMessage.success(`已取消共享给 ${share.username}`);
+  } catch (error) { ElMessage.error(error.message); }
+}
+
+async function toggleFolderPin(folder) {
+  try {
+    await updateBookmarkFolder(folder.id, { pinned: !folder.pinned }, currentSpace.value);
+    await loadFolders();
+    ElMessage.success(folder.pinned ? "已取消置顶" : "目录已置顶");
+  } catch (error) {
+    ElMessage.error(error.message);
+  }
 }
 
 async function submitFolderShare() {
@@ -312,6 +357,7 @@ async function submitFolderShare() {
   try {
     await shareBookmarkFolder(folderShareTarget.value.id, folderShareUsername.value.trim(), currentSpace.value);
     folderShareDialogVisible.value = false;
+    await loadFolderShares();
     ElMessage.success("目录已共享");
   } catch (error) { ElMessage.error(error.message); }
 }
@@ -621,13 +667,12 @@ onMounted(async () => {
       </div>
       <div style="display: flex; gap: 10px; align-items: center;">
         <el-button
-          v-if="currentSpace === 'cookie'"
           type="success"
           plain
           :icon="Dish"
           @click="openRandomFilterDialog"
         >
-          今天吃什么
+           Today
         </el-button>
         <el-button type="primary" :icon="Plus" @click="openCreateItem">添加收藏</el-button>
       </div>
@@ -664,7 +709,8 @@ onMounted(async () => {
           class="folder-tree"
           :data="folderTree"
           node-key="id"
-           :default-expanded-keys="[]"
+           :default-expanded-keys="pinnedFolderExpandedKeys"
+           :key="`folders-${folders.length}-${pinnedFolderExpandedKeys.join(',')}`"
           :expand-on-click-node="false"
           :highlight-current="Boolean(activeFolderId)"
           :current-node-key="activeFolderId"
@@ -672,20 +718,21 @@ onMounted(async () => {
         >
           <template #default="{ data }">
             <div
-              class="folder-node"
+               class="folder-node"
+               :class="{ 'is-pinned': data.pinned }"
               @click="selectFolder(data.id)"
               @dragover.prevent
               @drop.prevent="dropItemOnFolder(data.id)"
             >
                <span class="folder-node__name" :title="folderPath(data.id)">{{ data.pinned ? "📌 " : "" }}{{ data.name }}</span>
-              <el-dropdown trigger="click" @command="(command) => command()" @click.stop>
+               <el-dropdown trigger="click" placement="bottom-end" :popper-offset="8" @command="(command) => command()" @click.stop>
                 <el-button text circle :icon="MoreFilled" :aria-label="`${data.name}目录操作`" />
                 <template #dropdown>
                   <el-dropdown-menu>
                     <el-dropdown-item :icon="FolderAdd" :command="() => openCreateFolder(data.id)">新增子目录</el-dropdown-item>
                     <el-dropdown-item :icon="Edit" :command="() => openEditFolder(data)">重命名或移动</el-dropdown-item>
                     <el-dropdown-item :command="() => shareFolder(data)">共享目录</el-dropdown-item>
-                    <el-dropdown-item :command="() => updateBookmarkFolder(data.id, { pinned: !data.pinned }, currentSpace).then(loadFolders)">{{ data.pinned ? "取消置顶" : "置顶目录" }}</el-dropdown-item>
+                    <el-dropdown-item :command="() => toggleFolderPin(data)">{{ data.pinned ? "取消置顶" : "置顶目录" }}</el-dropdown-item>
                     <el-dropdown-item :icon="ArrowUp" :command="() => moveFolderStep(data, -1)">上移</el-dropdown-item>
                     <el-dropdown-item :icon="ArrowDown" :command="() => moveFolderStep(data, 1)">下移</el-dropdown-item>
                     <el-dropdown-item divided :icon="Delete" :command="() => removeFolder(data)">删除</el-dropdown-item>
@@ -812,6 +859,14 @@ onMounted(async () => {
     </el-dialog>
 
     <el-dialog v-model="folderShareDialogVisible" title="共享目录" width="min(420px, 92vw)">
+      <div v-loading="loadingFolderShares" class="folder-share-list">
+        <p class="muted">已共享给</p>
+        <el-empty v-if="!loadingFolderShares && !folderShares.length" :image-size="40" description="暂未共享" />
+        <div v-for="share in folderShares" :key="share.userId" class="folder-share-row">
+          <span>{{ share.username }}</span>
+          <el-button text type="danger" @click="removeFolderShare(share)">移除</el-button>
+        </div>
+      </div>
       <el-form label-position="top" @submit.prevent="submitFolderShare">
         <el-form-item label="用户名">
           <el-input v-model="folderShareUsername" placeholder="输入对方用户名" autofocus />
@@ -894,7 +949,7 @@ onMounted(async () => {
       </template>
     </el-dialog>
 
-    <el-dialog v-model="randomDialogVisible" title="今天吃什么" width="min(500px, 94vw)" destroy-on-close>
+    <el-dialog v-model="randomDialogVisible" title="Today" width="min(500px, 94vw)" destroy-on-close>
       <div v-if="randomItem" class="random-dish-card">
         <div class="random-dish-cover">
            <img v-if="hasCover(randomItem)" :src="coverSrc(randomItem)" alt="" />
