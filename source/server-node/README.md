@@ -45,4 +45,6 @@ AI_TIMEOUT_MS=30000
 
 The adapter calls the OpenAI-compatible `POST {AI_BASE_URL}/chat/completions` endpoint with `Authorization: Bearer <AI_API_KEY>`. The service limits message/history/context size and returns `AI_NOT_CONFIGURED`, `AI_INVALID_INPUT`, `AI_TIMEOUT`, or `AI_PROVIDER_ERROR` without exposing provider credentials.
 
+Transient network errors, timeouts, HTTP 408, 429, and upstream 5xx responses are retried up to two times with short exponential backoff. Authentication, model/path, and request-format errors are not retried.
+
 Request logs include a request ID, method, path, status code, and response time. Passwords, tokens, Authorization headers, request bodies, file bytes, and saved text content are not logged.

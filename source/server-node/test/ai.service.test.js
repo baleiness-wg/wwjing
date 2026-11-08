@@ -128,6 +128,40 @@ test("AI service maps provider authentication, model, and rate-limit failures", 
   }
 });
 
+test("AI service retries transient provider failures and does not retry auth failures", async () => {
+  Object.assign(config.ai, { apiKey: "key", baseUrl: "https://agnes.example/v1", model: "model" });
+  try {
+    let attempts = 0;
+    const result = await aiService.chat({
+      context: { space: "star", items: [] },
+      message: "问题",
+      fetchImpl: async () => {
+        attempts += 1;
+        if (attempts < 3) return { ok: false, status: 503 };
+        return { ok: true, json: async () => ({ choices: [{ message: { content: "成功" } }] }) };
+      }
+    });
+    assert.equal(result.answer, "成功");
+    assert.equal(attempts, 3);
+
+    attempts = 0;
+    await assert.rejects(() => aiService.chat({
+      context: { space: "star", items: [] },
+      message: "问题",
+      fetchImpl: async () => {
+        attempts += 1;
+        return { ok: false, status: 401 };
+      }
+    }), (error) => {
+      assert.equal(error.code, "AI_AUTH_FAILED");
+      return true;
+    });
+    assert.equal(attempts, 1);
+  } finally {
+    restoreConfig();
+  }
+});
+
 test("AI context uses an allowlist and truncates oversized items", () => {
   const result = aiService.sanitizeContext({
     space: "star",

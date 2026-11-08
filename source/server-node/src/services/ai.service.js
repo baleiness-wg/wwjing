@@ -5,6 +5,8 @@ const MAX_HISTORY_MESSAGES = 20;
 const MAX_CONTEXT_ITEMS = 100;
 const MAX_FIELD_LENGTH = 500;
 const MAX_CONTEXT_LENGTH = 24000;
+const AI_MAX_ATTEMPTS = 3;
+const AI_RETRY_DELAYS_MS = [300, 900];
 
 class AiError extends Error {
   constructor(code, message, status = 503, providerStatus, providerReason) {
@@ -88,7 +90,19 @@ function endpointFor(baseUrl) {
   return normalized.endsWith("/chat/completions") ? normalized : `${normalized}/chat/completions`;
 }
 
-async function requestProvider(messages, fetchImpl = globalThis.fetch) {
+function isRetryableAiError(error) {
+  return error.code === "AI_TIMEOUT"
+    || error.code === "AI_PROVIDER_ERROR" && !error.providerStatus
+    || error.providerStatus === 408
+    || error.providerStatus === 429
+    || error.providerStatus >= 500;
+}
+
+function wait(milliseconds) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+async function requestProviderOnce(messages, fetchImpl) {
   if (!config.ai.apiKey || !config.ai.baseUrl || !config.ai.model) {
     throw new AiError("AI_NOT_CONFIGURED", "AI 服务尚未完成配置", 503);
   }
@@ -146,10 +160,24 @@ async function requestProvider(messages, fetchImpl = globalThis.fetch) {
   } catch (error) {
     if (error instanceof AiError) throw error;
     if (error.name === "AbortError") throw new AiError("AI_TIMEOUT", "AI 服务响应超时", 504);
-    throw new AiError("AI_PROVIDER_ERROR", "AI 服务暂时不可用", 502, undefined, error.code || error.name || "request_failed");
+    throw new AiError("AI_PROVIDER_ERROR", "AI 服务暂时不可用", 502, undefined, error.cause?.code || error.code || error.name || "request_failed");
   } finally {
     clearTimeout(timeout);
   }
+}
+
+async function requestProvider(messages, fetchImpl = globalThis.fetch) {
+  let lastError;
+  for (let attempt = 0; attempt < AI_MAX_ATTEMPTS; attempt += 1) {
+    try {
+      return await requestProviderOnce(messages, fetchImpl);
+    } catch (error) {
+      lastError = error;
+      if (!isRetryableAiError(error) || attempt === AI_MAX_ATTEMPTS - 1) throw error;
+      await wait(AI_RETRY_DELAYS_MS[attempt]);
+    }
+  }
+  throw lastError;
 }
 
 async function chat({ context, message, history = [], fetchImpl }) {
@@ -166,6 +194,8 @@ module.exports = {
   AiError,
   MAX_CONTEXT_ITEMS,
   MAX_CONTEXT_LENGTH,
+  AI_MAX_ATTEMPTS,
+  AI_RETRY_DELAYS_MS,
   MAX_HISTORY_MESSAGES,
   MAX_MESSAGE_LENGTH,
   buildMessages,
