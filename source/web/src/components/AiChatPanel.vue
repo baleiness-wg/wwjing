@@ -136,7 +136,11 @@ watch(() => contextKey(props.context), () => {
           </span>
           <div v-if="message.role === 'assistant' && message.sources?.length" class="ai-chat-sources">
             <strong>推荐来源</strong>
-            <a v-for="source in message.sources" :key="source.url" :href="source.url" target="_blank" rel="noopener noreferrer">{{ source.title || "收藏" }} ↗</a>
+            <a v-for="(source, sourceIndex) in message.sources" :key="source.url" :href="source.url" target="_blank" rel="noopener noreferrer" class="ai-chat-source-item">
+              <span class="ai-chat-source-index">{{ sourceIndex + 1 }}</span>
+              <span class="ai-chat-source-title">{{ source.title || "收藏" }}</span>
+              <span class="ai-chat-source-arrow">↗</span>
+            </a>
           </div>
         </div>
         <div v-if="sending" class="ai-chat-message is-assistant is-loading">AI 正在整理目录内容...</div>
@@ -188,7 +192,11 @@ watch(() => contextKey(props.context), () => {
 .ai-chat-message.is-loading { color: #74857f; font-size: 13px; }
 .ai-chat-link { color: #126b60; text-decoration: underline; overflow-wrap: anywhere; }
 .ai-chat-sources { display: grid; gap: 4px; margin-top: 10px; padding-top: 8px; border-top: 1px solid rgb(21 94 86 / 15%); font-size: 12px; }
-.ai-chat-sources a { color: #126b60; text-decoration: underline; overflow-wrap: anywhere; }
+.ai-chat-source-item { display: flex; align-items: flex-start; gap: 6px; border-radius: 6px; padding: 4px 5px; color: #126b60; text-decoration: none; overflow-wrap: anywhere; }
+.ai-chat-source-item:hover { background: rgb(21 94 86 / 8%); text-decoration: underline; }
+.ai-chat-source-index { display: inline-grid; width: 18px; height: 18px; flex: 0 0 18px; place-items: center; border-radius: 50%; background: #d7ebe4; color: #155e56; font-size: 11px; font-weight: 700; }
+.ai-chat-source-title { min-width: 0; flex: 1; }
+.ai-chat-source-arrow { flex: 0 0 auto; font-weight: 700; }
 .ai-chat-retry { display: flex; align-items: center; justify-content: space-between; padding: 8px 16px; border-top: 1px solid #f1e4e0; color: #a94737; font-size: 12px; }
 .ai-chat-composer { display: flex; align-items: flex-end; gap: 8px; padding: 12px; border-top: 1px solid #edf2ef; background: #fff; }
 .ai-chat-composer .el-input { flex: 1; }

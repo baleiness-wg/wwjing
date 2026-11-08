@@ -291,17 +291,47 @@ class _MessageBubble extends StatelessWidget {
                 '推荐来源',
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
               ),
-              for (final source in sources)
+              for (
+                var sourceIndex = 0;
+                sourceIndex < sources.length;
+                sourceIndex++
+              )
                 InkWell(
-                  onTap: () => onOpenLink?.call('${source['url']}'),
+                  onTap: () =>
+                      onOpenLink?.call('${sources[sourceIndex]['url']}'),
                   child: Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: Text(
-                      '${source['title'] ?? '收藏'} ↗',
-                      style: const TextStyle(
-                        color: Colors.teal,
-                        decoration: TextDecoration.underline,
-                      ),
+                    padding: const EdgeInsets.only(top: 5),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          width: 18,
+                          height: 18,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: Colors.teal.shade50,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Text(
+                            '${sourceIndex + 1}',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.teal,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            '${sources[sourceIndex]['title'] ?? '收藏'} ↗',
+                            style: const TextStyle(
+                              color: Colors.teal,
+                              decoration: TextDecoration.underline,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
