@@ -121,16 +121,21 @@ function wait(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
-function fetchProviderOverIpv4(url, options) {
+async function fetchProviderOverIpv4(url, options) {
+  const target = new URL(url);
+  const addresses = await new Promise((resolve, reject) => {
+    dns.resolve4(target.hostname, (error, values) => error ? reject(error) : resolve(values));
+  });
+  if (!addresses.length) throw new Error("No IPv4 address resolved");
   return new Promise((resolve, reject) => {
-    const target = new URL(url);
-    const request = https.request(target, {
+    const request = https.request({
+      hostname: addresses[0],
+      port: 443,
+      path: `${target.pathname}${target.search}`,
       method: options.method,
-      headers: options.headers,
+      headers: { ...options.headers, Host: target.hostname },
       servername: target.hostname,
-      lookup(hostname, lookupOptions, callback) {
-        dns.lookup(hostname, { family: 4 }, callback);
-      }
+      family: 4
     }, (response) => {
       const chunks = [];
       response.on("data", (chunk) => chunks.push(chunk));
