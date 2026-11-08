@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../components/bookmark_item_card.dart';
+import '../components/ai_chat_sheet.dart';
 import '../components/folder_picker_dialog.dart';
 import '../components/random_folders_filter_dialog.dart';
 import '../constants/app_config.dart';
@@ -94,6 +95,62 @@ class _HomePageState extends State<HomePage> {
     await widget.linkLauncher.open(context, item.sourceUrl);
   }
 
+  String _folderPath(AppState state, String? folderId) {
+    if (folderId == null) return '未分类';
+    final byId = {for (final folder in state.folders) folder.id: folder};
+    final names = <String>[];
+    final visited = <String>{};
+    var current = byId[folderId];
+    while (current != null && visited.add(current.id)) {
+      names.insert(0, current.name);
+      current = current.parentId == null ? null : byId[current.parentId];
+    }
+    return names.isEmpty ? '未知目录' : names.join(' / ');
+  }
+
+  Future<void> _showAiChat(BuildContext context, AppState state) {
+    final directoryId = state.view == BookmarkView.folder
+        ? state.selectedFolderId
+        : null;
+    final directoryName = switch (state.view) {
+      BookmarkView.all => '全部收藏',
+      BookmarkView.uncategorized => '未分类',
+      BookmarkView.folder =>
+        state.folders
+                .where((folder) => folder.id == state.selectedFolderId)
+                .firstOrNull
+                ?.name ??
+            '收藏夹',
+    };
+    final directoryPath = state.view == BookmarkView.folder
+        ? _folderPath(state, state.selectedFolderId)
+        : directoryName;
+    final directoryContext = <String, Object?>{
+      'space': widget.appConfig.space,
+      'directoryId': directoryId,
+      'directoryName': directoryName,
+      'directoryPath': directoryPath,
+      'loadedItemCount': state.items.length,
+      'items': [
+        for (final item in state.items)
+          {
+            'title': item.title,
+            'description': item.description,
+            'sourceHost': item.sourceHost,
+            'sourceUrl': item.sourceUrl,
+            'folderPath': _folderPath(state, item.folderId),
+          },
+      ],
+    };
+    return showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (sheetContext) =>
+          AiChatSheet(api: state.api, directoryContext: directoryContext),
+    );
+  }
+
   Future<void> _showRandom(BuildContext context) async {
     final state = context.read<AppState>();
     final messenger = ScaffoldMessenger.of(context);
@@ -113,16 +170,17 @@ class _HomePageState extends State<HomePage> {
 
     // 2. 展开选中文件夹的所有子目录，随机选一个传给 API（与 web 端行为一致）
     final candidateIds = <String>[];
-    for (final id in selected.isEmpty
-        ? state.folders.map((f) => f.id)
-        : selected) {
+    for (final id
+        in selected.isEmpty ? state.folders.map((f) => f.id) : selected) {
       _collectDescendantIds(state.folders, id, candidateIds);
     }
     if (candidateIds.isEmpty) {
       messenger.showSnackBar(const SnackBar(content: Text('选中的目录中没有可推荐内容')));
       return;
     }
-    final targetFolderId = candidateIds[DateTime.now().millisecondsSinceEpoch % candidateIds.length];
+    final targetFolderId =
+        candidateIds[DateTime.now().millisecondsSinceEpoch %
+            candidateIds.length];
 
     if (_randomBusy) return;
     setState(() => _randomBusy = true);
@@ -181,7 +239,11 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  void _collectDescendantIds(List<BookmarkFolder> folders, String parentId, List<String> result) {
+  void _collectDescendantIds(
+    List<BookmarkFolder> folders,
+    String parentId,
+    List<String> result,
+  ) {
     result.add(parentId);
     for (final folder in folders) {
       if (folder.parentId == parentId) {
@@ -270,7 +332,9 @@ class _HomePageState extends State<HomePage> {
                   BookmarkView.uncategorized => '未分类',
                   BookmarkView.folder =>
                     state.folders
-                            .where((folder) => folder.id == state.selectedFolderId)
+                            .where(
+                              (folder) => folder.id == state.selectedFolderId,
+                            )
                             .firstOrNull
                             ?.name ??
                         '收藏夹',
@@ -347,7 +411,7 @@ class _HomePageState extends State<HomePage> {
               Column(
                 children: [
                   Padding(
-                   padding: const EdgeInsets.fromLTRB(8, 6, 8, 2),
+                    padding: const EdgeInsets.fromLTRB(8, 6, 8, 2),
                     child: SearchBar(
                       controller: _search,
                       hintText: '搜索标题、描述或链接',
@@ -376,67 +440,72 @@ class _HomePageState extends State<HomePage> {
                         ? const Center(child: CircularProgressIndicator())
                         : state.items.isEmpty
                         ? const Center(child: Text('这里还没有收藏'))
-                         : RefreshIndicator(
-                             onRefresh: state.refresh,
-                             child: NotificationListener<ScrollNotification>(
-                               onNotification: (notification) {
-                                 if (notification.metrics.extentAfter < 500) {
-                                   state.loadMore();
-                                 }
-                                 return false;
-                               },
-                               child: ListView.separated(
-                              padding: EdgeInsets.fromLTRB(
-                                 6,
-                                 6,
-                                 6,
-                                _editMode ? 92 : 12,
-                              ),
-                              itemCount: state.items.length +
-                                    (state.loadingMore ? 1 : 0),
-                              separatorBuilder: (_, _) =>
-                                   const SizedBox(height: 4),
-                              itemBuilder: (context, index) {
-                                  if (index == state.items.length) {
-                                   return const Padding(
-                                     padding: EdgeInsets.all(16),
-                                     child: Center(
-                                       child: CircularProgressIndicator(),
-                                     ),
-                                   );
-                                 }
-                                  final item = state.items[index];
-                                final card = BookmarkItemCard(
-                                  item: item,
-                                  selectionValue: _editMode
-                                      ? _selectedItemIds.contains(item.id)
-                                      : null,
-                                  onSelectionChanged: _editMode
-                                      ? (value) => setState(() {
-                                          if (value == true) {
-                                            _selectedItemIds.add(item.id);
-                                          } else {
-                                            _selectedItemIds.remove(item.id);
-                                          }
-                                        })
-                                      : null,
-                                  onTap: _editMode
-                                      ? () => _toggleItemSelection(item.id)
-                                      : () => _openLink(context, item),
-                                  onAction: (action) {
-                                    if (action == 'edit') state.openDraft(item);
-                                    if (action == 'move') _move(context, item);
-                                    if (action == 'delete') {
-                                      state.deleteItem(item.id);
-                                    }
-                                  },
-                                );
-                                 return card;
+                        : RefreshIndicator(
+                            onRefresh: state.refresh,
+                            child: NotificationListener<ScrollNotification>(
+                              onNotification: (notification) {
+                                if (notification.metrics.extentAfter < 500) {
+                                  state.loadMore();
+                                }
+                                return false;
                               },
-                               ),
-                             ),
-                           ),
-                   ),
+                              child: ListView.separated(
+                                padding: EdgeInsets.fromLTRB(
+                                  6,
+                                  6,
+                                  6,
+                                  _editMode ? 92 : 12,
+                                ),
+                                itemCount:
+                                    state.items.length +
+                                    (state.loadingMore ? 1 : 0),
+                                separatorBuilder: (_, _) =>
+                                    const SizedBox(height: 4),
+                                itemBuilder: (context, index) {
+                                  if (index == state.items.length) {
+                                    return const Padding(
+                                      padding: EdgeInsets.all(16),
+                                      child: Center(
+                                        child: CircularProgressIndicator(),
+                                      ),
+                                    );
+                                  }
+                                  final item = state.items[index];
+                                  final card = BookmarkItemCard(
+                                    item: item,
+                                    selectionValue: _editMode
+                                        ? _selectedItemIds.contains(item.id)
+                                        : null,
+                                    onSelectionChanged: _editMode
+                                        ? (value) => setState(() {
+                                            if (value == true) {
+                                              _selectedItemIds.add(item.id);
+                                            } else {
+                                              _selectedItemIds.remove(item.id);
+                                            }
+                                          })
+                                        : null,
+                                    onTap: _editMode
+                                        ? () => _toggleItemSelection(item.id)
+                                        : () => _openLink(context, item),
+                                    onAction: (action) {
+                                      if (action == 'edit') {
+                                        state.openDraft(item);
+                                      }
+                                      if (action == 'move') {
+                                        _move(context, item);
+                                      }
+                                      if (action == 'delete') {
+                                        state.deleteItem(item.id);
+                                      }
+                                    },
+                                  );
+                                  return card;
+                                },
+                              ),
+                            ),
+                          ),
+                  ),
                 ],
               ),
               if (_editMode)
@@ -474,6 +543,22 @@ class _HomePageState extends State<HomePage> {
                           label: const Text('删除'),
                         ),
                       ],
+                    ),
+                  ),
+                ),
+              if (!_editMode)
+                Positioned(
+                  right: 20,
+                  bottom: 20,
+                  child: SafeArea(
+                    top: false,
+                    child: FloatingActionButton(
+                      key: const Key('ai-chat-button'),
+                      tooltip: '和 AI 讨论当前目录',
+                      onPressed: state.busy
+                          ? null
+                          : () => _showAiChat(context, state),
+                      child: const Icon(Icons.auto_awesome),
                     ),
                   ),
                 ),

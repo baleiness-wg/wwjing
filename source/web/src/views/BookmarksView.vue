@@ -47,6 +47,7 @@ const query = ref("");
 const activeFolderId = ref(undefined);
 const loadingFolders = ref(false);
 const loadingItems = ref(false);
+let itemsRequestSequence = 0;
 const selectedIds = ref([]);
 const folderDialogVisible = ref(false);
 const folderDialogMode = ref("create");
@@ -223,7 +224,11 @@ async function loadFolders() {
   try {
     const result = await getBookmarkFolders(currentSpace.value);
     folders.value = result.folders || [];
-    if (activeFolderId.value && !folderMap.value.has(String(activeFolderId.value))) activeFolderId.value = undefined;
+    if (activeFolderId.value && !folderMap.value.has(String(activeFolderId.value))) {
+      activeFolderId.value = undefined;
+      page.value = 1;
+      await loadItems();
+    }
   } catch (error) {
     ElMessage.error(error.message);
   } finally {
@@ -232,19 +237,30 @@ async function loadFolders() {
 }
 
 async function loadItems() {
+  const requestSequence = ++itemsRequestSequence;
+  const requestedSpace = currentSpace.value;
+  const requestedFolderId = activeFolderId.value;
+  const requestedPage = page.value;
+  const requestedQuery = query.value.trim();
   loadingItems.value = true;
   selectedIds.value = [];
   try {
-    const filters = { page: page.value, pageSize, query: query.value.trim() || undefined };
-    if (activeFolderId.value === null) filters.uncategorized = true;
-    else if (activeFolderId.value !== undefined) filters.folderId = activeFolderId.value;
-    const result = await getBookmarkItems(filters, currentSpace.value);
+    const filters = { page: requestedPage, pageSize, query: requestedQuery || undefined };
+    if (requestedFolderId === null) filters.uncategorized = true;
+    else if (requestedFolderId !== undefined) filters.folderId = requestedFolderId;
+    const result = await getBookmarkItems(filters, requestedSpace);
+    const isCurrentRequest = requestSequence === itemsRequestSequence
+      && requestedSpace === currentSpace.value
+      && String(requestedFolderId) === String(activeFolderId.value)
+      && requestedPage === page.value
+      && requestedQuery === query.value.trim();
+    if (!isCurrentRequest) return;
     items.value = result.items || [];
     total.value = result.total || 0;
   } catch (error) {
     ElMessage.error(error.message);
   } finally {
-    loadingItems.value = false;
+    if (requestSequence === itemsRequestSequence) loadingItems.value = false;
   }
 }
 

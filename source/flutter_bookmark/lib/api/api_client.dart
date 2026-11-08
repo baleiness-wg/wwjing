@@ -183,6 +183,22 @@ class ApiClient {
         : BookmarkItem.fromJson(item as Map<String, dynamic>);
   }
 
+  Future<({String answer, bool truncated})> chatWithDirectory({
+    required Map<String, Object?> context,
+    required String message,
+    List<Map<String, String>> history = const [],
+  }) async {
+    final data = await _request(
+      'POST',
+      '/ai/chat',
+      body: {'context': context, 'message': message, 'history': history},
+    ) as Map<String, dynamic>;
+    return (
+      answer: data['answer'] as String? ?? '',
+      truncated: data['truncated'] as bool? ?? false,
+    );
+  }
+
   Future<void> updateItem(String id, Map<String, Object?> changes) async {
     await _request(
       'PATCH',

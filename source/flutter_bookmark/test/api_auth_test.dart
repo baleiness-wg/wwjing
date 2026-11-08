@@ -65,6 +65,55 @@ void main() {
     expect(metadata.coverUrl, 'https://example.com/cover.jpg');
   });
 
+  test('AI Chat 接口携带当前目录上下文和认证令牌', () async {
+    final tokens = MemoryTokenStore('Bearer ai-token');
+    final client = MockClient((request) async {
+      expect(request.method, 'POST');
+      expect(request.url.path, '/api/ai/chat');
+      expect(request.headers['Authorization'], 'Bearer ai-token');
+      expect(jsonDecode(request.body), {
+        'context': {
+          'space': 'cookie',
+          'directoryId': 'folder-1',
+          'directoryPath': '晚餐',
+          'loadedItemCount': 1,
+          'items': [
+            {'title': '番茄意面', 'sourceUrl': 'https://example.com/pasta'},
+          ],
+        },
+        'message': '推荐一道菜',
+        'history': <Object>[],
+      });
+      return http.Response(
+        jsonEncode({'answer': '可以先试试番茄意面。', 'truncated': false}),
+        200,
+        headers: {'content-type': 'application/json'},
+      );
+    });
+    final api = ApiClient(
+      baseUrl: 'https://api.example/api',
+      space: 'cookie',
+      tokenStore: tokens,
+      httpClient: client,
+    );
+
+    final result = await api.chatWithDirectory(
+      context: {
+        'space': 'cookie',
+        'directoryId': 'folder-1',
+        'directoryPath': '晚餐',
+        'loadedItemCount': 1,
+        'items': [
+          {'title': '番茄意面', 'sourceUrl': 'https://example.com/pasta'},
+        ],
+      },
+      message: '推荐一道菜',
+    );
+
+    expect(result.answer, '可以先试试番茄意面。');
+    expect(result.truncated, isFalse);
+  });
+
   test('登录令牌只写入安全存储且 Bearer 请求头格式正确', () async {
     final tokens = MemoryTokenStore();
     final preferences = MemoryPreferencesStore();
@@ -472,7 +521,9 @@ void main() {
       space: 'cookie',
       tokenStore: tokens,
       httpClient: MockClient((request) async {
-        if (request.url.path.endsWith('/folders')) return http.Response('[]', 200);
+        if (request.url.path.endsWith('/folders')) {
+          return http.Response('[]', 200);
+        }
         requestedPages.add(request.url.queryParameters['page']!);
         return http.Response(
           request.url.queryParameters['page'] == '1'
@@ -482,13 +533,14 @@ void main() {
         );
       }),
     );
-    final state = AppState(
-      api: api,
-      tokenStore: tokens,
-      preferences: MemoryPreferencesStore(),
-    )
-      ..initialized = true
-      ..authenticated = true;
+    final state =
+        AppState(
+            api: api,
+            tokenStore: tokens,
+            preferences: MemoryPreferencesStore(),
+          )
+          ..initialized = true
+          ..authenticated = true;
 
     await state.refresh();
     await state.loadMore();

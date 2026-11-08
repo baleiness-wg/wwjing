@@ -7,11 +7,12 @@ const MAX_FIELD_LENGTH = 500;
 const MAX_CONTEXT_LENGTH = 24000;
 
 class AiError extends Error {
-  constructor(code, message, status = 503) {
+  constructor(code, message, status = 503, providerStatus) {
     super(message);
     this.name = "AiError";
     this.code = code;
     this.status = status;
+    this.providerStatus = providerStatus;
   }
 }
 
@@ -112,8 +113,25 @@ async function requestProvider(messages, fetchImpl = globalThis.fetch) {
       signal: abortController.signal
     });
 
-    if (!response.ok) throw new AiError("AI_PROVIDER_ERROR", "AI 服务暂时不可用", 502);
-    const payload = await response.json();
+    if (!response.ok) {
+      const providerStatus = response.status;
+      let providerCode = "AI_PROVIDER_ERROR";
+      let message = "AI 服务暂时不可用";
+      if (providerStatus === 401 || providerStatus === 403) {
+        providerCode = "AI_AUTH_FAILED";
+        message = "AI API Key 无效或无权访问该模型";
+      } else if (providerStatus === 404) {
+        providerCode = "AI_MODEL_NOT_FOUND";
+        message = "AI 接口地址或模型不存在";
+      } else if (providerStatus === 429) {
+        providerCode = "AI_RATE_LIMITED";
+        message = "AI 服务请求过于频繁或额度不足";
+      }
+      throw new AiError(providerCode, message, providerStatus === 429 ? 429 : 502, providerStatus);
+    }
+    const payload = typeof response.json === "function"
+      ? await response.json()
+      : JSON.parse(await response.text());
     const answer = payload?.choices?.[0]?.message?.content;
     if (typeof answer !== "string" || !answer.trim()) throw new AiError("AI_PROVIDER_ERROR", "AI 服务返回了无效响应", 502);
     return answer.trim();

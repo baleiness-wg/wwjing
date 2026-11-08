@@ -51,7 +51,8 @@ async function chat(req, res, next) {
       directoryId: req.body.context.directoryId,
       messageLength: req.body.message.length,
       durationMs: Date.now() - startedAt,
-      errorCode: error.code || "AI_PROVIDER_ERROR"
+      errorCode: error.code || "AI_PROVIDER_ERROR",
+      providerStatus: error.providerStatus
     }, "ai chat failed");
     return next(error);
   }

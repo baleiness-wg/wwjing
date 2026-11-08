@@ -1,0 +1,29 @@
+<script setup>
+import { computed, onMounted, reactive, ref, watch } from "vue";
+import { useRoute } from "vue-router";
+import {
+  ArrowDown,
+  ArrowUp,
+  Delete,
+  Dish,
+  Edit,
+  FolderAdd,
+  Link,
+  MoreFilled,
+  Plus,
+  Refresh,
+  Search
+} from "@element-plus/icons-vue";
+import {
+  createBookmarkFolder,
+  createBookmarkItem,
+  detectBookmarkMetadata,
+  deleteBookmarkFolder,
+  deleteBookmarkItem,
+  getBookmarkFolders,
+  getBookmarkItems,
+  getRandomBookmark,
+  updateBookmarkFolder,
+  updateBookmarkItem
+} from "../api/bookmarks";
+import AiChatPanel from "../components/AiChatPanel.vue";

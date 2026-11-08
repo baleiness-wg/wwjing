@@ -81,6 +81,25 @@ test("AI service rejects an invalid provider response", async () => {
   }
 });
 
+test("AI service maps provider authentication, model, and rate-limit failures", async () => {
+  Object.assign(config.ai, { apiKey: "key", baseUrl: "https://agnes.example/v1", model: "model" });
+  try {
+    for (const [status, code] of [[401, "AI_AUTH_FAILED"], [404, "AI_MODEL_NOT_FOUND"], [429, "AI_RATE_LIMITED"]]) {
+      await assert.rejects(() => aiService.chat({
+        context: { space: "star", items: [] },
+        message: "问题",
+        fetchImpl: async () => ({ ok: false, status })
+      }), (error) => {
+        assert.equal(error.code, code);
+        assert.equal(error.providerStatus, status);
+        return true;
+      });
+    }
+  } finally {
+    restoreConfig();
+  }
+});
+
 test("AI context uses an allowlist and truncates oversized items", () => {
   const result = aiService.sanitizeContext({
     space: "star",
