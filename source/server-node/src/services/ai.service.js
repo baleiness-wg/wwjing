@@ -7,12 +7,13 @@ const MAX_FIELD_LENGTH = 500;
 const MAX_CONTEXT_LENGTH = 24000;
 
 class AiError extends Error {
-  constructor(code, message, status = 503, providerStatus) {
+  constructor(code, message, status = 503, providerStatus, providerReason) {
     super(message);
     this.name = "AiError";
     this.code = code;
     this.status = status;
     this.providerStatus = providerStatus;
+    this.providerReason = providerReason;
   }
 }
 
@@ -129,16 +130,23 @@ async function requestProvider(messages, fetchImpl = globalThis.fetch) {
       }
       throw new AiError(providerCode, message, providerStatus === 429 ? 429 : 502, providerStatus);
     }
-    const payload = typeof response.json === "function"
-      ? await response.json()
-      : JSON.parse(await response.text());
+    let payload;
+    try {
+      payload = typeof response.json === "function"
+        ? await response.json()
+        : JSON.parse(await response.text());
+    } catch (error) {
+      throw new AiError("AI_INVALID_RESPONSE", "AI 服务返回了无法解析的响应", 502, response.status, "invalid_json");
+    }
     const answer = payload?.choices?.[0]?.message?.content;
-    if (typeof answer !== "string" || !answer.trim()) throw new AiError("AI_PROVIDER_ERROR", "AI 服务返回了无效响应", 502);
+    if (typeof answer !== "string" || !answer.trim()) {
+      throw new AiError("AI_INVALID_RESPONSE", "AI 服务返回格式不兼容", 502, response.status, "missing_chat_content");
+    }
     return answer.trim();
   } catch (error) {
     if (error instanceof AiError) throw error;
     if (error.name === "AbortError") throw new AiError("AI_TIMEOUT", "AI 服务响应超时", 504);
-    throw new AiError("AI_PROVIDER_ERROR", "AI 服务暂时不可用", 502);
+    throw new AiError("AI_PROVIDER_ERROR", "AI 服务暂时不可用", 502, undefined, error.code || error.name || "request_failed");
   } finally {
     clearTimeout(timeout);
   }

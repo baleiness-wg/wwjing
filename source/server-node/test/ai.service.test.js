@@ -73,7 +73,35 @@ test("AI service rejects an invalid provider response", async () => {
       message: "问题",
       fetchImpl: async () => ({ ok: true, json: async () => ({ choices: [] }) })
     }), (error) => {
+      assert.equal(error.code, "AI_INVALID_RESPONSE");
+      assert.equal(error.providerReason, "missing_chat_content");
+      return true;
+    });
+  } finally {
+    restoreConfig();
+  }
+});
+
+test("AI service distinguishes invalid JSON from network failures", async () => {
+  Object.assign(config.ai, { apiKey: "key", baseUrl: "https://agnes.example/v1", model: "model" });
+  try {
+    await assert.rejects(() => aiService.chat({
+      context: { space: "star", items: [] },
+      message: "问题",
+      fetchImpl: async () => ({ ok: true, status: 200, json: async () => { throw new Error("invalid json"); } })
+    }), (error) => {
+      assert.equal(error.code, "AI_INVALID_RESPONSE");
+      assert.equal(error.providerReason, "invalid_json");
+      return true;
+    });
+
+    await assert.rejects(() => aiService.chat({
+      context: { space: "star", items: [] },
+      message: "问题",
+      fetchImpl: async () => { throw new Error("network unavailable"); }
+    }), (error) => {
       assert.equal(error.code, "AI_PROVIDER_ERROR");
+      assert.equal(error.providerReason, "Error");
       return true;
     });
   } finally {
