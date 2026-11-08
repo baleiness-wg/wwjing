@@ -137,6 +137,9 @@ class _BookmarkFormState extends State<BookmarkForm> {
     if (!mounted) return metadata;
     setState(() {
       _recognizing = false;
+      if (metadata?.finalUrl?.trim().isNotEmpty == true) {
+        _url.text = metadata!.finalUrl!.trim();
+      }
       if (metadata?.coverUrl?.trim().isNotEmpty == true) {
         _imageUrl.text = metadata!.coverUrl!.trim();
         _images = [_imageUrl.text, ..._images.where((value) => value != _imageUrl.text)];

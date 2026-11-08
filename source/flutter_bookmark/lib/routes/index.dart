@@ -217,6 +217,12 @@ class _BookmarkAppState extends State<BookmarkApp> with WidgetsBindingObserver {
         brightness: Brightness.light,
       ),
       useMaterial3: true,
+      searchBarTheme: SearchBarThemeData(
+        constraints: const BoxConstraints(minHeight: 42, maxHeight: 42),
+        padding: const WidgetStatePropertyAll(
+          EdgeInsets.symmetric(horizontal: 12),
+        ),
+      ),
       inputDecorationTheme: const InputDecorationTheme(border: OutlineInputBorder()),
       cardTheme: CardThemeData(
         margin: EdgeInsets.zero,

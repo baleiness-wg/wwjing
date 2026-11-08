@@ -352,7 +352,7 @@ void main() {
     expect(unauthorized, isTrue);
   });
 
-  test('拖入子目录后只刷新当前目录直属条目', () async {
+  test('切换目录后加载当前目录及所有子目录条目', () async {
     final tokens = MemoryTokenStore('Bearer token');
     var moved = false;
     final api = ApiClient(
@@ -382,7 +382,7 @@ void main() {
         expect(request.url.queryParameters['folderId'], '1');
         expect(
           request.url.queryParameters.containsKey('includeDescendants'),
-          isFalse,
+          isTrue,
         );
         return http.Response(
           moved ? '{"items":[],"page":1,"totalPages":1}' : '{"items":[{"id":"9","folderId":"1","sourceUrl":"https://example.com"}],"page":1,"totalPages":1}',

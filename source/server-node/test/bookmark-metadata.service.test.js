@@ -170,6 +170,13 @@ test("metadata parser extracts cover from urlList in xiaohongshu state", () => {
   assert.equal(res.coverUrl, "https://sns-img-qc.xhscdn.com/photo/x.jpg");
 });
 
+test("metadata parser extracts escaped xiaohongshu CDN cover when state is not valid JSON", () => {
+  const html = '<script>coverUrl: &quot;https:\\/\\/sns-webpic-qc.xhscdn.com\\/notes\\/escaped.jpg&quot;</script>' +
+    '<meta property="og:image" content="//picasso-static.xiaohongshu.com/fe-platform/logo.png">';
+  const res = parseMetadata(html, "https://www.xiaohongshu.com/explore/escaped");
+  assert.equal(res.coverUrl, "https://sns-webpic-qc.xhscdn.com/notes/escaped.jpg");
+});
+
 test("embedded cover extraction is skipped for non-xiaohongshu hosts", () => {
   const noteJson = JSON.stringify({
     note: { detail: { cover: { url: "https://sns-webpic-qc.xhscdn.com/notes/test.jpg" } } }

@@ -123,6 +123,7 @@ class AppState extends ChangeNotifier {
       final nextFolders = await api.getFolders();
       final result = await api.getItems(
         folderId: requestView == BookmarkView.folder ? requestFolderId : null,
+        includeDescendants: requestView == BookmarkView.folder,
         uncategorized: requestView == BookmarkView.uncategorized,
         query: requestQuery,
         page: requestPage,
@@ -147,6 +148,7 @@ class AppState extends ChangeNotifier {
     try {
       final result = await api.getItems(
         folderId: requestView == BookmarkView.folder ? requestFolderId : null,
+        includeDescendants: requestView == BookmarkView.folder,
         uncategorized: requestView == BookmarkView.uncategorized,
         query: requestQuery,
         page: nextPage,
@@ -197,6 +199,7 @@ class AppState extends ChangeNotifier {
         sourceUrl: shared.url,
         title: shared.title,
         description: shared.originalText,
+        folderId: selectedFolderId,
         fetchMetadataOnOpen: true,
       );
       editingItemId = null;
@@ -208,7 +211,7 @@ class AppState extends ChangeNotifier {
   void openDraft([BookmarkItem? item]) {
     editingItemId = item?.id;
     draft = item == null
-        ? const BookmarkDraft(sourceUrl: '')
+        ? BookmarkDraft(sourceUrl: '', folderId: selectedFolderId)
         : BookmarkDraft(
             sourceUrl: item.sourceUrl,
             title: item.title ?? '',

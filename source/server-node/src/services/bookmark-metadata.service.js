@@ -180,6 +180,20 @@ function extractXhsEmbeddedCover(html, finalUrl) {
     if (cover) return cover;
   }
 
+  // Some pages serialize the state as escaped text instead of valid JSON.
+  // Extract image CDN URLs directly as a final fallback, while excluding logos.
+  const candidates = [];
+  const rawPattern = /https?:[^"'<>\s]*xhscdn\.com[^"'<>\s]*/gi;
+  for (const match of html.matchAll(rawPattern)) {
+    const candidate = cleanCoverUrl(
+      decodeHtml(decodeEmbeddedUrl(match[0])).replace(/(?:&quot;|\\["'])+$/gi, ""),
+    );
+    if (candidate && !/picasso-static|fe-platform/i.test(candidate)) {
+      candidates.push(candidate);
+    }
+  }
+  if (candidates.length > 0) return candidates[0];
+
   return null;
 }
 

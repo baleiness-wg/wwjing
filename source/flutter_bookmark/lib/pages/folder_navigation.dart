@@ -175,28 +175,32 @@ class _FolderNavigationState extends State<FolderNavigation> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
+           Padding(
+             padding: const EdgeInsets.fromLTRB(14, 12, 14, 6),
             child: Text(
               effectiveAppName,
               style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
             ),
           ),
-          ListTile(
+           ListTile(
+             dense: true,
+             visualDensity: const VisualDensity(vertical: -2),
             selected: state.view == BookmarkView.all,
             leading: const Icon(Icons.bookmarks_outlined),
             title: const Text('全部收藏'),
             onTap: () => _select(context, BookmarkView.all),
           ),
-          ListTile(
+           ListTile(
+             dense: true,
+             visualDensity: const VisualDensity(vertical: -2),
             selected: state.view == BookmarkView.uncategorized,
             leading: const Icon(Icons.inbox_outlined),
             title: const Text('未分类'),
             onTap: () => _select(context, BookmarkView.uncategorized),
           ),
-          const Divider(),
+           const SizedBox(height: 2),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
+             padding: const EdgeInsets.symmetric(horizontal: 8),
             child: Row(
               children: [
                 const Expanded(
@@ -214,7 +218,7 @@ class _FolderNavigationState extends State<FolderNavigation> {
               ],
             ),
           ),
-          Expanded(
+           Expanded(
             child: ListView.builder(
               itemCount: nodes.length,
               itemBuilder: (context, index) {
@@ -229,8 +233,8 @@ class _FolderNavigationState extends State<FolderNavigation> {
                          : null,
                     dense: true,
                     visualDensity: const VisualDensity(vertical: -4),
-                    minTileHeight: 40,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+                     minTileHeight: 38,
+                     contentPadding: const EdgeInsets.symmetric(horizontal: 8),
                     selected:
                         state.view == BookmarkView.folder &&
                         state.selectedFolderId == node.folder.id,
@@ -266,7 +270,7 @@ class _FolderNavigationState extends State<FolderNavigation> {
                            tooltip: '目录操作',
                            icon: const Icon(Icons.more_vert),
                            position: PopupMenuPosition.under,
-                           offset: const Offset(0, 8),
+                           offset: const Offset(-132, 44),
                            onOpened: () => setState(() {
                              _activeActionFolderId = node.folder.id;
                            }),

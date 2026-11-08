@@ -58,6 +58,8 @@ class _FolderNameDialogState extends State<_FolderNameDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+      contentPadding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
       title: Text(widget.title),
       content: TextField(
         key: const Key('folder-name-field'),
@@ -111,6 +113,7 @@ class _FolderPickerDialogState extends State<FolderPickerDialog> {
   final newFolderController = TextEditingController();
   final newFolderFocusNode = FocusNode();
   bool creatingFolder = false;
+  final Set<String> collapsedFolderIds = {};
 
   void _createFolder() {
     setState(() {
@@ -224,6 +227,22 @@ class _FolderPickerDialogState extends State<FolderPickerDialog> {
     );
   }
 
+  List<FolderNode> _visibleNodes(List<FolderNode> roots) {
+    final result = <FolderNode>[];
+    void visit(FolderNode node) {
+      result.add(node);
+      if (!collapsedFolderIds.contains(node.folder.id)) {
+        for (final child in node.children) {
+          visit(child);
+        }
+      }
+    }
+    for (final root in roots) {
+      visit(root);
+    }
+    return result;
+  }
+
   @override
   void dispose() {
     newFolderController.dispose();
@@ -233,7 +252,7 @@ class _FolderPickerDialogState extends State<FolderPickerDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final nodes = flattenFolderTree(widget.state.folderTree)
+    final nodes = _visibleNodes(widget.state.folderTree)
         .where((node) => !widget.excludedFolderIds.contains(node.folder.id))
         .toList();
     return AlertDialog(
@@ -250,7 +269,7 @@ class _FolderPickerDialogState extends State<FolderPickerDialog> {
         ],
       ),
       content: SizedBox(
-        width: 440,
+        width: MediaQuery.sizeOf(context).width - 72,
         height: MediaQuery.sizeOf(context).height * .6,
         child: Card.outlined(
           margin: EdgeInsets.zero,
@@ -267,14 +286,37 @@ class _FolderPickerDialogState extends State<FolderPickerDialog> {
               if (creatingFolder && selectedFolderId.isEmpty)
                 _inlineFolderEditor(1),
               for (final node in nodes) ...[
-                Padding(
-                  padding: EdgeInsets.only(left: (node.depth - 1) * 16.0),
-                  child: _folderTile(
-                    key: Key('folder-option-${node.folder.id}'),
-                    value: node.folder.id,
-                    label: node.folder.name,
-                    icon: Icons.folder_outlined,
-                  ),
+                 Padding(
+                   padding: EdgeInsets.only(left: (node.depth - 1) * 16.0),
+                   child: ListTile(
+                     key: Key('folder-option-${node.folder.id}'),
+                     dense: true,
+                     selected: selectedFolderId == node.folder.id,
+                     selectedTileColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.08),
+                     contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+                     leading: const Icon(Icons.folder_outlined),
+                     title: Text(node.folder.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+                     trailing: node.children.isEmpty
+                         ? null
+                         : IconButton(
+                             icon: Icon(collapsedFolderIds.contains(node.folder.id)
+                                 ? Icons.chevron_right
+                                 : Icons.expand_more),
+                             tooltip: collapsedFolderIds.contains(node.folder.id)
+                                 ? '展开目录'
+                                 : '收起目录',
+                             onPressed: () => setState(() {
+                               if (!collapsedFolderIds.add(node.folder.id)) {
+                                 collapsedFolderIds.remove(node.folder.id);
+                               }
+                             }),
+                           ),
+                     onTap: () => setState(() {
+                       selectedFolderId = node.folder.id;
+                       creatingFolder = false;
+                       newFolderController.clear();
+                     }),
+                   ),
                 ),
                 if (creatingFolder && selectedFolderId == node.folder.id)
                   _inlineFolderEditor(node.depth),

@@ -158,22 +158,6 @@ void main() {
     expect(find.text('批量移动到'), findsOneWidget);
   });
 
-  testWidgets('目录选择器直接显示创建文件夹图标', (tester) async {
-    state.draft = const BookmarkDraft(sourceUrl: 'https://example.com');
-    await tester.pumpWidget(
-      ChangeNotifierProvider.value(
-        value: state,
-        child: const MaterialApp(home: BookmarkForm()),
-      ),
-    );
-    await tester.tap(find.byKey(const Key('folder-picker-trigger')));
-    await tester.pumpAndSettle();
-
-    expect(find.byKey(const Key('create-folder-button')), findsOneWidget);
-    expect(find.byIcon(Icons.create_new_folder_outlined), findsOneWidget);
-    expect(find.byKey(const Key('folder-picker-menu')), findsNothing);
-  });
-
   testWidgets('选择模式取消和保存均退出且右下角仅显示移动删除', (tester) async {
     await pumpHome(tester, const Size(1000, 800));
     await tester.tap(find.byTooltip('编辑收藏'));

@@ -10,22 +10,6 @@ import '../viewmodels/bookmark.dart';
 import '../utils/link_launcher.dart';
 import 'folder_navigation.dart';
 
-sealed class _DragEntry {
-  const _DragEntry();
-}
-
-class _ItemDragEntry extends _DragEntry {
-  const _ItemDragEntry(this.item);
-
-  final BookmarkItem item;
-}
-
-class _FolderDragEntry extends _DragEntry {
-  const _FolderDragEntry(this.folder);
-
-  final BookmarkFolder folder;
-}
-
 class HomePage extends StatefulWidget {
   const HomePage({
     super.key,
@@ -45,16 +29,6 @@ class _HomePageState extends State<HomePage> {
   bool _editMode = false;
   bool _randomBusy = false;
   final Set<String> _selectedItemIds = {};
-
-  List<BookmarkFolder> _childFolders(AppState state) {
-    if (state.view != BookmarkView.folder || state.selectedFolderId == null) {
-      return const [];
-    }
-    return state.folders
-        .where((folder) => folder.parentId == state.selectedFolderId)
-        .toList()
-      ..sort((a, b) => a.position.compareTo(b.position));
-  }
 
   @override
   void dispose() {
@@ -207,13 +181,6 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Future<void> _openChildFolder(
-    BuildContext context,
-    BookmarkFolder folder,
-  ) async {
-    await context.read<AppState>().selectView(BookmarkView.folder, folder.id);
-  }
-
   void _collectDescendantIds(List<BookmarkFolder> folders, String parentId, List<String> result) {
     result.add(parentId);
     for (final folder in folders) {
@@ -221,92 +188,6 @@ class _HomePageState extends State<HomePage> {
         _collectDescendantIds(folders, folder.id, result);
       }
     }
-  }
-
-  bool _isFolderDescendant(AppState state, String folderId, String targetId) {
-    var currentId = state.folders
-        .where((folder) => folder.id == targetId)
-        .firstOrNull
-        ?.parentId;
-    while (currentId != null) {
-      if (currentId == folderId) return true;
-      currentId = state.folders
-          .where((folder) => folder.id == currentId)
-          .firstOrNull
-          ?.parentId;
-    }
-    return false;
-  }
-
-  Future<void> _dropEntry(
-    BuildContext context,
-    _DragEntry entry,
-    BookmarkFolder target,
-  ) async {
-    final state = context.read<AppState>();
-    if (entry is _ItemDragEntry) {
-      await state.moveItem(entry.item.id, target.id);
-    } else if (entry is _FolderDragEntry &&
-        entry.folder.id != target.id &&
-        !_isFolderDescendant(state, entry.folder.id, target.id)) {
-      await state.moveFolder(entry.folder, target.id);
-    }
-  }
-
-  Widget _dropTargetFolder(
-    BuildContext context,
-    BookmarkFolder folder,
-    Widget child,
-  ) {
-    return DragTarget<_DragEntry>(
-      onWillAcceptWithDetails: (details) {
-        final entry = details.data;
-        final state = context.read<AppState>();
-        return entry is _ItemDragEntry ||
-            (entry is _FolderDragEntry &&
-                entry.folder.id != folder.id &&
-                !_isFolderDescendant(state, entry.folder.id, folder.id));
-      },
-      onAcceptWithDetails: (details) =>
-          _dropEntry(context, details.data, folder),
-      builder: (context, candidates, rejected) {
-        final highlighted = candidates.isNotEmpty;
-        return AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            color: highlighted
-                ? Theme.of(context).colorScheme.primaryContainer
-                : null,
-            border: highlighted
-                ? Border.all(
-                    color: Theme.of(context).colorScheme.primary,
-                    width: 2,
-                  )
-                : null,
-          ),
-          child: child,
-        );
-      },
-    );
-  }
-
-  Widget _draggableEntry({required _DragEntry data, required Widget child}) {
-    return LongPressDraggable<_DragEntry>(
-      data: data,
-      delay: const Duration(milliseconds: 180),
-      feedback: Material(
-        elevation: 8,
-        borderRadius: BorderRadius.circular(14),
-        color: Colors.transparent,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 360),
-          child: Opacity(opacity: 0.9, child: child),
-        ),
-      ),
-      childWhenDragging: Opacity(opacity: 0.35, child: child),
-      child: child,
-    );
   }
 
   Future<void> _handleBack(BuildContext context) async {
@@ -466,7 +347,7 @@ class _HomePageState extends State<HomePage> {
               Column(
                 children: [
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                   padding: const EdgeInsets.fromLTRB(8, 6, 8, 2),
                     child: SearchBar(
                       controller: _search,
                       hintText: '搜索标题、描述或链接',
@@ -493,7 +374,7 @@ class _HomePageState extends State<HomePage> {
                   Expanded(
                     child: state.busy && state.items.isEmpty
                         ? const Center(child: CircularProgressIndicator())
-                        : state.items.isEmpty && _childFolders(state).isEmpty
+                        : state.items.isEmpty
                         ? const Center(child: Text('这里还没有收藏'))
                          : RefreshIndicator(
                              onRefresh: state.refresh,
@@ -506,20 +387,17 @@ class _HomePageState extends State<HomePage> {
                                },
                                child: ListView.separated(
                               padding: EdgeInsets.fromLTRB(
-                                12,
-                                12,
-                                12,
+                                 6,
+                                 6,
+                                 6,
                                 _editMode ? 92 : 12,
                               ),
-                               itemCount: _childFolders(state).length +
-                                   state.items.length +
-                                   (state.loadingMore ? 1 : 0),
+                              itemCount: state.items.length +
+                                    (state.loadingMore ? 1 : 0),
                               separatorBuilder: (_, _) =>
-                                  const SizedBox(height: 8),
+                                   const SizedBox(height: 4),
                               itemBuilder: (context, index) {
-                                 final childFolders = _childFolders(state);
-                                 if (index ==
-                                     childFolders.length + state.items.length) {
+                                  if (index == state.items.length) {
                                    return const Padding(
                                      padding: EdgeInsets.all(16),
                                      child: Center(
@@ -527,31 +405,7 @@ class _HomePageState extends State<HomePage> {
                                      ),
                                    );
                                  }
-                                 if (index < childFolders.length) {
-                                  final folder = childFolders[index];
-                                  final card = Card.outlined(
-                                    child: ListTile(
-                                      leading: const Icon(
-                                        Icons.folder_outlined,
-                                      ),
-                                      title: Text(folder.name),
-                                      subtitle: const Text('打开子目录，长按可拖动'),
-                                      trailing: const Icon(Icons.chevron_right),
-                                      onTap: () =>
-                                          _openChildFolder(context, folder),
-                                    ),
-                                  );
-                                  return _dropTargetFolder(
-                                    context,
-                                    folder,
-                                    _draggableEntry(
-                                      data: _FolderDragEntry(folder),
-                                      child: card,
-                                    ),
-                                  );
-                                }
-                                final item =
-                                    state.items[index - childFolders.length];
+                                  final item = state.items[index];
                                 final card = BookmarkItemCard(
                                   item: item,
                                   selectionValue: _editMode
@@ -577,10 +431,7 @@ class _HomePageState extends State<HomePage> {
                                     }
                                   },
                                 );
-                                return _draggableEntry(
-                                  data: _ItemDragEntry(item),
-                                  child: card,
-                                );
+                                 return card;
                               },
                                ),
                              ),
