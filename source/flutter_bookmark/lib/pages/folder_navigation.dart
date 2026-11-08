@@ -349,7 +349,7 @@ class _FolderNavigationState extends State<FolderNavigation> {
                           icon: const Icon(Icons.more_vert),
                           position: PopupMenuPosition.under,
                           // Keep the menu close below the trailing icon without covering it.
-                          offset: const Offset(-150, 8),
+                          offset: Offset.zero,
                           onOpened: () => setState(() {
                             _activeActionFolderId = node.folder.id;
                           }),

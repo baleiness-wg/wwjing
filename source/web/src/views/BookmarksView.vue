@@ -807,7 +807,7 @@ onMounted(async () => {
             </div>
             <div class="bookmark-actions">
               <el-button text circle :icon="Edit" title="编辑收藏" aria-label="编辑收藏" @click="openEditItem(item)" />
-              <el-dropdown trigger="click" @command="(command) => command()">
+               <el-dropdown trigger="click" placement="bottom-end" :popper-offset="4" popper-class="bookmark-actions-popper" @command="(command) => command()">
                 <el-button text circle :icon="MoreFilled" aria-label="更多收藏操作" />
                 <template #dropdown>
                   <el-dropdown-menu>

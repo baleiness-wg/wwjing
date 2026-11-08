@@ -346,6 +346,7 @@ h3 { margin-bottom: 10px; color: #263d40; font-size: 17px; }
 .folder-node__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .folder-node .el-button { opacity: 0; }
 .folder-tree .el-dropdown__popper { margin-top: 12px; }
+.bookmark-actions-popper { margin-top: 4px !important; }
 .folder-node:hover .el-button, .folder-node:focus-within .el-button { opacity: 1; }
 .bookmark-list-panel { width: 100%; min-width: 0; box-sizing: border-box; padding: 26px clamp(18px, 3vw, 36px); overflow-y: auto; height: 100%; }
 .list-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding-bottom: 20px; border-bottom: 1px solid #edf0ed; }
