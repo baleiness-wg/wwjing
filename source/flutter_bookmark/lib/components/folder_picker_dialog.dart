@@ -237,6 +237,7 @@ class _FolderPickerDialogState extends State<FolderPickerDialog> {
         }
       }
     }
+
     for (final root in roots) {
       visit(root);
     }
@@ -252,6 +253,11 @@ class _FolderPickerDialogState extends State<FolderPickerDialog> {
 
   @override
   Widget build(BuildContext context) {
+    if (collapsedFolderIds.isEmpty) {
+      collapsedFolderIds.addAll(
+        widget.state.folders.map((folder) => folder.id),
+      );
+    }
     final nodes = _visibleNodes(widget.state.folderTree)
         .where((node) => !widget.excludedFolderIds.contains(node.folder.id))
         .toList();
@@ -286,37 +292,44 @@ class _FolderPickerDialogState extends State<FolderPickerDialog> {
               if (creatingFolder && selectedFolderId.isEmpty)
                 _inlineFolderEditor(1),
               for (final node in nodes) ...[
-                 Padding(
-                   padding: EdgeInsets.only(left: (node.depth - 1) * 16.0),
-                   child: ListTile(
-                     key: Key('folder-option-${node.folder.id}'),
-                     dense: true,
-                     selected: selectedFolderId == node.folder.id,
-                     selectedTileColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.08),
-                     contentPadding: const EdgeInsets.symmetric(horizontal: 4),
-                     leading: const Icon(Icons.folder_outlined),
-                     title: Text(node.folder.name, maxLines: 1, overflow: TextOverflow.ellipsis),
-                     trailing: node.children.isEmpty
-                         ? null
-                         : IconButton(
-                             icon: Icon(collapsedFolderIds.contains(node.folder.id)
-                                 ? Icons.chevron_right
-                                 : Icons.expand_more),
-                             tooltip: collapsedFolderIds.contains(node.folder.id)
-                                 ? '展开目录'
-                                 : '收起目录',
-                             onPressed: () => setState(() {
-                               if (!collapsedFolderIds.add(node.folder.id)) {
-                                 collapsedFolderIds.remove(node.folder.id);
-                               }
-                             }),
-                           ),
-                     onTap: () => setState(() {
-                       selectedFolderId = node.folder.id;
-                       creatingFolder = false;
-                       newFolderController.clear();
-                     }),
-                   ),
+                Padding(
+                  padding: EdgeInsets.only(left: (node.depth - 1) * 16.0),
+                  child: ListTile(
+                    key: Key('folder-option-${node.folder.id}'),
+                    dense: true,
+                    selected: selectedFolderId == node.folder.id,
+                    selectedTileColor: Theme.of(context).colorScheme.primary
+                        .withValues(alpha: 0.08),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+                    leading: const Icon(Icons.folder_outlined),
+                    title: Text(
+                      node.folder.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    trailing: node.children.isEmpty
+                        ? null
+                        : IconButton(
+                            icon: Icon(
+                              collapsedFolderIds.contains(node.folder.id)
+                                  ? Icons.chevron_right
+                                  : Icons.expand_more,
+                            ),
+                            tooltip: collapsedFolderIds.contains(node.folder.id)
+                                ? '展开目录'
+                                : '收起目录',
+                            onPressed: () => setState(() {
+                              if (!collapsedFolderIds.add(node.folder.id)) {
+                                collapsedFolderIds.remove(node.folder.id);
+                              }
+                            }),
+                          ),
+                    onTap: () => setState(() {
+                      selectedFolderId = node.folder.id;
+                      creatingFolder = false;
+                      newFolderController.clear();
+                    }),
+                  ),
                 ),
                 if (creatingFolder && selectedFolderId == node.folder.id)
                   _inlineFolderEditor(node.depth),

@@ -7,7 +7,7 @@ const selectFields = `id, space, folder_id AS "folderId", item_type AS "itemType
 
 async function findById(userId, id, space = "star", client = pool) {
   const result = await client.query(
-    `SELECT ${selectFields} FROM bookmark_items WHERE user_id = $1 AND id = $2 AND space = $3`,
+    `SELECT ${selectFields} FROM bookmark_items WHERE id = $2 AND space = $3 AND (user_id = $1 OR folder_id IN (WITH RECURSIVE shared AS (SELECT folder_id AS id FROM bookmark_folder_shares WHERE user_id = $1 AND space = $3 UNION ALL SELECT child.id FROM bookmark_folders child JOIN shared ON child.parent_id = shared.id WHERE child.space = $3) SELECT id FROM shared))`,
     [userId, id, space]
   );
   return result.rows[0] || null;
@@ -26,7 +26,7 @@ async function findDuplicate(userId, normalizedUrl, space = "star", client = poo
 }
 
 async function list(userId, filters) {
-  const conditions = ["item.user_id = $1", "item.space = $2"];
+  const conditions = ["item.space = $2", "(item.user_id = $1 OR item.folder_id IN (SELECT folder_id FROM bookmark_folder_shares WHERE user_id = $1 AND space = $2))"];
   const parameters = [userId, filters.space || "star"];
   if (filters.folderId) {
     parameters.push(filters.folderId);
@@ -84,7 +84,7 @@ async function update(userId, id, values) {
   const result = await pool.query(
       `UPDATE bookmark_items SET folder_id = $4, title = $5, description = $6,
         images = $7, source_url = $8, normalized_url = $9, source_host = $10, updated_at = NOW()
-      WHERE user_id = $1 AND id = $2 AND space = $3
+      WHERE id = $2 AND space = $3 AND (user_id = $1 OR folder_id IN (WITH RECURSIVE shared AS (SELECT folder_id AS id FROM bookmark_folder_shares WHERE user_id = $1 AND space = $3 UNION ALL SELECT child.id FROM bookmark_folders child JOIN shared ON child.parent_id = shared.id WHERE child.space = $3) SELECT id FROM shared))
      RETURNING ${selectFields}`,
     [userId, id, values.space, values.folderId, values.title, values.description, JSON.stringify(values.images || []), values.sourceUrl,
       values.normalizedUrl, values.sourceHost]
@@ -94,7 +94,7 @@ async function update(userId, id, values) {
 
 async function remove(userId, id, space = "star") {
   const result = await pool.query(
-    "DELETE FROM bookmark_items WHERE user_id = $1 AND id = $2 AND space = $3",
+    "DELETE FROM bookmark_items WHERE id = $2 AND space = $3 AND (user_id = $1 OR folder_id IN (WITH RECURSIVE shared AS (SELECT folder_id AS id FROM bookmark_folder_shares WHERE user_id = $1 AND space = $3 UNION ALL SELECT child.id FROM bookmark_folders child JOIN shared ON child.parent_id = shared.id WHERE child.space = $3) SELECT id FROM shared))",
     [userId, id, space]
   );
   return result.rowCount > 0;

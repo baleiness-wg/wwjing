@@ -101,6 +101,17 @@ class ApiClient {
     );
   }
 
+  Future<void> pinFolder(String id, bool pinned) =>
+      updateFolder(id, {'pinned': pinned});
+
+  Future<void> shareFolder(String id, String username) async {
+    await _request(
+      'POST',
+      '/bookmarks/folders/$id/shares',
+      body: {'username': username, 'space': space},
+    );
+  }
+
   Future<void> deleteFolder(String id) async {
     await _request('DELETE', '/bookmarks/folders/$id?space=$space');
   }

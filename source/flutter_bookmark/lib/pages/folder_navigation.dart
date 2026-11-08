@@ -23,6 +23,7 @@ class FolderNavigation extends StatefulWidget {
 
 class _FolderNavigationState extends State<FolderNavigation> {
   final Set<String> _collapsedFolderIds = {};
+  Set<String> _initializedFolderIds = {};
   String? _activeActionFolderId;
 
   Future<void> _select(
@@ -97,6 +98,38 @@ class _FolderNavigationState extends State<FolderNavigation> {
         title: '重命名目录',
       );
       if (name?.isNotEmpty == true) await state.renameFolder(folder, name!);
+    } else if (action == 'pin') {
+      await state.api.pinFolder(folder.id, !folder.pinned);
+      await state.refresh();
+    } else if (action == 'share') {
+      final controller = TextEditingController();
+      final username = await showDialog<String>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('共享目录'),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            decoration: const InputDecoration(labelText: '用户名'),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: () =>
+                  Navigator.pop(dialogContext, controller.text.trim()),
+              child: const Text('共享'),
+            ),
+          ],
+        ),
+      );
+      controller.dispose();
+      if (username?.isNotEmpty == true) {
+        await state.api.shareFolder(folder.id, username!);
+      }
+      await state.refresh();
     } else if (action == 'delete') {
       await state.deleteFolder(folder);
     }
@@ -114,30 +147,59 @@ class _FolderNavigationState extends State<FolderNavigation> {
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              TextField(controller: current, obscureText: true, decoration: const InputDecoration(labelText: '当前密码')),
-              TextField(controller: next, obscureText: true, decoration: const InputDecoration(labelText: '新密码')),
-              TextField(controller: confirm, obscureText: true, decoration: const InputDecoration(labelText: '确认新密码')),
+              TextField(
+                controller: current,
+                obscureText: true,
+                decoration: const InputDecoration(labelText: '当前密码'),
+              ),
+              TextField(
+                controller: next,
+                obscureText: true,
+                decoration: const InputDecoration(labelText: '新密码'),
+              ),
+              TextField(
+                controller: confirm,
+                obscureText: true,
+                decoration: const InputDecoration(labelText: '确认新密码'),
+              ),
             ],
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('取消')),
-            FilledButton(onPressed: () => Navigator.pop(dialogContext, [current.text, next.text, confirm.text]), child: const Text('确认修改')),
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, [
+                current.text,
+                next.text,
+                confirm.text,
+              ]),
+              child: const Text('确认修改'),
+            ),
           ],
         ),
       );
       if (values == null || !context.mounted) return;
       if (values.any((value) => value.isEmpty)) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('请填写完整密码信息')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('请填写完整密码信息')));
         return;
       }
       if (values[1] != values[2]) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('两次输入的新密码不一致')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('两次输入的新密码不一致')));
         return;
       }
       final state = context.read<AppState>();
-      final changed = await state.changePassword(values[0], values[1], values[2]);
+      final changed = await state.changePassword(
+        values[0],
+        values[1],
+        values[2],
+      );
       if (changed && context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('密码修改成功，请重新登录')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('密码修改成功，请重新登录')));
       }
     } finally {
       current.dispose();
@@ -156,6 +218,7 @@ class _FolderNavigationState extends State<FolderNavigation> {
         }
       }
     }
+
     for (final root in roots) {
       visit(root);
     }
@@ -165,6 +228,12 @@ class _FolderNavigationState extends State<FolderNavigation> {
   @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
+    final currentIds = state.folders.map((folder) => folder.id).toSet();
+    if (_initializedFolderIds.length != currentIds.length ||
+        !_initializedFolderIds.containsAll(currentIds)) {
+      _collapsedFolderIds.addAll(currentIds);
+      _initializedFolderIds = currentIds;
+    }
     final nodes = _visibleNodes(state.folderTree);
     final effectiveAppName =
         widget.appConfig?.appName ??
@@ -175,32 +244,32 @@ class _FolderNavigationState extends State<FolderNavigation> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-           Padding(
-             padding: const EdgeInsets.fromLTRB(14, 12, 14, 6),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 6),
             child: Text(
               effectiveAppName,
               style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
             ),
           ),
-           ListTile(
-             dense: true,
-             visualDensity: const VisualDensity(vertical: -2),
+          ListTile(
+            dense: true,
+            visualDensity: const VisualDensity(vertical: -2),
             selected: state.view == BookmarkView.all,
             leading: const Icon(Icons.bookmarks_outlined),
             title: const Text('全部收藏'),
             onTap: () => _select(context, BookmarkView.all),
           ),
-           ListTile(
-             dense: true,
-             visualDensity: const VisualDensity(vertical: -2),
+          ListTile(
+            dense: true,
+            visualDensity: const VisualDensity(vertical: -2),
             selected: state.view == BookmarkView.uncategorized,
             leading: const Icon(Icons.inbox_outlined),
             title: const Text('未分类'),
             onTap: () => _select(context, BookmarkView.uncategorized),
           ),
-           const SizedBox(height: 2),
+          const SizedBox(height: 2),
           Padding(
-             padding: const EdgeInsets.symmetric(horizontal: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 8),
             child: Row(
               children: [
                 const Expanded(
@@ -218,7 +287,7 @@ class _FolderNavigationState extends State<FolderNavigation> {
               ],
             ),
           ),
-           Expanded(
+          Expanded(
             child: ListView.builder(
               itemCount: nodes.length,
               itemBuilder: (context, index) {
@@ -227,21 +296,21 @@ class _FolderNavigationState extends State<FolderNavigation> {
                 final actionActive = _activeActionFolderId == node.folder.id;
                 return Padding(
                   padding: EdgeInsets.only(left: (node.depth - 1) * 14.0),
-                   child: ListTile(
-                     tileColor: actionActive
-                         ? Theme.of(context).colorScheme.surfaceContainerHighest
-                         : null,
+                  child: ListTile(
+                    tileColor: actionActive
+                        ? Theme.of(context).colorScheme.surfaceContainerHighest
+                        : null,
                     dense: true,
                     visualDensity: const VisualDensity(vertical: -4),
-                     minTileHeight: 38,
-                     contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+                    minTileHeight: 38,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 8),
                     selected:
                         state.view == BookmarkView.folder &&
                         state.selectedFolderId == node.folder.id,
                     selectedColor: Theme.of(context).colorScheme.primary,
                     selectedTileColor: Theme.of(context).colorScheme.primary
                         .withValues(alpha: 0.08),
-                     leading: const Icon(Icons.folder_outlined),
+                    leading: const Icon(Icons.folder_outlined),
                     title: Text(
                       node.folder.name,
                       maxLines: 1,
@@ -249,81 +318,96 @@ class _FolderNavigationState extends State<FolderNavigation> {
                     ),
                     onTap: () =>
                         _select(context, BookmarkView.folder, node.folder.id),
-                     trailing: Row(
-                       mainAxisSize: MainAxisSize.min,
-                       children: [
-                         if (hasChildren)
-                           IconButton(
-                             icon: Icon(_collapsedFolderIds.contains(node.folder.id)
-                                 ? Icons.chevron_right
-                                 : Icons.expand_more),
-                             tooltip: _collapsedFolderIds.contains(node.folder.id)
-                                 ? '展开目录'
-                                 : '收起目录',
-                             onPressed: () => setState(() {
-                               if (!_collapsedFolderIds.add(node.folder.id)) {
-                                 _collapsedFolderIds.remove(node.folder.id);
-                               }
-                             }),
-                           ),
-                         PopupMenuButton<String>(
-                           tooltip: '目录操作',
-                           icon: const Icon(Icons.more_vert),
-                           position: PopupMenuPosition.under,
-                           offset: const Offset(-132, 44),
-                           onOpened: () => setState(() {
-                             _activeActionFolderId = node.folder.id;
-                           }),
-                           onCanceled: () => setState(() {
-                             _activeActionFolderId = null;
-                           }),
-                           onSelected: (action) async {
-                             await _folderAction(context, node.folder, action);
-                             if (mounted) {
-                               setState(() => _activeActionFolderId = null);
-                             }
-                           },
-                           itemBuilder: (_) => [
-                        appPopupMenuItem(
-                          value: 'bookmark',
-                          icon: Icons.bookmark_add_outlined,
-                          label: '添加收藏',
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (node.folder.pinned)
+                          const Icon(Icons.push_pin, size: 15),
+                        if (hasChildren)
+                          IconButton(
+                            icon: Icon(
+                              _collapsedFolderIds.contains(node.folder.id)
+                                  ? Icons.chevron_right
+                                  : Icons.expand_more,
+                            ),
+                            tooltip:
+                                _collapsedFolderIds.contains(node.folder.id)
+                                ? '展开目录'
+                                : '收起目录',
+                            onPressed: () => setState(() {
+                              if (!_collapsedFolderIds.add(node.folder.id)) {
+                                _collapsedFolderIds.remove(node.folder.id);
+                              }
+                            }),
+                          ),
+                        PopupMenuButton<String>(
+                          tooltip: '目录操作',
+                          icon: const Icon(Icons.more_vert),
+                          position: PopupMenuPosition.under,
+                          offset: const Offset(-132, 44),
+                          onOpened: () => setState(() {
+                            _activeActionFolderId = node.folder.id;
+                          }),
+                          onCanceled: () => setState(() {
+                            _activeActionFolderId = null;
+                          }),
+                          onSelected: (action) async {
+                            await _folderAction(context, node.folder, action);
+                            if (mounted) {
+                              setState(() => _activeActionFolderId = null);
+                            }
+                          },
+                          itemBuilder: (_) => [
+                            appPopupMenuItem(
+                              value: 'pin',
+                              icon: Icons.push_pin_outlined,
+                              label: node.folder.pinned ? '取消置顶' : '置顶目录',
+                            ),
+                            appPopupMenuItem(
+                              value: 'share',
+                              icon: Icons.share_outlined,
+                              label: '共享目录',
+                            ),
+                            appPopupMenuItem(
+                              value: 'bookmark',
+                              icon: Icons.bookmark_add_outlined,
+                              label: '添加收藏',
+                            ),
+                            appPopupMenuItem(
+                              value: 'child',
+                              icon: Icons.create_new_folder_outlined,
+                              label: '新增子目录',
+                            ),
+                            appPopupMenuItem(
+                              value: 'move',
+                              icon: Icons.drive_file_move_outline,
+                              label: '移动',
+                            ),
+                            appPopupMenuItem(
+                              value: 'up',
+                              icon: Icons.arrow_upward,
+                              label: '向前排序',
+                            ),
+                            appPopupMenuItem(
+                              value: 'down',
+                              icon: Icons.arrow_downward,
+                              label: '向后排序',
+                            ),
+                            appPopupMenuItem(
+                              value: 'rename',
+                              icon: Icons.edit_outlined,
+                              label: '重命名',
+                            ),
+                            appPopupMenuItem(
+                              value: 'delete',
+                              icon: Icons.delete_outline,
+                              label: '删除',
+                              destructive: true,
+                            ),
+                          ],
                         ),
-                        appPopupMenuItem(
-                          value: 'child',
-                          icon: Icons.create_new_folder_outlined,
-                          label: '新增子目录',
-                        ),
-                        appPopupMenuItem(
-                          value: 'move',
-                          icon: Icons.drive_file_move_outline,
-                          label: '移动',
-                        ),
-                        appPopupMenuItem(
-                          value: 'up',
-                          icon: Icons.arrow_upward,
-                          label: '向前排序',
-                        ),
-                        appPopupMenuItem(
-                          value: 'down',
-                          icon: Icons.arrow_downward,
-                          label: '向后排序',
-                        ),
-                        appPopupMenuItem(
-                          value: 'rename',
-                          icon: Icons.edit_outlined,
-                          label: '重命名',
-                        ),
-                        appPopupMenuItem(
-                          value: 'delete',
-                          icon: Icons.delete_outline,
-                          label: '删除',
-                          destructive: true,
-                        ),
-                           ],
-                         ),
-                       ],
-                     ),
+                      ],
+                    ),
                   ),
                 );
               },

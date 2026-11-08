@@ -77,12 +77,8 @@ function retry() {
   sendMessage(content);
 }
 
-watch(() => props.modelValue, (visible) => {
-  if (!visible) resetConversation();
-});
-
 watch(() => contextKey(props.context), () => {
-  if (props.modelValue) resetConversation();
+  resetConversation();
 });
 </script>
 

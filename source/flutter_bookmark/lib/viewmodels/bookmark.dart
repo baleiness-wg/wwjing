@@ -4,6 +4,7 @@ class BookmarkFolder {
     required this.name,
     this.parentId,
     this.position = 0,
+    this.pinned = false,
   });
 
   factory BookmarkFolder.fromJson(Map<String, dynamic> json) => BookmarkFolder(
@@ -13,12 +14,14 @@ class BookmarkFolder {
         ? null
         : '${json['parentId'] ?? json['parent_id']}',
     position: (json['position'] as num?)?.toInt() ?? 0,
+    pinned: json['pinned'] == true,
   );
 
   final String id;
   final String name;
   final String? parentId;
   final int position;
+  final bool pinned;
 }
 
 class FolderNode {
@@ -43,6 +46,8 @@ List<FolderNode> buildFolderTree(
   }
   for (final values in children.values) {
     values.sort((a, b) {
+      final pin = (b.pinned ? 1 : 0).compareTo(a.pinned ? 1 : 0);
+      if (pin != 0) return pin;
       final position = a.position.compareTo(b.position);
       return position != 0 ? position : a.name.compareTo(b.name);
     });
@@ -93,7 +98,8 @@ class BookmarkItem {
     title: json['title'] as String?,
     description: json['description'] as String?,
     sourceHost: json['sourceHost'] as String? ?? json['source_host'] as String?,
-    images: (json['images'] as List?)?.whereType<String>().toList() ??
+    images:
+        (json['images'] as List?)?.whereType<String>().toList() ??
         _legacyImages(json),
   );
 

@@ -23,14 +23,25 @@ class _ChatMessage {
 }
 
 class _AiChatSheetState extends State<AiChatSheet> {
+  static final Map<String, List<_ChatMessage>> _savedSessions = {};
   final _input = TextEditingController();
   final _scrollController = ScrollController();
   final _messages = <_ChatMessage>[];
   bool _sending = false;
   String? _failedMessage;
 
+  String get _sessionKey =>
+      '${widget.directoryContext['space']}:${widget.directoryContext['directoryId'] ?? 'all'}';
+
+  @override
+  void initState() {
+    super.initState();
+    _messages.addAll(_savedSessions[_sessionKey] ?? const []);
+  }
+
   @override
   void dispose() {
+    _savedSessions[_sessionKey] = List.unmodifiable(_messages);
     _input.dispose();
     _scrollController.dispose();
     super.dispose();

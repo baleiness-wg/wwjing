@@ -73,6 +73,7 @@ async function update(userId, idValue, input = {}, space = "star") {
       name: Object.hasOwn(input, "name") ? parseName(input.name) : current.name,
       parentId: Object.hasOwn(input, "parentId") ? parseParentId(input.parentId) : current.parentId,
       position: Object.hasOwn(input, "position") ? parsePosition(input.position) : current.position
+      ,pinned: Object.hasOwn(input, "pinned") ? input.pinned === true : current.pinned === true
     };
 
     if (values.parentId) {
@@ -121,4 +122,24 @@ async function remove(userId, idValue, space = "star") {
   }
 }
 
-module.exports = { list, create, update, remove, maxDepth, parseSpace };
+async function share(userId, idValue, input = {}, space = "star") {
+  const id = parseId(idValue, "id");
+  if (typeof input.username !== "string" || !input.username.trim()) {
+    throw new BookmarkError(400, "INVALID_INPUT", "username 不能为空");
+  }
+  if (!await folderModel.share(userId, id, input.username.trim(), parseSpace(space))) {
+    throw new BookmarkError(404, "USER_OR_FOLDER_NOT_FOUND", "用户或目录不存在");
+  }
+  return folderModel.listShares(userId, id, parseSpace(space));
+}
+
+async function unshare(userId, idValue, targetUserId, space = "star") {
+  const removed = await folderModel.unshare(userId, parseId(idValue, "id"), parseId(targetUserId, "userId"), parseSpace(space));
+  if (!removed) throw new BookmarkError(404, "SHARE_NOT_FOUND", "共享关系不存在");
+}
+
+async function shares(userId, idValue, space = "star") {
+  return folderModel.listShares(userId, parseId(idValue, "id"), parseSpace(space));
+}
+
+module.exports = { list, create, update, remove, share, unshare, shares, maxDepth, parseSpace };

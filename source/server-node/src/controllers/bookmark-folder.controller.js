@@ -39,4 +39,16 @@ async function remove(req, res, next) {
   }
 }
 
-module.exports = { list, create, update, remove };
+async function share(req, res, next) {
+  try { res.json({ shares: await folderService.share(req.auth.sub, req.params.id, req.body, req.body.space || "star") }); } catch (error) { next(error); }
+}
+
+async function unshare(req, res, next) {
+  try { await folderService.unshare(req.auth.sub, req.params.id, req.params.userId, req.query.space || "star"); res.status(204).send(); } catch (error) { next(error); }
+}
+
+async function shares(req, res, next) {
+  try { res.json({ shares: await folderService.shares(req.auth.sub, req.params.id, req.query.space || "star") }); } catch (error) { next(error); }
+}
+
+module.exports = { list, create, update, remove, share, unshare, shares };

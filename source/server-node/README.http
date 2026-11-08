@@ -208,6 +208,20 @@ Content-Type: application/json
 # Success: { "answer": "...", "truncated": false }
 # Errors: 400 AI_INVALID_INPUT; 401 missing/invalid token;
 # 502 AI_PROVIDER_ERROR; 503 AI_NOT_CONFIGURED; 504 AI_TIMEOUT.
+
+### Pin a folder
+PATCH {{baseUrl}}/bookmarks/folders/{{FOLDER_ID}}
+Authorization: Bearer {{TOKEN}}
+Content-Type: application/json
+
+{"space":"star","pinned":true}
+
+### Share a folder with another username
+POST {{baseUrl}}/bookmarks/folders/{{FOLDER_ID}}/shares
+Authorization: Bearer {{TOKEN}}
+Content-Type: application/json
+
+{"space":"star","username":"other-user"}
 ### 收藏条目图片上传接口（预留）
 # 当前版本仅预留路由，尚未实现文件存储。
 POST {{baseUrl}}/api/bookmarks/items/{{itemId}}/images

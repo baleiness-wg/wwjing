@@ -23,6 +23,7 @@ import {
   deleteBookmarkItem,
   getBookmarkFolders,
   getBookmarkItems,
+  shareBookmarkFolder,
   getRandomBookmark,
   updateBookmarkFolder,
   updateBookmarkItem
@@ -45,6 +46,9 @@ const total = ref(0);
 const page = ref(1);
 const query = ref("");
 const activeFolderId = ref(undefined);
+const folderShareDialogVisible = ref(false);
+const folderShareUsername = ref("");
+const folderShareTarget = ref(null);
 const loadingFolders = ref(false);
 const loadingItems = ref(false);
 let itemsRequestSequence = 0;
@@ -85,7 +89,7 @@ const folderMap = computed(() => new Map(folders.value.map((folder) => [String(f
 function buildTree(parentId = null, ancestors = new Set()) {
   return folders.value
     .filter((folder) => String(folder.parentId ?? "") === String(parentId ?? ""))
-    .sort((a, b) => a.position - b.position || a.name.localeCompare(b.name, "zh-CN") || Number(a.id) - Number(b.id))
+    .sort((a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)) || a.position - b.position || a.name.localeCompare(b.name, "zh-CN") || Number(a.id) - Number(b.id))
     .filter((folder) => !ancestors.has(String(folder.id)))
     .map((folder) => ({
       ...folder,
@@ -295,6 +299,21 @@ function openEditFolder(folder) {
     position: folder.position
   });
   folderDialogVisible.value = true;
+}
+
+function shareFolder(folder) {
+  folderShareTarget.value = folder;
+  folderShareUsername.value = "";
+  folderShareDialogVisible.value = true;
+}
+
+async function submitFolderShare() {
+  if (!folderShareUsername.value.trim() || !folderShareTarget.value) return;
+  try {
+    await shareBookmarkFolder(folderShareTarget.value.id, folderShareUsername.value.trim(), currentSpace.value);
+    folderShareDialogVisible.value = false;
+    ElMessage.success("目录已共享");
+  } catch (error) { ElMessage.error(error.message); }
 }
 
 async function saveFolder() {
@@ -645,7 +664,7 @@ onMounted(async () => {
           class="folder-tree"
           :data="folderTree"
           node-key="id"
-          default-expand-all
+           :default-expanded-keys="[]"
           :expand-on-click-node="false"
           :highlight-current="Boolean(activeFolderId)"
           :current-node-key="activeFolderId"
@@ -658,13 +677,15 @@ onMounted(async () => {
               @dragover.prevent
               @drop.prevent="dropItemOnFolder(data.id)"
             >
-              <span class="folder-node__name" :title="folderPath(data.id)">{{ data.name }}</span>
+               <span class="folder-node__name" :title="folderPath(data.id)">{{ data.pinned ? "📌 " : "" }}{{ data.name }}</span>
               <el-dropdown trigger="click" @command="(command) => command()" @click.stop>
                 <el-button text circle :icon="MoreFilled" :aria-label="`${data.name}目录操作`" />
                 <template #dropdown>
                   <el-dropdown-menu>
                     <el-dropdown-item :icon="FolderAdd" :command="() => openCreateFolder(data.id)">新增子目录</el-dropdown-item>
                     <el-dropdown-item :icon="Edit" :command="() => openEditFolder(data)">重命名或移动</el-dropdown-item>
+                    <el-dropdown-item :command="() => shareFolder(data)">共享目录</el-dropdown-item>
+                    <el-dropdown-item :command="() => updateBookmarkFolder(data.id, { pinned: !data.pinned }, currentSpace).then(loadFolders)">{{ data.pinned ? "取消置顶" : "置顶目录" }}</el-dropdown-item>
                     <el-dropdown-item :icon="ArrowUp" :command="() => moveFolderStep(data, -1)">上移</el-dropdown-item>
                     <el-dropdown-item :icon="ArrowDown" :command="() => moveFolderStep(data, 1)">下移</el-dropdown-item>
                     <el-dropdown-item divided :icon="Delete" :command="() => removeFolder(data)">删除</el-dropdown-item>
@@ -787,6 +808,18 @@ onMounted(async () => {
       <template #footer>
         <el-button @click="folderDialogVisible = false">取消</el-button>
         <el-button type="primary" :loading="saving" @click="saveFolder">保存</el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog v-model="folderShareDialogVisible" title="共享目录" width="min(420px, 92vw)">
+      <el-form label-position="top" @submit.prevent="submitFolderShare">
+        <el-form-item label="用户名">
+          <el-input v-model="folderShareUsername" placeholder="输入对方用户名" autofocus />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="folderShareDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="submitFolderShare">共享</el-button>
       </template>
     </el-dialog>
 
