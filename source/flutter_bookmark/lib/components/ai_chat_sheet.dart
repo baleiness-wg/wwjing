@@ -1,16 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
 
 import '../api/api_client.dart';
+import '../utils/link_launcher.dart';
 
 class AiChatSheet extends StatefulWidget {
   const AiChatSheet({
     super.key,
     required this.api,
     required this.directoryContext,
+    this.linkLauncher = const LinkLauncher(),
   });
 
   final ApiClient api;
   final Map<String, Object?> directoryContext;
+  final LinkLauncher linkLauncher;
 
   @override
   State<AiChatSheet> createState() => _AiChatSheetState();
@@ -26,7 +30,7 @@ class _AiChatSheetState extends State<AiChatSheet> {
   static final Map<String, List<_ChatMessage>> _savedSessions = {};
   final _input = TextEditingController();
   final _scrollController = ScrollController();
-  final _messages = <_ChatMessage>[];
+  late final List<_ChatMessage> _messages;
   bool _sending = false;
   String? _failedMessage;
 
@@ -36,12 +40,11 @@ class _AiChatSheetState extends State<AiChatSheet> {
   @override
   void initState() {
     super.initState();
-    _messages.addAll(_savedSessions[_sessionKey] ?? const []);
+    _messages = _savedSessions.putIfAbsent(_sessionKey, () => <_ChatMessage>[]);
   }
 
   @override
   void dispose() {
-    _savedSessions[_sessionKey] = List.unmodifiable(_messages);
     _input.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -68,27 +71,26 @@ class _AiChatSheetState extends State<AiChatSheet> {
         message: message,
         history: history,
       );
-      if (!mounted) return;
-      setState(() {
-        _messages.add(_ChatMessage('assistant', result.answer));
-        _sending = false;
-      });
+      _messages.add(_ChatMessage('assistant', result.answer));
+      if (mounted) setState(() => _sending = false);
     } on ApiException catch (error) {
-      if (!mounted) return;
-      setState(() {
-        _messages.add(_ChatMessage('error', error.message));
-        _failedMessage = message;
-        _input.text = message;
-        _sending = false;
-      });
+      _messages.add(_ChatMessage('error', error.message));
+      if (mounted) {
+        setState(() {
+          _failedMessage = message;
+          _input.text = message;
+          _sending = false;
+        });
+      }
     } catch (_) {
-      if (!mounted) return;
-      setState(() {
-        _messages.add(const _ChatMessage('error', 'AI 请求失败，请稍后重试。'));
-        _failedMessage = message;
-        _input.text = message;
-        _sending = false;
-      });
+      _messages.add(const _ChatMessage('error', 'AI 请求失败，请稍后重试。'));
+      if (mounted) {
+        setState(() {
+          _failedMessage = message;
+          _input.text = message;
+          _sending = false;
+        });
+      }
     }
     _scrollToEnd();
   }
@@ -178,6 +180,8 @@ class _AiChatSheetState extends State<AiChatSheet> {
                           return _MessageBubble(
                             role: message.role,
                             content: message.content,
+                            onOpenLink: (url) =>
+                                widget.linkLauncher.open(context, url),
                           );
                         },
                       ),
@@ -240,9 +244,14 @@ class _AiChatSheetState extends State<AiChatSheet> {
 }
 
 class _MessageBubble extends StatelessWidget {
-  const _MessageBubble({required this.role, required this.content});
+  const _MessageBubble({
+    required this.role,
+    required this.content,
+    this.onOpenLink,
+  });
   final String role;
   final String content;
+  final Future<bool> Function(String url)? onOpenLink;
 
   @override
   Widget build(BuildContext context) {
@@ -263,10 +272,45 @@ class _MessageBubble extends StatelessWidget {
               : colorScheme.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(14),
         ),
-        child: Text(
-          content,
-          style: TextStyle(color: isUser ? colorScheme.onPrimary : null),
+        child: _LinkText(
+          content: content,
+          color: isUser ? colorScheme.onPrimary : null,
+          onOpenLink: onOpenLink,
         ),
+      ),
+    );
+  }
+}
+
+class _LinkText extends StatelessWidget {
+  const _LinkText({required this.content, this.color, this.onOpenLink});
+  final String content;
+  final Color? color;
+  final Future<bool> Function(String url)? onOpenLink;
+
+  @override
+  Widget build(BuildContext context) {
+    final parts = content.split(RegExp(r'(https?://[^\s<>()]+)'));
+    return RichText(
+      text: TextSpan(
+        style: TextStyle(
+          color: color ?? Theme.of(context).colorScheme.onSurface,
+        ),
+        children: [
+          for (final part in parts)
+            if (RegExp(r'^https?://').hasMatch(part))
+              TextSpan(
+                text: part,
+                style: const TextStyle(
+                  decoration: TextDecoration.underline,
+                  color: Colors.teal,
+                ),
+                recognizer: TapGestureRecognizer()
+                  ..onTap = () => onOpenLink?.call(part),
+              )
+            else
+              TextSpan(text: part),
+        ],
       ),
     );
   }

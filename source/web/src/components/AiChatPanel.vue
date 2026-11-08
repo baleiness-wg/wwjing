@@ -36,6 +36,13 @@ function contextKey(context) {
   return `${context.space}:${context.directoryId ?? "all"}:${context.directoryPath || ""}`;
 }
 
+function messageParts(content) {
+  return content.split(/(https?:\/\/[^\s<>()]+)/g).filter(Boolean).map((part) => ({
+    text: part,
+    link: /^https?:\/\//i.test(part)
+  }));
+}
+
 async function sendMessage(message = draft.value) {
   const content = message.trim();
   if (!content || sending.value) return;
@@ -116,7 +123,10 @@ watch(() => contextKey(props.context), () => {
           class="ai-chat-message"
           :class="`is-${message.role}`"
         >
-          <span>{{ message.content }}</span>
+          <span v-for="(part, partIndex) in messageParts(message.content)" :key="partIndex">
+            <a v-if="part.link" :href="part.text" target="_blank" rel="noopener noreferrer" class="ai-chat-link">{{ part.text }}</a>
+            <template v-else>{{ part.text }}</template>
+          </span>
         </div>
         <div v-if="sending" class="ai-chat-message is-assistant is-loading">AI 正在整理目录内容...</div>
       </div>
@@ -165,6 +175,7 @@ watch(() => contextKey(props.context), () => {
 .ai-chat-message.is-assistant { margin-right: auto; background: #eaf3ef; }
 .ai-chat-message.is-error { margin-right: auto; background: #fff0ed; color: #a94737; }
 .ai-chat-message.is-loading { color: #74857f; font-size: 13px; }
+.ai-chat-link { color: #126b60; text-decoration: underline; overflow-wrap: anywhere; }
 .ai-chat-retry { display: flex; align-items: center; justify-content: space-between; padding: 8px 16px; border-top: 1px solid #f1e4e0; color: #a94737; font-size: 12px; }
 .ai-chat-composer { display: flex; align-items: flex-end; gap: 8px; padding: 12px; border-top: 1px solid #edf2ef; background: #fff; }
 .ai-chat-composer .el-input { flex: 1; }

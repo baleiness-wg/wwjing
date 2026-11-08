@@ -146,8 +146,11 @@ class _HomePageState extends State<HomePage> {
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
-      builder: (sheetContext) =>
-          AiChatSheet(api: state.api, directoryContext: directoryContext),
+      builder: (sheetContext) => AiChatSheet(
+        api: state.api,
+        directoryContext: directoryContext,
+        linkLauncher: widget.linkLauncher,
+      ),
     );
   }
 

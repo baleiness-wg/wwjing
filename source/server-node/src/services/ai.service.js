@@ -70,6 +70,7 @@ function buildMessages({ context, message, history }) {
   const system = [
     "你是鲸界收藏夹的中文目录助手。请基于给定目录上下文回答问题。",
     "不要臆造上下文中不存在的事实；无法判断时明确说明。",
+    "当你推荐或提到具体收藏时，必须同时输出收藏标题和对应的原始链接，使用“标题：...\n链接：https://...”格式；链接必须原样使用目录上下文中的 sourceUrl，不要改写或省略。",
     limitation,
     `目录上下文：${contextResult.serialized}`
   ].join("\n");

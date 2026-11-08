@@ -194,32 +194,31 @@ class _FolderNavigationState extends State<FolderNavigation> {
 
   Future<void> _openSettings(BuildContext context) async {
     final state = context.read<AppState>();
-    await showModalBottomSheet<void>(
+    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+    final box = context.findRenderObject() as RenderBox?;
+    final position = box == null
+        ? RelativeRect.fill
+        : RelativeRect.fromRect(
+            Rect.fromPoints(
+              box.localToGlobal(Offset.zero, ancestor: overlay),
+              box.localToGlobal(
+                box.size.bottomRight(Offset.zero),
+                ancestor: overlay,
+              ),
+            ),
+            Offset.zero & overlay.size,
+          );
+    final action = await showMenu<String>(
       context: context,
-      builder: (sheetContext) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.lock_reset_outlined),
-              title: const Text('修改密码'),
-              onTap: () {
-                Navigator.pop(sheetContext);
-                _changePassword(context);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.logout),
-              title: const Text('退出登录'),
-              onTap: () {
-                Navigator.pop(sheetContext);
-                state.logout();
-              },
-            ),
-          ],
-        ),
-      ),
+      position: position,
+      items: const [
+        PopupMenuItem(value: 'password', child: Text('修改密码')),
+        PopupMenuItem(value: 'logout', child: Text('退出登录')),
+      ],
     );
+    if (!context.mounted) return;
+    if (action == 'password') await _changePassword(context);
+    if (action == 'logout') await state.logout();
   }
 
   List<FolderNode> _visibleNodes(List<FolderNode> roots) {
