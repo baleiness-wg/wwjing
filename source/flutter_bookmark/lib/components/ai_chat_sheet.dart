@@ -321,7 +321,7 @@ class _LinkText extends StatelessWidget {
     if (cursor < content.length) {
       spans.add(TextSpan(text: content.substring(cursor)));
     }
-    return RichText(
+    return SelectableText.rich(
       text: TextSpan(
         style: TextStyle(
           color: color ?? Theme.of(context).colorScheme.onSurface,

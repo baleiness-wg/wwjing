@@ -78,8 +78,25 @@ class LinkLauncher {
   final MethodChannel channel;
   final ExternalUrlOpener? externalUrlOpener;
 
+  static String cleanAiUrl(String value) {
+    var cleaned = value.trim();
+    final candidates = RegExp(r'https?://[^\s<>()]+', caseSensitive: false)
+        .allMatches(cleaned)
+        .map((match) => match.group(0)!)
+        .toList();
+    if (candidates.length > 1) {
+      cleaned = candidates.last;
+    }
+    cleaned = cleaned.replaceFirst(RegExp(r'^\[([^\]]+)\]\('), '');
+    cleaned = cleaned.replaceAll(RegExp(r'[。，、；：！？》）】」』]+$'), '');
+    while (cleaned.endsWith(')')) {
+      cleaned = cleaned.substring(0, cleaned.length - 1);
+    }
+    return cleaned;
+  }
+
   Future<bool> open(BuildContext context, String value) async {
-    final uri = Uri.tryParse(value.trim());
+    final uri = Uri.tryParse(cleanAiUrl(value));
     final valid =
         uri != null &&
         uri.hasAuthority &&
@@ -126,7 +143,8 @@ class LinkLauncher {
     const packageName = 'com.xingin.xhs';
     final id = xiaohongshuItemId(uri);
     // 根据 URL 中的 type 参数判断内容类型，使用对应的 deep link scheme
-    final isVideo = uri.queryParameters['type']?.toLowerCase() == 'video' ||
+    final isVideo =
+        uri.queryParameters['type']?.toLowerCase() == 'video' ||
         uri.path.contains('/note/') ||
         uri.path.contains('/discovery/item');
     final deepLink = isVideo
@@ -140,20 +158,17 @@ class LinkLauncher {
 
   Future<bool> _openDouyin(Uri uri) async {
     const packageName = 'com.ss.android.ugc.aweme';
-    // 优先用原始 URL 让抖音自身处理跳转（支持各版本）
-    if (await _openInApp(uri.toString(), packageName)) return true;
-    // 备用：尝试 deep link scheme
     final id = douyinVideoId(uri);
     if (id != null) {
-      // 新版抖音 deep link scheme 可能有变化，多种尝试
       for (final scheme in [
         'snssdk1128://aweme/detail/$id',
         'aweme://detail/$id',
-        'aweme://user/$id',
       ]) {
         if (await _openInApp(scheme, packageName)) return true;
       }
     }
+    // 没有可提取的内容 ID 时，才让抖音或浏览器处理原始网页。
+    if (await _openInApp(uri.toString(), packageName)) return true;
     return _openApp(packageName);
   }
 

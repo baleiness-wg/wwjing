@@ -178,6 +178,7 @@ watch(() => contextKey(props.context), () => {
 .ai-chat-empty p { margin: 12px 0 6px; line-height: 1.6; }
 .ai-chat-empty small { color: #9aa8a3; }
 .ai-chat-message { max-width: 86%; margin: 0 0 12px; padding: 10px 12px; border-radius: 13px; color: #2d403d; line-height: 1.55; white-space: pre-wrap; word-break: break-word; }
+.ai-chat-message { user-select: text; }
 .ai-chat-message.is-user { margin-left: auto; background: #155e56; color: white; }
 .ai-chat-message.is-assistant { margin-right: auto; background: #eaf3ef; }
 .ai-chat-message.is-error { margin-right: auto; background: #fff0ed; color: #a94737; }

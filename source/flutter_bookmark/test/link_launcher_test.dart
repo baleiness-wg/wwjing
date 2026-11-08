@@ -88,7 +88,7 @@ void main() {
     expect(external, isTrue);
   });
 
-  testWidgets('小红书使用内容 Deep Link，抖音优先使用原始链接', (tester) async {
+  testWidgets('小红书和抖音优先使用内容 Deep Link', (tester) async {
     final calls = <MethodCall>[];
     final channel = MethodChannel(
       'test.platform.${DateTime.now().microsecondsSinceEpoch}',
@@ -121,7 +121,21 @@ void main() {
     expect((calls[0].arguments as Map)['url'], 'xhsdiscover://item/abc123');
     expect(
       (calls[1].arguments as Map)['url'],
-      'https://www.douyin.com/video/987654',
+      'snssdk1128://aweme/detail/987654',
+    );
+  });
+
+  test('AI 链接清理 Markdown 和中文标点尾字符', () {
+    expect(
+      LinkLauncher.cleanAiUrl('[视频](https://www.douyin.com/video/123456)。'),
+      'https://www.douyin.com/video/123456',
+    );
+  });
+
+  test('AI 嵌套错误链接取最内层真实 URL', () {
+    expect(
+      LinkLauncher.cleanAiUrl('<https://v.douyin.com(https://v.douyin.com/IKMupVJyMEk/)/3dpoFkbK88g/>'),
+      'https://v.douyin.com/IKMupVJyMEk/',
     );
   });
 }
