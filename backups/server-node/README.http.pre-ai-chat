@@ -1,0 +1,33 @@
+@baseUrl = http://localhost:3000/api
+@username = bookmark-demo
+@password = replace-with-password
+@space = star
+
+### Register a bookmark test account (run once)
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "username": "{{username}}",
+  "password": "{{password}}"
+}
+
+### Change password; success invalidates this client session
+POST {{baseUrl}}/auth/change-password
+Authorization: Bearer {{TOKEN}}
+Content-Type: application/json
+
+{
+  "currentPassword": "{{password}}",
+  "newPassword": "replace-with-new-password",
+  "confirmPassword": "replace-with-new-password"
+}
+
+### Log in, then copy the response token without its leading "Bearer " into TOKEN
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{username}}",
+  "password": "{{password}}"
+}

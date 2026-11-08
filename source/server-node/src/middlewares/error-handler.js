@@ -20,6 +20,15 @@ function errorHandler(error, req, res, next) {
     });
   }
 
+  if (error.name === "AiError") {
+    return res.status(error.status || 503).json({
+      error: {
+        code: error.code || "AI_PROVIDER_ERROR",
+        message: error.message
+      }
+    });
+  }
+
   res.status(error.status || 500).json({
     message: error.status ? error.message : "服务器内部错误"
   });

@@ -178,6 +178,36 @@ Authorization: Bearer {{TOKEN}}
 ### Search title, description, or source URL
 GET {{baseUrl}}/bookmarks/items?query=示例&page=1&pageSize=20
 Authorization: Bearer {{TOKEN}}
+
+### Chat with the current loaded bookmark directory context
+POST {{baseUrl}}/ai/chat
+Authorization: Bearer {{TOKEN}}
+Content-Type: application/json
+
+{
+  "context": {
+    "space": "star",
+    "directoryId": "{{CHILD_FOLDER_ID}}",
+    "directoryName": "技术文章",
+    "directoryPath": "稍后阅读 / 技术文章",
+    "loadedItemCount": 1,
+    "items": [
+      {
+        "title": "示例文章",
+        "description": "仅发送当前页面已加载的收藏元数据",
+        "sourceHost": "example.com",
+        "sourceUrl": "https://example.com/article",
+        "folderPath": "稍后阅读 / 技术文章"
+      }
+    ]
+  },
+  "history": [],
+  "message": "请根据当前目录的收藏，给我一个阅读建议"
+}
+
+# Success: { "answer": "...", "truncated": false }
+# Errors: 400 AI_INVALID_INPUT; 401 missing/invalid token;
+# 502 AI_PROVIDER_ERROR; 503 AI_NOT_CONFIGURED; 504 AI_TIMEOUT.
 ### 收藏条目图片上传接口（预留）
 # 当前版本仅预留路由，尚未实现文件存储。
 POST {{baseUrl}}/api/bookmarks/items/{{itemId}}/images

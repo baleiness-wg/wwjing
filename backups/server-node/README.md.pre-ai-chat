@@ -1,0 +1,27 @@
+# WWJ Node Server
+
+## Commands
+
+```powershell
+npm install
+npm run db:migrate
+npm test
+npm start
+```
+
+The authenticated transfer endpoints are documented in `README.http`.
+They store one current text or file payload per user and replace it on the next save.
+
+## Logging
+
+The server uses `pino` for structured application logs and `pino-http` for HTTP request logs.
+
+```text
+NODE_ENV=development  # readable terminal output through pino-pretty
+NODE_ENV=production   # JSON output to stdout
+LOG_LEVEL=debug       # development default
+LOG_LEVEL=info        # recommended production level
+SERVICE_NAME=wwjing-server
+```
+
+Application logs do not write files or call Elasticsearch directly. The process manager or deployment platform owns retention and rotation.

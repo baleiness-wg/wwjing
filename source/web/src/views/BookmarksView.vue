@@ -27,6 +27,7 @@ import {
   updateBookmarkFolder,
   updateBookmarkItem
 } from "../api/bookmarks";
+import AiChatPanel from "../components/AiChatPanel.vue";
 
 const route = useRoute();
 const currentSpace = computed(() => route.meta.space || "star");
@@ -59,6 +60,7 @@ const failedCoverUrls = ref(new Set());
 const randomDialogVisible = ref(false);
 const loadingRandom = ref(false);
 const randomItem = ref(null);
+const aiChatVisible = ref(false);
 
 const folderForm = reactive({ id: null, name: "", parentId: null, position: 0 });
 const itemForm = reactive({ id: null, sourceUrl: "", title: "", description: "", coverUrl: "", folderId: null });
@@ -97,6 +99,24 @@ const activeTitle = computed(() => {
   if (activeFolder.value) return activeFolder.value.name;
   return "全部收藏";
 });
+const aiDirectoryContext = computed(() => ({
+  space: currentSpace.value,
+  directoryId: activeFolderId.value === undefined ? null : activeFolderId.value,
+  directoryName: activeTitle.value,
+  directoryPath: activeFolderId.value === undefined
+    ? "全部收藏"
+    : activeFolderId.value === null
+      ? "未分类"
+      : folderPath(activeFolderId.value),
+  loadedItemCount: items.value.length,
+  items: items.value.map((item) => ({
+    title: item.title,
+    description: item.description,
+    sourceHost: itemHost(item),
+    sourceUrl: item.sourceUrl,
+    folderPath: folderPath(item.folderId)
+  }))
+}));
 const selectedItems = computed(() => items.value.filter((item) => selectedIds.value.includes(String(item.id))));
 const previewHost = computed(() => sourceHost(itemForm.sourceUrl));
 
@@ -855,5 +875,7 @@ onMounted(async () => {
         </div>
       </template>
     </el-dialog>
+
+    <AiChatPanel v-model="aiChatVisible" :context="aiDirectoryContext" />
   </div>
 </template>
