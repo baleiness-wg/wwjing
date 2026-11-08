@@ -348,7 +348,7 @@ class _FolderNavigationState extends State<FolderNavigation> {
                           tooltip: '目录操作',
                           icon: const Icon(Icons.more_vert),
                           position: PopupMenuPosition.under,
-                          offset: const Offset(-132, 16),
+                          offset: const Offset(0, 8),
                           onOpened: () => setState(() {
                             _activeActionFolderId = node.folder.id;
                           }),
@@ -418,10 +418,9 @@ class _FolderNavigationState extends State<FolderNavigation> {
             ),
           ),
           ListTile(
-            leading: const Icon(Icons.settings_outlined),
-            title: const Text('设置'),
-            trailing: PopupMenuButton<String>(
+            leading: PopupMenuButton<String>(
               tooltip: '设置选项',
+              icon: const Icon(Icons.settings_outlined),
               position: PopupMenuPosition.under,
               offset: const Offset(0, 8),
               onSelected: (action) async {
@@ -433,7 +432,6 @@ class _FolderNavigationState extends State<FolderNavigation> {
                 PopupMenuItem(value: 'logout', child: Text('退出登录')),
               ],
             ),
-            onTap: () {},
           ),
         ],
       ),

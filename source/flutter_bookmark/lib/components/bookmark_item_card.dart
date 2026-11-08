@@ -40,9 +40,8 @@ class BookmarkItemCard extends StatelessWidget {
       _displayTitle(item.title?.isNotEmpty == true ? item.title! : '未命名收藏'),
       maxLines: 2,
       overflow: TextOverflow.ellipsis,
-      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-      fontWeight: FontWeight.w400,
-      ),
+      style: Theme.of(context).textTheme.bodyLarge
+          ?.copyWith(fontWeight: FontWeight.w400),
     );
     final subtitle = Text(
       item.description?.isNotEmpty == true
@@ -57,25 +56,27 @@ class BookmarkItemCard extends StatelessWidget {
         : PopupMenuButton<String>(
             tooltip: '更多操作',
             icon: const Icon(Icons.more_vert),
+            position: PopupMenuPosition.under,
+            offset: const Offset(0, 8),
             padding: EdgeInsets.zero,
             onSelected: onAction,
             itemBuilder: (_) => [
-                        appPopupMenuItem(
-                          value: 'edit',
-                          icon: Icons.edit_outlined,
-                          label: '编辑',
-                        ),
-                        appPopupMenuItem(
-                          value: 'move',
-                          icon: Icons.drive_file_move_outline,
-                          label: '移动',
-                        ),
-                        appPopupMenuItem(
-                          value: 'delete',
-                          icon: Icons.delete_outline,
-                          label: '删除',
-                          destructive: true,
-                        ),
+              appPopupMenuItem(
+                value: 'edit',
+                icon: Icons.edit_outlined,
+                label: '编辑',
+              ),
+              appPopupMenuItem(
+                value: 'move',
+                icon: Icons.drive_file_move_outline,
+                label: '移动',
+              ),
+              appPopupMenuItem(
+                value: 'delete',
+                icon: Icons.delete_outline,
+                label: '删除',
+                destructive: true,
+              ),
             ],
           );
     if (selectionValue != null) {
@@ -87,7 +88,10 @@ class BookmarkItemCard extends StatelessWidget {
           value: selectionValue,
           onChanged: onSelectionChanged,
           secondary: cover,
-           contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 10,
+            vertical: 6,
+          ),
           title: title,
           subtitle: subtitle,
         ),
@@ -100,7 +104,7 @@ class BookmarkItemCard extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(14),
         child: Padding(
-           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [

@@ -57,6 +57,7 @@ class _AiChatSheetState extends State<AiChatSheet> {
     setState(() {
       _failedMessage = null;
       _messages.add(_ChatMessage('user', message));
+      _messages.add(const _ChatMessage('thinking', 'AI 正在思考，请稍候...'));
       _sending = true;
     });
     _scrollToEnd();
@@ -71,9 +72,11 @@ class _AiChatSheetState extends State<AiChatSheet> {
         message: message,
         history: history,
       );
+      _messages.removeWhere((entry) => entry.role == 'thinking');
       _messages.add(_ChatMessage('assistant', result.answer));
       if (mounted) setState(() => _sending = false);
     } on ApiException catch (error) {
+      _messages.removeWhere((entry) => entry.role == 'thinking');
       _messages.add(_ChatMessage('error', error.message));
       if (mounted) {
         setState(() {
@@ -83,6 +86,7 @@ class _AiChatSheetState extends State<AiChatSheet> {
         });
       }
     } catch (_) {
+      _messages.removeWhere((entry) => entry.role == 'thinking');
       _messages.add(const _ChatMessage('error', 'AI 请求失败，请稍后重试。'));
       if (mounted) {
         setState(() {
@@ -169,14 +173,8 @@ class _AiChatSheetState extends State<AiChatSheet> {
                     : ListView.builder(
                         controller: _scrollController,
                         padding: const EdgeInsets.all(16),
-                        itemCount: _messages.length + (_sending ? 1 : 0),
+                        itemCount: _messages.length,
                         itemBuilder: (context, index) {
-                          if (index == _messages.length) {
-                            return const _MessageBubble(
-                              role: 'assistant',
-                              content: 'AI 正在整理目录内容...',
-                            );
-                          }
                           final message = _messages[index];
                           return _MessageBubble(
                             role: message.role,

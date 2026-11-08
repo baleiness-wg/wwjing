@@ -201,6 +201,7 @@ class _HomePageState extends State<HomePage> {
       context: navigator.context,
       builder: (dialogContext) {
         var currentItem = item;
+        var refreshing = false;
         return StatefulBuilder(
           builder: (innerContext, setDialogState) {
             return AlertDialog(
@@ -210,17 +211,28 @@ class _HomePageState extends State<HomePage> {
                   IconButton(
                     key: const Key('random-again-button'),
                     tooltip: '换一个',
-                    icon: const Icon(Icons.refresh),
-                    onPressed: () async {
-                      final nextItem = await state.randomItem(
-                        folderIds: [targetFolderId],
-                      );
-                      if (nextItem != null && innerContext.mounted) {
-                        setDialogState(() {
-                          currentItem = nextItem;
-                        });
-                      }
-                    },
+                    icon: refreshing
+                        ? const SizedBox.square(
+                            dimension: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.refresh),
+                    onPressed: refreshing
+                        ? null
+                        : () async {
+                            setDialogState(() => refreshing = true);
+                            final nextItem = await state.randomItem(
+                              folderIds: [targetFolderId],
+                            );
+                            if (nextItem != null && innerContext.mounted) {
+                              setDialogState(() {
+                                currentItem = nextItem;
+                                refreshing = false;
+                              });
+                            } else if (innerContext.mounted) {
+                              setDialogState(() => refreshing = false);
+                            }
+                          },
                   ),
                 ],
               ),
