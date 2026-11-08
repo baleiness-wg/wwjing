@@ -348,8 +348,8 @@ class _FolderNavigationState extends State<FolderNavigation> {
                           tooltip: '目录操作',
                           icon: const Icon(Icons.more_vert),
                           position: PopupMenuPosition.under,
-                           // Keep the menu close below the trailing icon without covering it.
-                           offset: const Offset(-150, 8),
+                          // Keep the menu close below the trailing icon without covering it.
+                          offset: const Offset(-150, 8),
                           onOpened: () => setState(() {
                             _activeActionFolderId = node.folder.id;
                           }),

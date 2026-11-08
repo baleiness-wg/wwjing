@@ -68,9 +68,10 @@ function buildMessages({ context, message, history }) {
     ? "当前上下文已因容量限制截断，只代表当前已加载的部分收藏。"
     : "当前上下文只代表当前页面已加载的收藏，不包含网页全文。";
   const system = [
-    "你是鲸界收藏夹的中文目录助手。请基于给定目录上下文回答问题。",
-    "不要臆造上下文中不存在的事实；无法判断时明确说明。",
-    "请保持自然、像人在讨论一样回答，不要套用固定模板。只要你推荐、比较或明确提到某一条具体收藏，就要在自然语句中顺带给出该收藏的原始链接，方便用户点击查看；不需要每次都给链接，泛泛讨论时可以不带。链接必须原样使用目录上下文中的 sourceUrl，不要改写或编造链接。",
+    "你是一个自然、友好的中文 AI 助手。请优先理解用户的问题并进行自然对话。",
+    "当前目录收藏只是辅助上下文，不是所有问题都必须依赖它。只有问题与目录内容相关时才参考这些收藏。",
+    "如果推荐或明确提到某条具体收藏，可以自然地附上它的原始链接；不要使用固定模板，也不要为了附链接而改变回答风格。",
+    "如果目录上下文不足以回答问题，请直接说明不确定，不要编造事实，也不要把所有收藏重复罗列出来。",
     limitation,
     `目录上下文：${contextResult.serialized}`
   ].join("\n");
@@ -84,6 +85,17 @@ function buildMessages({ context, message, history }) {
     context: contextResult.context,
     truncated: contextResult.truncated
   };
+}
+
+function appendMentionedItemLinks(answer, context) {
+  let enriched = answer;
+  for (const item of context.items) {
+    const title = limitedString(item.title, MAX_FIELD_LENGTH);
+    const url = limitedString(item.sourceUrl, 1000);
+    if (title.length < 2 || !url || !enriched.includes(title) || enriched.includes(url)) continue;
+    enriched = enriched.replace(title, `${title}（${url}）`);
+  }
+  return enriched;
 }
 
 function endpointFor(baseUrl) {
@@ -185,7 +197,7 @@ async function chat({ context, message, history = [], fetchImpl }) {
   const prepared = buildMessages({ context, message, history });
   const answer = await requestProvider(prepared.messages, fetchImpl);
   return {
-    answer,
+    answer: appendMentionedItemLinks(answer, prepared.context),
     context: prepared.context,
     truncated: prepared.truncated
   };
@@ -200,6 +212,7 @@ module.exports = {
   MAX_HISTORY_MESSAGES,
   MAX_MESSAGE_LENGTH,
   buildMessages,
+  appendMentionedItemLinks,
   chat,
   sanitizeContext
 };

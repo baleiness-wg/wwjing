@@ -200,3 +200,16 @@ test("AI request metadata does not include prompt, reply, or credentials", async
   assert.equal(metadata.includes("private description"), false);
   restoreConfig();
 });
+
+test("AI reply appends the original link when it mentions a known item", () => {
+  assert.equal(
+    aiService.appendMentionedItemLinks("建议先看 Flutter 入门", {
+      items: [{ title: "Flutter 入门", sourceUrl: "https://example.com/flutter" }]
+    }),
+    "建议先看 Flutter 入门（https://example.com/flutter）"
+  );
+  assert.equal(
+    aiService.appendMentionedItemLinks("这是泛泛讨论", { items: [{ title: "Flutter 入门", sourceUrl: "https://example.com/flutter" }] }),
+    "这是泛泛讨论"
+  );
+});
