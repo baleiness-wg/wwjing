@@ -1,4 +1,6 @@
 const config = require("../config");
+const dns = require("node:dns");
+const https = require("node:https");
 
 const MAX_MESSAGE_LENGTH = 4000;
 const MAX_HISTORY_MESSAGES = 20;
@@ -119,19 +121,53 @@ function wait(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
+function fetchProviderOverIpv4(url, options) {
+  return new Promise((resolve, reject) => {
+    const target = new URL(url);
+    const request = https.request(target, {
+      method: options.method,
+      headers: options.headers,
+      servername: target.hostname,
+      lookup(hostname, lookupOptions, callback) {
+        dns.lookup(hostname, { family: 4 }, callback);
+      }
+    }, (response) => {
+      const chunks = [];
+      response.on("data", (chunk) => chunks.push(chunk));
+      response.on("end", () => {
+        const body = Buffer.concat(chunks).toString("utf8");
+        resolve({
+          ok: response.statusCode >= 200 && response.statusCode < 300,
+          status: response.statusCode,
+          async json() { return JSON.parse(body); },
+          async text() { return body; }
+        });
+      });
+    });
+    request.on("error", reject);
+    if (options.signal) {
+      if (options.signal.aborted) request.destroy(new Error("request aborted"));
+      options.signal.addEventListener("abort", () => request.destroy(new Error("request aborted")), { once: true });
+    }
+    request.write(options.body);
+    request.end();
+  });
+}
+
 async function requestProviderOnce(messages, fetchImpl) {
   if (!config.ai.apiKey || !config.ai.baseUrl || !config.ai.model) {
     throw new AiError("AI_NOT_CONFIGURED", "AI 服务尚未完成配置", 503);
   }
 
-  if (typeof fetchImpl !== "function") {
+  const request = fetchImpl || fetchProviderOverIpv4;
+  if (typeof request !== "function") {
     throw new AiError("AI_PROVIDER_ERROR", "当前 Node 环境不支持 AI 请求", 503);
   }
 
   const abortController = new AbortController();
   const timeout = setTimeout(() => abortController.abort(), config.ai.timeoutMs);
   try {
-    const response = await fetchImpl(endpointFor(config.ai.baseUrl), {
+    const response = await request(endpointFor(config.ai.baseUrl), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -183,7 +219,7 @@ async function requestProviderOnce(messages, fetchImpl) {
   }
 }
 
-async function requestProvider(messages, fetchImpl = globalThis.fetch) {
+async function requestProvider(messages, fetchImpl) {
   let lastError;
   for (let attempt = 0; attempt < AI_MAX_ATTEMPTS; attempt += 1) {
     try {
