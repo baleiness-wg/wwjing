@@ -181,13 +181,9 @@ class _HomePageState extends State<HomePage> {
       messenger.showSnackBar(const SnackBar(content: Text('选中的目录中没有可推荐内容')));
       return;
     }
-    final targetFolderId =
-        candidateIds[DateTime.now().millisecondsSinceEpoch %
-            candidateIds.length];
-
     if (_randomBusy) return;
     setState(() => _randomBusy = true);
-    final item = await state.randomItem(folderIds: [targetFolderId]);
+    final item = await state.randomItem(folderIds: candidateIds);
     if (!mounted) return;
     setState(() => _randomBusy = false);
     if (item == null) {
@@ -222,7 +218,7 @@ class _HomePageState extends State<HomePage> {
                         : () async {
                             setDialogState(() => refreshing = true);
                             final nextItem = await state.randomItem(
-                              folderIds: [targetFolderId],
+                              folderIds: candidateIds,
                             );
                             if (nextItem != null && innerContext.mounted) {
                               setDialogState(() {
@@ -230,6 +226,11 @@ class _HomePageState extends State<HomePage> {
                                 refreshing = false;
                               });
                             } else if (innerContext.mounted) {
+                              ScaffoldMessenger.of(innerContext).showSnackBar(
+                                SnackBar(
+                                  content: Text(state.error ?? '选中范围内暂无可推荐内容'),
+                                ),
+                              );
                               setDialogState(() => refreshing = false);
                             }
                           },

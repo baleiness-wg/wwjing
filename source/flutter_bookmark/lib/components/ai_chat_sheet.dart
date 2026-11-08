@@ -21,9 +21,10 @@ class AiChatSheet extends StatefulWidget {
 }
 
 class _ChatMessage {
-  const _ChatMessage(this.role, this.content);
+  const _ChatMessage(this.role, this.content, {this.sources = const []});
   final String role;
   final String content;
+  final List<Map<String, dynamic>> sources;
 }
 
 class _AiChatSheetState extends State<AiChatSheet> {
@@ -73,7 +74,9 @@ class _AiChatSheetState extends State<AiChatSheet> {
         history: history,
       );
       _messages.removeWhere((entry) => entry.role == 'thinking');
-      _messages.add(_ChatMessage('assistant', result.answer));
+      _messages.add(
+        _ChatMessage('assistant', result.answer, sources: result.sources),
+      );
       if (mounted) setState(() => _sending = false);
     } on ApiException catch (error) {
       _messages.removeWhere((entry) => entry.role == 'thinking');
@@ -179,6 +182,7 @@ class _AiChatSheetState extends State<AiChatSheet> {
                           return _MessageBubble(
                             role: message.role,
                             content: message.content,
+                            sources: message.sources,
                             onOpenLink: (url) =>
                                 widget.linkLauncher.open(context, url),
                           );
@@ -247,10 +251,12 @@ class _MessageBubble extends StatelessWidget {
     required this.role,
     required this.content,
     this.onOpenLink,
+    this.sources = const [],
   });
   final String role;
   final String content;
   final Future<bool> Function(String url)? onOpenLink;
+  final List<Map<String, dynamic>> sources;
 
   @override
   Widget build(BuildContext context) {
@@ -271,10 +277,36 @@ class _MessageBubble extends StatelessWidget {
               : colorScheme.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(14),
         ),
-        child: _LinkText(
-          content: content,
-          color: isUser ? colorScheme.onPrimary : null,
-          onOpenLink: onOpenLink,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _LinkText(
+              content: content,
+              color: isUser ? colorScheme.onPrimary : null,
+              onOpenLink: onOpenLink,
+            ),
+            if (sources.isNotEmpty && !isUser) ...[
+              const SizedBox(height: 8),
+              const Text(
+                '推荐来源',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+              ),
+              for (final source in sources)
+                InkWell(
+                  onTap: () => onOpenLink?.call('${source['url']}'),
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      '${source['title'] ?? '收藏'} ↗',
+                      style: const TextStyle(
+                        color: Colors.teal,
+                        decoration: TextDecoration.underline,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ],
         ),
       ),
     );
@@ -289,27 +321,39 @@ class _LinkText extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final parts = content.split(RegExp(r'(https?://[^\s<>()]+)'));
+    final pattern = RegExp(
+      r'\[([^\]]+)\]\((https?://[^)]+)\)|(https?://[^\s<>()]+)',
+    );
+    final spans = <TextSpan>[];
+    var cursor = 0;
+    for (final match in pattern.allMatches(content)) {
+      if (match.start > cursor) {
+        spans.add(TextSpan(text: content.substring(cursor, match.start)));
+      }
+      final label = match.group(1);
+      final url = match.group(2) ?? match.group(3)!;
+      spans.add(
+        TextSpan(
+          text: '${label ?? url} ↗',
+          style: const TextStyle(
+            decoration: TextDecoration.underline,
+            color: Colors.teal,
+          ),
+          recognizer: TapGestureRecognizer()
+            ..onTap = () => onOpenLink?.call(url),
+        ),
+      );
+      cursor = match.end;
+    }
+    if (cursor < content.length) {
+      spans.add(TextSpan(text: content.substring(cursor)));
+    }
     return RichText(
       text: TextSpan(
         style: TextStyle(
           color: color ?? Theme.of(context).colorScheme.onSurface,
         ),
-        children: [
-          for (final part in parts)
-            if (RegExp(r'^https?://').hasMatch(part))
-              TextSpan(
-                text: part,
-                style: const TextStyle(
-                  decoration: TextDecoration.underline,
-                  color: Colors.teal,
-                ),
-                recognizer: TapGestureRecognizer()
-                  ..onTap = () => onOpenLink?.call(part),
-              )
-            else
-              TextSpan(text: part),
-        ],
+        children: spans,
       ),
     );
   }

@@ -37,10 +37,17 @@ function contextKey(context) {
 }
 
 function messageParts(content) {
-  return content.split(/(https?:\/\/[^\s<>()]+)/g).filter(Boolean).map((part) => ({
-    text: part,
-    link: /^https?:\/\//i.test(part)
-  }));
+  const parts = [];
+  const pattern = /\[([^\]]+)\]\((https?:\/\/[^)]+)\)|(https?:\/\/[^\s<>()]+)/g;
+  let cursor = 0;
+  let match;
+  while ((match = pattern.exec(content))) {
+    if (match.index > cursor) parts.push({ text: content.slice(cursor, match.index) });
+    parts.push({ text: match[1] || match[2] || match[3], link: match[2] || match[3] });
+    cursor = pattern.lastIndex;
+  }
+  if (cursor < content.length) parts.push({ text: content.slice(cursor) });
+  return parts;
 }
 
 async function sendMessage(message = draft.value) {
@@ -54,7 +61,7 @@ async function sendMessage(message = draft.value) {
   try {
     const history = messages.value.slice(0, -1).map(({ role, content: text }) => ({ role, content: text }));
     const result = await chatWithDirectory(props.context, content, history);
-    messages.value.push({ role: "assistant", content: result.answer });
+    messages.value.push({ role: "assistant", content: result.answer, sources: result.sources || [] });
   } catch (error) {
     failedMessage.value = content;
     draft.value = content;
@@ -124,9 +131,13 @@ watch(() => contextKey(props.context), () => {
           :class="`is-${message.role}`"
         >
           <span v-for="(part, partIndex) in messageParts(message.content)" :key="partIndex">
-            <a v-if="part.link" :href="part.text" target="_blank" rel="noopener noreferrer" class="ai-chat-link">{{ part.text }}</a>
+            <a v-if="part.link" :href="part.link" target="_blank" rel="noopener noreferrer" class="ai-chat-link">{{ part.text }} ↗</a>
             <template v-else>{{ part.text }}</template>
           </span>
+          <div v-if="message.role === 'assistant' && message.sources?.length" class="ai-chat-sources">
+            <strong>推荐来源</strong>
+            <a v-for="source in message.sources" :key="source.url" :href="source.url" target="_blank" rel="noopener noreferrer">{{ source.title || "收藏" }} ↗</a>
+          </div>
         </div>
         <div v-if="sending" class="ai-chat-message is-assistant is-loading">AI 正在整理目录内容...</div>
       </div>
@@ -176,6 +187,8 @@ watch(() => contextKey(props.context), () => {
 .ai-chat-message.is-error { margin-right: auto; background: #fff0ed; color: #a94737; }
 .ai-chat-message.is-loading { color: #74857f; font-size: 13px; }
 .ai-chat-link { color: #126b60; text-decoration: underline; overflow-wrap: anywhere; }
+.ai-chat-sources { display: grid; gap: 4px; margin-top: 10px; padding-top: 8px; border-top: 1px solid rgb(21 94 86 / 15%); font-size: 12px; }
+.ai-chat-sources a { color: #126b60; text-decoration: underline; overflow-wrap: anywhere; }
 .ai-chat-retry { display: flex; align-items: center; justify-content: space-between; padding: 8px 16px; border-top: 1px solid #f1e4e0; color: #a94737; font-size: 12px; }
 .ai-chat-composer { display: flex; align-items: flex-end; gap: 8px; padding: 12px; border-top: 1px solid #edf2ef; background: #fff; }
 .ai-chat-composer .el-input { flex: 1; }

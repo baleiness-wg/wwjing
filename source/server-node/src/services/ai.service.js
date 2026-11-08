@@ -184,8 +184,13 @@ async function requestProvider(messages, fetchImpl = globalThis.fetch) {
 async function chat({ context, message, history = [], fetchImpl }) {
   const prepared = buildMessages({ context, message, history });
   const answer = await requestProvider(prepared.messages, fetchImpl);
+  const sources = prepared.context.items
+    .filter((item) => item.sourceUrl)
+    .slice(0, 5)
+    .map((item) => ({ title: item.title || item.sourceHost || "收藏", url: item.sourceUrl }));
   return {
     answer,
+    sources,
     context: prepared.context,
     truncated: prepared.truncated
   };
