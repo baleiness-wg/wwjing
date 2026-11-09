@@ -35,11 +35,7 @@ import AiChatPanel from "../components/AiChatPanel.vue";
 const route = useRoute();
 const currentSpace = computed(() => route.meta.space || "star");
 const currentTitle = computed(() => route.meta.title || (currentSpace.value === "cookie" ? "疯狂的厨房" : "鲸界"));
-const currentLead = computed(() => {
-  return currentSpace.value === "kitchen"
-    ? "分类保存菜谱与做饭链接，并在不同设备间统一整理。"
-    : "把散落的链接收进清晰的目录，随时搜索和整理。";
-});
+
 
 const pageSize = 12;
 const folders = ref([]);
@@ -567,7 +563,7 @@ const selectedRandomFolderIds = ref([]);
 
 function openRandomFilterDialog() {
   if (folders.value.length === 0) {
-    return ElMessage.warning("当前没有菜谱目录，请先创建目录并添加收藏");
+    return ElMessage.warning("当前没有收藏目录，请先创建目录并添加收藏");
   }
   // 默认：若在特定文件夹下，只勾选该文件夹；若在全部收藏页，默认全选
   const currentId = activeFolderId.value;
@@ -621,10 +617,10 @@ async function fetchRandomDish() {
     const res = await getRandomBookmark(currentSpace.value, targetFolderId);
     randomItem.value = res?.item || null;
     if (!randomItem.value) {
-      ElMessage.info("所选目录中暂无可推荐的菜谱");
+      ElMessage.info("所选目录中暂无可推荐的内容");
     }
   } catch (err) {
-    ElMessage.error(err.message || "获取随机菜谱失败");
+    ElMessage.error(err.message || "获取随机内容失败");
   } finally {
     loadingRandom.value = false;
   }
@@ -662,8 +658,6 @@ onMounted(async () => {
     <header class="bookmarks-heading">
       <div>
         <p class="eyebrow">工具 / 收藏夹 / {{ currentTitle }}</p>
-        <h1>{{ currentTitle }}</h1>
-        <p class="lead">{{ currentLead }}</p>
       </div>
       <div style="display: flex; gap: 10px; align-items: center;">
         <el-button
@@ -920,7 +914,7 @@ onMounted(async () => {
 
     <el-dialog v-model="randomFilterVisible" title="选择随机目录范围" width="min(460px, 92vw)">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-        <span class="muted">勾选要参与抽取的菜谱目录</span>
+        <span class="muted">勾选要参与抽取的内容</span>
         <el-button
           v-if="folders.length"
           size="small"
@@ -942,7 +936,7 @@ onMounted(async () => {
           </el-checkbox>
         </div>
       </el-checkbox-group>
-      <el-empty v-else :image-size="48" description="暂无可选择的菜谱目录" />
+      <el-empty v-else :image-size="48" description="暂无可选择的内容" />
       <template #footer>
         <el-button @click="randomFilterVisible = false">取消</el-button>
         <el-button type="primary" :icon="Dish" @click="startRandomFromFilter">开始随机</el-button>
@@ -959,7 +953,7 @@ onMounted(async () => {
           </div>
         </div>
         <div class="random-dish-content">
-          <h3>{{ randomItem.title || "推荐菜谱" }}</h3>
+          <h3>{{ randomItem.title || "推荐内容" }}</h3>
           <p v-if="randomItem.description" class="random-dish-desc">{{ randomItem.description }}</p>
           <div class="random-dish-meta">
             <span class="host-chip">{{ itemHost(randomItem) }}</span>
@@ -968,13 +962,13 @@ onMounted(async () => {
         </div>
       </div>
       <div v-else class="empty-random">
-        <el-empty description="暂无可推荐的菜谱收藏，快去添加吧！" />
+        <el-empty description="暂无可推荐的收藏，快去添加吧！" />
       </div>
       <template #footer>
         <div class="random-dialog-footer">
           <el-button @click="changeRandomFilter">调整范围</el-button>
           <el-button v-if="randomItem" :icon="Refresh" :loading="loadingRandom" @click="fetchRandomDish">换一个</el-button>
-          <el-button v-if="randomItem" type="primary" :icon="Link" @click="openRandomUrl">打开菜谱</el-button>
+          <el-button v-if="randomItem" type="primary" :icon="Link" @click="openRandomUrl">打开链接</el-button>
           <el-button @click="randomDialogVisible = false">关闭</el-button>
         </div>
       </template>

@@ -1,7 +1,6 @@
 const itemModel = require("../models/bookmark-item.model");
 const folderModel = require("../models/bookmark-folder.model");
 const BookmarkError = require("./bookmark-errors");
-const tagService = require("./bookmark-tag.service");
 
 const trackingParameters = new Set([
   "fbclid", "gclid", "dclid", "msclkid", "igshid", "mc_cid", "mc_eid"
@@ -154,7 +153,6 @@ async function create(userId, input = {}) {
     sourceUrl,
     ...normalized
   });
-  if (Object.hasOwn(input, "tagIds")) await itemModel.setTags(userId, item.id, space, tagService.parseTagIds(input.tagIds));
   return item;
 }
 
@@ -188,7 +186,6 @@ async function update(userId, idValue, input = {}) {
     sourceUrl: typeof sourceUrl === "string" && sourceUrl.trim() ? sourceUrl.trim() : null,
     ...normalized
   });
-  if (Object.hasOwn(input, "tagIds")) await itemModel.setTags(userId, id, space, tagService.parseTagIds(input.tagIds));
   return item;
 }
 

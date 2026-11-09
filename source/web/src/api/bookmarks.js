@@ -82,7 +82,3 @@ export function getRandomBookmark(space = "star", folderId = "") {
   }
   return request(`${baseUrl}/random?${query.toString()}`);
 }
-
-export function getBookmarkTags(space = "star") {
-  return request(`${baseUrl}/tags?space=${encodeURIComponent(space)}`);
-}

@@ -19,10 +19,6 @@ async function random(userId, input = {}) {
     parameters.push(input.folderId);
     conditions.push(`item.folder_id = $${parameters.length}`);
   }
-  if (input.tagId) {
-    parameters.push(input.tagId);
-    conditions.push(`EXISTS (SELECT 1 FROM bookmark_item_tags item_tag WHERE item_tag.item_id = item.id AND item_tag.tag_id = $${parameters.length})`);
-  }
   const result = await pool.query(
     `SELECT item.id, item.space, item.folder_id AS "folderId", item.title, item.description,
       item.images, item.images->>0 AS "coverUrl", item.source_url AS "sourceUrl", item.source_host AS "sourceHost"

@@ -100,29 +100,4 @@ async function remove(userId, id, space = "star") {
   return result.rowCount > 0;
 }
 
-async function setTags(userId, itemId, space, tagIds) {
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
-    const item = await findById(userId, itemId, space, client);
-    if (!item) return false;
-    await client.query("DELETE FROM bookmark_item_tags WHERE item_id = $1", [itemId]);
-    if (tagIds?.length) {
-      await client.query(
-        `INSERT INTO bookmark_item_tags (item_id, tag_id)
-         SELECT $1, id FROM bookmark_tags
-         WHERE user_id = $2 AND space = $3 AND id = ANY($4::varchar[])`,
-        [itemId, userId, space, tagIds]
-      );
-    }
-    await client.query("COMMIT");
-    return true;
-  } catch (error) {
-    await client.query("ROLLBACK");
-    throw error;
-  } finally {
-    client.release();
-  }
-}
-
-module.exports = { findById, findDuplicate, list, create, update, remove, setTags };
+module.exports = { findById, findDuplicate, list, create, update, remove };

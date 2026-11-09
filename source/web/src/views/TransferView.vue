@@ -115,8 +115,7 @@ onMounted(loadContent);
   <div class="page-content transfer-page">
     <div class="section-heading page-title">
       <div>
-        <p class="eyebrow">工具</p>
-        <h1>数据传输</h1>
+        <p class="eyebrow">工具 / 数据传输</p>
         <p class="lead">在同一个账号的不同设备之间保存一条文件或文字。</p>
       </div>
     </div>

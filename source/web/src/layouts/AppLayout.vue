@@ -9,7 +9,6 @@ import {
   Folder,
   FolderOpened,
   House,
-  KnifeFork,
   Star,
   SwitchButton,
   Tools,
@@ -43,7 +42,7 @@ const navigationItems = [
         label: "收藏夹",
         icon: CollectionTag,
         children: [
-          { path: "/tools/bookmarks/kitchen", label: "疯狂的厨房", icon: KnifeFork },
+          // { path: "/tools/bookmarks/kitchen", label: "疯狂的厨房", icon: KnifeFork },
           { path: "/tools/bookmarks/star", label: "鲸界", icon: Star }
         ]
       }
@@ -223,12 +222,7 @@ async function submitPassword() {
             :title="menuVisible ? '收起菜单' : '展开菜单'"
             @click="toggleMenu"
           />
-          <span class="header-brand-mark">鲸</span>
-          <strong>鲸界</strong>
         </div>
-        <nav class="top-nav" aria-label="快捷导航">
-          <el-button text :class="{ active: isHomeActive }" @click="go('/')">首页</el-button>
-        </nav>
         <div class="header-actions">
           <el-dropdown @command="handleUserCommand">
             <el-button text class="user-button">
@@ -248,8 +242,7 @@ async function submitPassword() {
         <router-view />
       </el-main>
     </el-container>
-  </el-container>
-  <el-dialog v-model="passwordDialogVisible" title="修改密码" width="min(92vw, 420px)">
+     <el-dialog v-model="passwordDialogVisible" title="修改密码" width="min(92vw, 420px)">
     <el-form label-position="top" @submit.prevent="submitPassword">
       <el-form-item label="当前密码"><el-input v-model="passwordForm.currentPassword" type="password" show-password /></el-form-item>
       <el-form-item label="新密码"><el-input v-model="passwordForm.newPassword" type="password" show-password /></el-form-item>
@@ -260,4 +253,6 @@ async function submitPassword() {
       <el-button type="primary" :loading="passwordLoading" @click="submitPassword">确认修改</el-button>
     </template>
   </el-dialog>
+  </el-container>
+ 
 </template>

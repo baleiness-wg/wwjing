@@ -56,11 +56,11 @@ html, body {
   background: #fbfcfa;
   transition: width .2s, flex-basis .2s;
 }
-.aside-brand { display: flex; align-items: center; gap: 10px; height: 80px; padding: 0 18px; }
+.aside-brand { display: flex; align-items: center; gap: 10px; height: 70px; padding: 0px 18px; }
 .aside-brand.is-collapsed { justify-content: center; padding: 0; }
 .aside-brand-copy strong, .aside-brand-copy small { display: block; }
 .aside-brand-copy small { margin-top: 3px; color: #8a9893; font-size: 11px; }
-.brand-mark, .header-brand-mark { display: grid; width: 34px; height: 34px; flex: 0 0 auto; place-items: center; border-radius: 10px; background: var(--brand-green); color: white; font-weight: 700; }
+.brand-mark, .header-brand-mark { display: grid; width: 34px; height: 34px; flex: 0 0 auto; place-items: center; border-radius: 10px; background: var(--brand-green); color: white; font-weight: 700;margin-right:10px }
 .side-menu { display: grid; gap: 6px; padding: 12px; }
 .side-menu-item { display: flex; width: 100%; min-height: 44px; align-items: center; gap: 12px; border: 0; border-radius: 10px; background: transparent; color: #526360; cursor: pointer; font: inherit; padding: 0 12px; text-align: left; }
 .side-menu-item:hover, .side-menu-item:focus-visible { background: var(--brand-green-soft); color: var(--brand-green); outline: none; }
