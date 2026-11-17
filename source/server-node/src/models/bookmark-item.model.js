@@ -26,19 +26,28 @@ async function findDuplicate(userId, normalizedUrl, space = "star", client = poo
 }
 
 async function list(userId, filters) {
-  const conditions = ["item.space = $2", "(item.user_id = $1 OR item.folder_id IN (SELECT folder_id FROM bookmark_folder_shares WHERE user_id = $1 AND space = $2))"];
+  const conditions = ["item.space = $2", `(item.user_id = $1 OR item.folder_id IN (
+    WITH RECURSIVE visible_folders AS (
+      SELECT id FROM bookmark_folders WHERE user_id = $1 AND space = $2
+      UNION
+      SELECT folder_id FROM bookmark_folder_shares WHERE user_id = $1 AND space = $2
+      UNION
+      SELECT child.id FROM bookmark_folders child JOIN visible_folders parent ON child.parent_id = parent.id
+      WHERE child.space = $2
+    ) SELECT id FROM visible_folders
+  ))`];
   const parameters = [userId, filters.space || "star"];
   if (filters.folderId) {
     parameters.push(filters.folderId);
     if (filters.includeDescendants) {
-      conditions.push(`item.folder_id IN (
-        WITH RECURSIVE descendants AS (
-          SELECT id FROM bookmark_folders WHERE user_id = $1 AND space = $2 AND id = $${parameters.length}
-          UNION ALL
-          SELECT child.id FROM bookmark_folders child JOIN descendants parent ON child.parent_id = parent.id
-          WHERE child.user_id = $1 AND child.space = $2
-        ) SELECT id FROM descendants
-      )`);
+       conditions.push(`item.folder_id IN (
+         WITH RECURSIVE descendants AS (
+           SELECT id FROM bookmark_folders WHERE id = $${parameters.length} AND space = $2
+           UNION ALL
+           SELECT child.id FROM bookmark_folders child JOIN descendants parent ON child.parent_id = parent.id
+           WHERE child.space = $2
+         ) SELECT id FROM descendants
+       )`);
     } else {
       conditions.push(`item.folder_id = $${parameters.length}`);
     }

@@ -17,6 +17,7 @@ services:
       - "3000:3000"
     networks:
       - wwjing-network
+      - db_default
 
 networks:
   wwjing-network:
