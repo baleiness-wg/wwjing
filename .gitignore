@@ -2,7 +2,7 @@
 **/node_modules/
 **/npm-debug.log*
 **/*.log
-
+**/vite.config.js
 # Flutter/Dart generated files
 **/.dart_tool/
 **/build/
