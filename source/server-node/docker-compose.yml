@@ -5,8 +5,8 @@ services:
       dockerfile: Dockerfile
     container_name: wwjing-server-node
     restart: unless-stopped
-    env_file:
-      - .env
+    volumes:
+      - ./.env:/app/.env
     environment:
       HOST: 0.0.0.0
       PORT: 3000
