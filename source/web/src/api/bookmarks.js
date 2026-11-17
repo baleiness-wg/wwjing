@@ -74,11 +74,11 @@ export function deleteBookmarkItem(id, space = "star") {
   return request(`${baseUrl}/items/${id}?space=${encodeURIComponent(space)}`, { method: "DELETE" });
 }
 
-export function getRandomBookmark(space = "star", folderId = "") {
+export function getRandomBookmark(space = "star", folderId = "", folderIds = []) {
   const query = new URLSearchParams({ space });
-  if (folderId) {
+  if (folderIds.length) query.set("folderIds", folderIds.join(","));
+  else if (folderId) {
     query.set("folderId", folderId);
-    query.set("folderIds", folderId);
   }
   return request(`${baseUrl}/random?${query.toString()}`);
 }

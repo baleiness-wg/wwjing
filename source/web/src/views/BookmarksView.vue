@@ -613,8 +613,7 @@ async function fetchRandomDish() {
       descendantIds(id).forEach((subId) => candidateIds.push(subId));
     });
 
-    const targetFolderId = candidateIds[Math.floor(Math.random() * candidateIds.length)];
-    const res = await getRandomBookmark(currentSpace.value, targetFolderId);
+    const res = await getRandomBookmark(currentSpace.value, "", [...new Set(candidateIds)]);
     randomItem.value = res?.item || null;
     if (!randomItem.value) {
       ElMessage.info("所选目录中暂无可推荐的内容");
@@ -706,14 +705,12 @@ onMounted(async () => {
            :default-expanded-keys="pinnedFolderExpandedKeys"
            :key="`folders-${folders.length}-${pinnedFolderExpandedKeys.join(',')}`"
           :expand-on-click-node="false"
-          :highlight-current="Boolean(activeFolderId)"
-          :current-node-key="activeFolderId"
           aria-label="目录树"
         >
           <template #default="{ data }">
             <div
                class="folder-node"
-               :class="{ 'is-pinned': data.pinned }"
+               :class="{ 'is-pinned': data.pinned, 'is-active': String(activeFolderId) === String(data.id) }"
               @click="selectFolder(data.id)"
               @dragover.prevent
               @drop.prevent="dropItemOnFolder(data.id)"
@@ -943,7 +940,7 @@ onMounted(async () => {
       </template>
     </el-dialog>
 
-    <el-dialog v-model="randomDialogVisible" title="Today" width="min(500px, 94vw)" destroy-on-close>
+    <el-dialog v-model="randomDialogVisible" class="random-dialog" title="Today" width="min(500px, 94vw)" destroy-on-close>
       <div v-if="randomItem" class="random-dish-card">
         <div class="random-dish-cover">
            <img v-if="hasCover(randomItem)" :src="coverSrc(randomItem)" alt="" />
