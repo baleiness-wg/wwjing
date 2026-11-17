@@ -301,15 +301,14 @@ void main() {
     await tester.tap(find.byKey(const Key('random-bookmark-button')));
     await tester.pumpAndSettle();
 
-    // 1. 先弹出目录多选范围确认窗口（默认全选）
+    // 1. 先弹出与 Web 一致的单选目录范围窗口
     expect(find.text('选择随机目录范围'), findsOneWidget);
-    expect(find.byKey(const Key('random-filter-select-all')), findsOneWidget);
-    expect(find.byKey(const Key('random-folder-checkbox-1')), findsOneWidget);
+    expect(find.byKey(const Key('random-folder-option-all')), findsOneWidget);
+    expect(find.byKey(const Key('random-folder-option-1')), findsOneWidget);
+    expect(find.byType(Checkbox), findsNothing);
 
-    // 点击全不选 -> 勾选目录1 -> 点击“开始随机”
-    await tester.tap(find.byKey(const Key('random-filter-select-all')));
-    await tester.pump();
-    await tester.tap(find.byKey(const Key('random-folder-checkbox-1')));
+    // 选择目录1，目录1的子目录由业务逻辑概念上自动包含
+    await tester.tap(find.byKey(const Key('random-folder-option-1')));
     await tester.pump();
     await tester.tap(find.byKey(const Key('random-filter-confirm')));
     await tester.pumpAndSettle();
@@ -480,18 +479,13 @@ void main() {
     state.closeDraft();
     await tester.pump();
 
-    // 2. 点击随机按钮 -> 弹窗中应该仅勾选当前文件夹 '2'
+    // 2. 点击随机按钮 -> 弹窗中应该选中当前文件夹 '2'
     await tester.tap(find.byKey(const Key('random-bookmark-button')));
     await tester.pumpAndSettle();
 
     expect(find.text('选择随机目录范围'), findsOneWidget);
-    final checkbox1 = tester.widget<CheckboxListTile>(
-      find.byKey(const Key('random-folder-checkbox-1')),
-    );
-    final checkbox2 = tester.widget<CheckboxListTile>(
-      find.byKey(const Key('random-folder-checkbox-2')),
-    );
-    expect(checkbox1.value, isFalse);
-    expect(checkbox2.value, isTrue);
+    expect(find.byKey(const Key('random-folder-option-1')), findsOneWidget);
+    expect(find.byKey(const Key('random-folder-option-2')), findsOneWidget);
+    expect(find.byType(Checkbox), findsNothing);
   });
 }

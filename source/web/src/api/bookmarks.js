@@ -74,8 +74,9 @@ export function deleteBookmarkItem(id, space = "star") {
   return request(`${baseUrl}/items/${id}?space=${encodeURIComponent(space)}`, { method: "DELETE" });
 }
 
-export function getRandomBookmark(space = "star", folderId = "", folderIds = []) {
+export function getRandomBookmark(space = "star", folderId = "", folderIds = [], uncategorized = false) {
   const query = new URLSearchParams({ space });
+  if (uncategorized) query.set("uncategorized", "true");
   if (folderIds.length) query.set("folderIds", folderIds.join(","));
   else if (folderId) {
     query.set("folderId", folderId);

@@ -159,7 +159,7 @@ class _HomePageState extends State<HomePage> {
     final messenger = ScaffoldMessenger.of(context);
     final navigator = Navigator.of(context);
 
-    // 1. 先弹出目录多选范围确认窗口（若在特定文件夹内则默认仅预选该文件夹，在全部收藏则默认全选）
+    // 1. 先选择一个目录范围；选中目录的子目录由筛选弹窗统一展开。
     final selected = await showRandomFoldersFilterDialog(
       context: context,
       state: state,
@@ -171,12 +171,10 @@ class _HomePageState extends State<HomePage> {
       selected.isEmpty ? null : selected,
     );
 
-    // 2. 展开选中文件夹的所有子目录，随机选一个传给 API（与 web 端行为一致）
-    final candidateIds = <String>[];
-    for (final id
-        in selected.isEmpty ? state.folders.map((f) => f.id) : selected) {
-      _collectDescendantIds(state.folders, id, candidateIds);
-    }
+    // 2. 选中目录已经返回完整的子目录范围；空列表代表全部目录。
+    final candidateIds = selected.isEmpty
+        ? state.folders.map((folder) => folder.id).toList()
+        : selected;
     if (candidateIds.isEmpty) {
       messenger.showSnackBar(const SnackBar(content: Text('选中的目录中没有可推荐内容')));
       return;
@@ -253,19 +251,6 @@ class _HomePageState extends State<HomePage> {
         );
       },
     );
-  }
-
-  void _collectDescendantIds(
-    List<BookmarkFolder> folders,
-    String parentId,
-    List<String> result,
-  ) {
-    result.add(parentId);
-    for (final folder in folders) {
-      if (folder.parentId == parentId) {
-        _collectDescendantIds(folders, folder.id, result);
-      }
-    }
   }
 
   Future<void> _handleBack(BuildContext context) async {

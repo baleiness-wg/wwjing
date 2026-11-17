@@ -31,6 +31,9 @@ async function random(userId, input = {}) {
     parameters.push(input.folderId);
     conditions.push(`item.folder_id = $${parameters.length}`);
   }
+  if (input.uncategorized === true || input.uncategorized === "true") {
+    conditions.push("item.folder_id IS NULL");
+  }
   const result = await pool.query(
      `SELECT item.id, item.space, item.folder_id AS "folderId", item.title, item.description,
       item.images, item.images->>0 AS "coverUrl", item.source_url AS "sourceUrl", item.source_host AS "sourceHost"

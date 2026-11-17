@@ -1,10 +1,14 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../stores/bookmark_state.dart';
 import '../viewmodels/bookmark.dart';
 
-/// 递归收集 parentId 下所有子孙文件夹 ID（含自身）
-List<String> _collectAllDescendants(List<BookmarkFolder> folders, String parentId) {
+List<String> _collectAllDescendants(
+  List<BookmarkFolder> folders,
+  String parentId,
+) {
   final result = <String>[parentId];
   for (final folder in folders) {
     if (folder.parentId == parentId) {
@@ -29,10 +33,7 @@ Future<List<String>?> showRandomFoldersFilterDialog({
 }
 
 class _RandomFoldersFilterDialog extends StatefulWidget {
-  const _RandomFoldersFilterDialog({
-    required this.state,
-    this.currentFolderId,
-  });
+  const _RandomFoldersFilterDialog({required this.state, this.currentFolderId});
 
   final AppState state;
   final String? currentFolderId;
@@ -44,102 +45,103 @@ class _RandomFoldersFilterDialog extends StatefulWidget {
 
 class _RandomFoldersFilterDialogState
     extends State<_RandomFoldersFilterDialog> {
-  late final Set<String> allFolderIds = widget.state.folders
-      .map((f) => f.id)
-      .toSet();
-  late Set<String> selectedIds;
+  final ScrollController _scrollController = ScrollController();
+  final Map<String, GlobalKey> _folderKeys = {};
+  late String _selectedId;
+  Timer? _scrollTimer;
+  int _scrollAttempts = 0;
 
   @override
   void initState() {
     super.initState();
-    // 如果当前处于特定文件夹下，默认勾选该文件夹及其所有子目录
-    if (widget.currentFolderId != null &&
-        allFolderIds.contains(widget.currentFolderId!)) {
-      selectedIds = Set.from(_collectAllDescendants(
-        widget.state.folders,
-        widget.currentFolderId!,
-      ));
+    final folderIds = widget.state.folders.map((folder) => folder.id).toSet();
+    _selectedId =
+        widget.currentFolderId != null &&
+            folderIds.contains(widget.currentFolderId)
+        ? widget.currentFolderId!
+        : 'all';
+    _scheduleScrollToSelection();
+  }
+
+  List<FolderNode> _folderNodes() =>
+      flattenFolderTree(widget.state.folderTree).toList();
+
+  void _scrollToSelection() {
+    if (!mounted || _selectedId == 'all' || _selectedId == 'uncategorized') {
       return;
     }
-
-    // 如果在全部收藏页面，默认直接勾选所有文件夹
-    selectedIds = Set.from(allFolderIds);
+    final target = _folderKeys[_selectedId]?.currentContext;
+    if (target == null) {
+      _scheduleScrollToSelection();
+      return;
+    }
+    Scrollable.ensureVisible(
+      target,
+      alignment: 0.5,
+      duration: const Duration(milliseconds: 280),
+      curve: Curves.easeOutCubic,
+    );
   }
 
-  void _toggleSelectAll() {
-    setState(() {
-      if (selectedIds.length == allFolderIds.length) {
-        selectedIds.clear();
-      } else {
-        selectedIds = Set.from(allFolderIds);
-      }
+  void _scheduleScrollToSelection() {
+    if (!mounted || _selectedId == 'all' || _selectedId == 'uncategorized') return;
+    _scrollTimer?.cancel();
+    if (_scrollAttempts >= 12) return;
+    _scrollAttempts += 1;
+    _scrollTimer = Timer(const Duration(milliseconds: 80), () {
+      _scrollTimer = null;
+      _scrollToSelection();
     });
   }
 
-  void _toggle(String id) {
+  void _select(String id) {
     setState(() {
-      if (selectedIds.contains(id)) {
-        selectedIds.remove(id);
-      } else {
-        selectedIds.add(id);
-      }
+      _selectedId = id;
+      _scrollAttempts = 0;
     });
+  }
+
+  List<String> _selectedFolderIds() {
+    if (_selectedId == 'all' || _selectedId == 'uncategorized') return [];
+    return _collectAllDescendants(widget.state.folders, _selectedId);
+  }
+
+  @override
+  void dispose() {
+    _scrollTimer?.cancel();
+    _scrollController.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final nodes = flattenFolderTree(widget.state.folderTree).toList();
-    final isAllSelected =
-        allFolderIds.isNotEmpty && selectedIds.length == allFolderIds.length;
-
+    final nodes = _folderNodes();
     return AlertDialog(
-      title: Row(
-        children: [
-          const Expanded(child: Text('选择随机目录范围')),
-          TextButton(
-            key: const Key('random-filter-select-all'),
-            onPressed: allFolderIds.isEmpty ? null : _toggleSelectAll,
-            child: Text(isAllSelected ? '全不选' : '全选'),
-          ),
-        ],
-      ),
+      title: const Text('选择随机目录范围'),
       content: SizedBox(
         width: 440,
         height: MediaQuery.sizeOf(context).height * 0.5,
-        child: nodes.isEmpty
-            ? const Center(child: Text('暂无可选择的收藏目录'))
-            : Card.outlined(
-                margin: EdgeInsets.zero,
-                clipBehavior: Clip.antiAlias,
-                child: ListView.builder(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  itemCount: nodes.length,
-                  itemBuilder: (context, index) {
-                    final node = nodes[index];
-                    final checked = selectedIds.contains(node.folder.id);
-                    return Padding(
-                      padding: EdgeInsets.only(left: (node.depth - 1) * 16.0),
-                      child: CheckboxListTile(
-                        key: Key('random-folder-checkbox-${node.folder.id}'),
-                        value: checked,
-                        dense: true,
-                        visualDensity: const VisualDensity(vertical: -4),
-                        minTileHeight: 40,
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                        ),
-                        secondary: const Icon(Icons.folder_outlined, size: 20),
-                        title: Text(
-                          node.folder.name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        onChanged: (_) => _toggle(node.folder.id),
-                      ),
-                    );
-                  },
-                ),
+        child: Card.outlined(
+          margin: EdgeInsets.zero,
+          clipBehavior: Clip.antiAlias,
+          child: ListView(
+            controller: _scrollController,
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            children: [
+              _buildOption(
+                id: 'all',
+                title: '全部收藏',
+                icon: Icons.collections_bookmark_outlined,
               ),
+              _buildOption(
+                id: 'uncategorized',
+                title: '未分类',
+                icon: Icons.inbox_outlined,
+              ),
+              for (final node in nodes) _buildFolderOption(node),
+            ],
+          ),
+        ),
       ),
       actions: [
         TextButton(
@@ -150,17 +152,68 @@ class _RandomFoldersFilterDialogState
           key: const Key('random-filter-confirm'),
           icon: const Icon(Icons.casino_outlined, size: 18),
           label: const Text('开始随机'),
-          onPressed: () {
-            // 如果全选或全不选，返回空列表代表"不限制/全目录"，否则返回具体 ID
-            if (selectedIds.isEmpty ||
-                selectedIds.length == allFolderIds.length) {
-              Navigator.pop(context, <String>[]);
-            } else {
-              Navigator.pop(context, selectedIds.toList());
-            }
-          },
+          onPressed: () => Navigator.pop(context, _selectedFolderIds()),
         ),
       ],
+    );
+  }
+
+  Widget _buildFolderOption(FolderNode node) {
+    final key = _folderKeys.putIfAbsent(node.folder.id, GlobalKey.new);
+    return Padding(
+      key: key,
+      padding: EdgeInsets.only(left: (node.depth - 1) * 16.0),
+      child: _buildOption(
+        id: node.folder.id,
+        title: node.folder.name,
+        icon: Icons.folder_outlined,
+      ),
+    );
+  }
+
+  Widget _buildOption({
+    required String id,
+    required String title,
+    required IconData icon,
+  }) {
+    final selected = _selectedId == id;
+    final colorScheme = Theme.of(context).colorScheme;
+    const selectedBackground = Color(0xFFE2F0E8);
+    const selectedForeground = Color(0xFF35614B);
+    return Material(
+      color: selected ? selectedBackground : Colors.transparent,
+      child: InkWell(
+        key: Key('random-folder-option-$id'),
+        onTap: () => _select(id),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+          child: Row(
+            children: [
+              Icon(
+                icon,
+                size: 20,
+                color: selected
+                    ? selectedForeground
+                    : colorScheme.onSurfaceVariant,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontWeight: selected ? FontWeight.w700 : FontWeight.w400,
+                    color: selected ? selectedForeground : null,
+                  ),
+                ),
+              ),
+              if (selected)
+                Icon(Icons.check_circle, size: 20, color: selectedForeground),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

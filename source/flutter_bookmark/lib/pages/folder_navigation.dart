@@ -26,14 +26,22 @@ class _FolderNavigationState extends State<FolderNavigation> {
   Set<String> _initializedFolderIds = {};
   String _initializedPinnedKey = '';
   String? _activeActionFolderId;
+  bool _selectionInProgress = false;
 
   Future<void> _select(
     BuildContext context,
     BookmarkView view, [
     String? folderId,
   ]) async {
-    await context.read<AppState>().selectView(view, folderId);
-    if (widget.closeAfterSelection && context.mounted) Navigator.pop(context);
+    final state = context.read<AppState>();
+    // 抽屉中的连续点击共享同一个路由；只允许第一次点击负责关闭抽屉，
+    // 避免多个异步请求完成后重复 pop 到主页路由之外。
+    if (widget.closeAfterSelection && _selectionInProgress) return;
+    if (widget.closeAfterSelection) {
+      _selectionInProgress = true;
+      if (context.mounted) Navigator.pop(context);
+    }
+    await state.selectView(view, folderId);
   }
 
   Set<String> _folderAndDescendants(AppState state, String folderId) {
@@ -325,10 +333,17 @@ class _FolderNavigationState extends State<FolderNavigation> {
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        if (node.folder.pinned)
-                          const Icon(Icons.push_pin, size: 15),
                         if (hasChildren)
                           IconButton(
+                            padding: EdgeInsets.zero,
+                            visualDensity: const VisualDensity(
+                              horizontal: -4,
+                              vertical: -4,
+                            ),
+                            constraints: const BoxConstraints(
+                              minWidth: 28,
+                              minHeight: 28,
+                            ),
                             icon: Icon(
                               _collapsedFolderIds.contains(node.folder.id)
                                   ? Icons.chevron_right
@@ -344,12 +359,24 @@ class _FolderNavigationState extends State<FolderNavigation> {
                               }
                             }),
                           ),
+                        if (node.folder.pinned)
+                          const SizedBox(
+                            width: 28,
+                            height: 28,
+                            child: Icon(Icons.push_pin, size: 15),
+                          ),
                         PopupMenuButton<String>(
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(
+                            minWidth: 28,
+                            minHeight: 28,
+                          ),
+                          iconSize: 20,
                           tooltip: '目录操作',
                           icon: const Icon(Icons.more_vert),
                           position: PopupMenuPosition.under,
-                          // Keep the menu close below the trailing icon without covering it.
-                          offset: Offset.zero,
+                          // Keep the menu below the trigger instead of covering it.
+                          offset: const Offset(0, 8),
                           onOpened: () => setState(() {
                             _activeActionFolderId = node.folder.id;
                           }),
@@ -485,44 +512,114 @@ class _ShareFolderDialogState extends State<_ShareFolderDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return AlertDialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
+      titlePadding: const EdgeInsets.fromLTRB(24, 22, 24, 8),
       title: const Text('共享目录'),
+      contentPadding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
       content: SizedBox(
         width: 420,
         child: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            Text(
+              '管理可以访问此目录的用户',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 16),
             if (_loading)
-              const LinearProgressIndicator()
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 12),
+                child: LinearProgressIndicator(),
+              )
             else if (_shares.isEmpty)
-              const Align(alignment: Alignment.centerLeft, child: Text('暂未共享'))
+              Container(
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  '暂未共享给其他用户',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+                ),
+              )
             else
-              ..._shares.map(
-                (share) => ListTile(
-                  dense: true,
-                  contentPadding: EdgeInsets.zero,
-                  title: Text('${share['username'] ?? ''}'),
-                  trailing: IconButton(
-                    tooltip: '移除共享',
-                    icon: const Icon(Icons.person_remove_outlined),
-                    onPressed: () async {
-                      await context.read<AppState>().api.removeFolderShare(
-                        widget.folderId,
-                        '${share['userId']}',
-                      );
-                      await _loadShares();
-                    },
-                  ),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 220),
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  padding: EdgeInsets.zero,
+                  itemCount: _shares.length,
+                  separatorBuilder: (_, _) => const SizedBox(height: 6),
+                  itemBuilder: (context, index) {
+                    final share = _shares[index];
+                    return Container(
+                      padding: const EdgeInsets.fromLTRB(14, 4, 6, 4),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        children: [
+                          CircleAvatar(
+                            radius: 15,
+                            backgroundColor: theme.colorScheme.primaryContainer,
+                            child: Icon(
+                              Icons.person_outline,
+                              size: 18,
+                              color: theme.colorScheme.onPrimaryContainer,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              '${share['username'] ?? ''}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          IconButton(
+                            tooltip: '移除共享',
+                            visualDensity: VisualDensity.compact,
+                            icon: const Icon(Icons.person_remove_outlined),
+                            onPressed: () async {
+                              await context
+                                  .read<AppState>()
+                                  .api
+                                  .removeFolderShare(
+                                    widget.folderId,
+                                    '${share['userId']}',
+                                  );
+                              await _loadShares();
+                            },
+                          ),
+                        ],
+                      ),
+                    );
+                  },
                 ),
               ),
+            const SizedBox(height: 16),
             TextField(
               controller: _controller,
               autofocus: true,
-              decoration: const InputDecoration(labelText: '添加用户名'),
+              textInputAction: TextInputAction.done,
+              decoration: const InputDecoration(
+                labelText: '添加用户名',
+                hintText: '输入对方用户名',
+                prefixIcon: Icon(Icons.person_add_alt_1_outlined),
+              ),
             ),
           ],
         ),
       ),
+      actionsPadding: const EdgeInsets.fromLTRB(16, 8, 16, 14),
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),

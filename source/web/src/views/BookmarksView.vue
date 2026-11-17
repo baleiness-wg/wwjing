@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, reactive, ref, watch } from "vue";
+import { computed, nextTick, onMounted, reactive, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import { ElMessage, ElMessageBox } from "element-plus";
 import {
@@ -9,6 +9,9 @@ import {
   Dish,
   Edit,
   FolderAdd,
+  CircleCheckFilled,
+  CollectionTag,
+  Folder,
   Link,
   MoreFilled,
   Plus,
@@ -206,12 +209,17 @@ function folderPath(folderId) {
 
 function flattenOptions(nodes = folderTree.value, depth = 0) {
   return nodes.flatMap((node) => [
-    { id: node.id, label: `${"　".repeat(depth)}${node.name}` },
+    { id: node.id, name: node.name, label: `${"　".repeat(depth)}${node.name}`, depth },
     ...flattenOptions(node.children, depth + 1)
   ]);
 }
 
 const folderOptions = computed(() => flattenOptions());
+const randomFolderOptions = computed(() => [
+  { id: "all", name: "全部收藏", depth: 0, type: "all" },
+  { id: "uncategorized", name: "未分类", depth: 0, type: "uncategorized" },
+  ...folderOptions.value.map((folder) => ({ ...folder, type: "folder" }))
+]);
 
 function descendantIds(folderId) {
   const result = new Set([String(folderId)]);
@@ -262,7 +270,10 @@ async function loadItems() {
   try {
     const filters = { page: requestedPage, pageSize, query: requestedQuery || undefined };
     if (requestedFolderId === null) filters.uncategorized = true;
-    else if (requestedFolderId !== undefined) filters.folderId = requestedFolderId;
+    else if (requestedFolderId !== undefined) {
+      filters.folderId = requestedFolderId;
+      filters.includeDescendants = true;
+    }
     const result = await getBookmarkItems(filters, requestedSpace);
     const isCurrentRequest = requestSequence === itemsRequestSequence
       && requestedSpace === currentSpace.value
@@ -281,6 +292,11 @@ async function loadItems() {
 
 function selectFolder(folderId) {
   activeFolderId.value = folderId;
+  selectedRandomFolderId.value = folderId === null
+    ? "uncategorized"
+    : folderId === undefined
+      ? "all"
+      : String(folderId);
   page.value = 1;
   loadItems();
 }
@@ -559,61 +575,42 @@ async function moveItems() {
 }
 
 const randomFilterVisible = ref(false);
-const selectedRandomFolderIds = ref([]);
+const selectedRandomFolderId = ref("all");
+const randomFolderTreeElement = ref(null);
 
 function openRandomFilterDialog() {
-  if (folders.value.length === 0) {
-    return ElMessage.warning("当前没有收藏目录，请先创建目录并添加收藏");
-  }
-  // 默认：若在特定文件夹下，只勾选该文件夹；若在全部收藏页，默认全选
   const currentId = activeFolderId.value;
-  if (currentId !== undefined && currentId !== null && folderMap.value.has(String(currentId))) {
-    selectedRandomFolderIds.value = [String(currentId)];
-  } else {
-    if (!selectedRandomFolderIds.value.length) {
-      selectedRandomFolderIds.value = folders.value.map((f) => String(f.id));
-    } else {
-      const validIds = new Set(folders.value.map((f) => String(f.id)));
-      selectedRandomFolderIds.value = selectedRandomFolderIds.value.filter((id) => validIds.has(id));
-      if (!selectedRandomFolderIds.value.length) {
-        selectedRandomFolderIds.value = folders.value.map((f) => String(f.id));
-      }
-    }
-  }
+  selectedRandomFolderId.value = currentId === null
+    ? "uncategorized"
+    : currentId === undefined || !folderMap.value.has(String(currentId))
+      ? "all"
+      : String(currentId);
   randomFilterVisible.value = true;
+  nextTick(() => {
+    randomFolderTreeElement.value?.querySelector(".random-folder-node.is-active")?.scrollIntoView({
+      block: "center",
+      behavior: "smooth"
+    });
+  });
 }
 
-function toggleRandomFolderSelectAll() {
-  if (selectedRandomFolderIds.value.length === folders.value.length) {
-    selectedRandomFolderIds.value = [];
-  } else {
-    selectedRandomFolderIds.value = folders.value.map((f) => String(f.id));
-  }
+function selectRandomFolder(data) {
+  selectedRandomFolderId.value = String(data.id);
 }
 
 async function startRandomFromFilter() {
-  if (selectedRandomFolderIds.value.length === 0) {
-    return ElMessage.warning("请至少选择一个目录进行随机");
-  }
   randomFilterVisible.value = false;
   randomDialogVisible.value = true;
   await fetchRandomDish();
 }
 
 async function fetchRandomDish() {
-  if (selectedRandomFolderIds.value.length === 0) {
-    randomItem.value = null;
-    return ElMessage.warning("请至少选择一个目录进行随机");
-  }
   loadingRandom.value = true;
   try {
-    // 收集所选目录及其所有子目录 ID，随机选取一个目录传参给后端 folderId
-    const candidateIds = [];
-    selectedRandomFolderIds.value.forEach((id) => {
-      descendantIds(id).forEach((subId) => candidateIds.push(subId));
-    });
-
-    const res = await getRandomBookmark(currentSpace.value, "", [...new Set(candidateIds)]);
+    const folderIds = selectedRandomFolderId.value === "all" || selectedRandomFolderId.value === "uncategorized"
+      ? []
+      : [...descendantIds(selectedRandomFolderId.value)];
+    const res = await getRandomBookmark(currentSpace.value, "", folderIds, selectedRandomFolderId.value === "uncategorized");
     randomItem.value = res?.item || null;
     if (!randomItem.value) {
       ElMessage.info("所选目录中暂无可推荐的内容");
@@ -703,8 +700,9 @@ onMounted(async () => {
           :data="folderTree"
           node-key="id"
            :default-expanded-keys="pinnedFolderExpandedKeys"
-           :key="`folders-${folders.length}-${pinnedFolderExpandedKeys.join(',')}`"
+          :key="`folders-${folders.length}-${pinnedFolderExpandedKeys.join(',')}`"
           :expand-on-click-node="false"
+          :highlight-current="false"
           aria-label="目录树"
         >
           <template #default="{ data }">
@@ -874,13 +872,13 @@ onMounted(async () => {
         <el-form-item label="标题">
           <el-input v-model="itemForm.title" placeholder="请输入标题" />
         </el-form-item>
+        <el-form-item label="链接（可选）">
+          <el-input v-model="itemForm.sourceUrl" type="url" placeholder="输入链接（可留空）" />
+        </el-form-item>
         <el-form-item label="描述">
           <el-input v-model="itemForm.description" type="textarea" :rows="10" placeholder="记录为什么收藏这个链接" />
         </el-form-item>
         <el-alert title="图片上传接口已预留，当前版本暂不上传图片。" type="info" :closable="false" />
-        <el-form-item label="高级设置">
-          <el-input v-model="itemForm.sourceUrl" type="url" placeholder="链接（可选，用于保存和去重）" />
-        </el-form-item>
         <el-form-item label="收藏目录">
           <div class="folder-select-row">
             <el-select v-model="itemForm.folderId" class="full-width" clearable placeholder="未分类">
@@ -910,30 +908,21 @@ onMounted(async () => {
     </el-dialog>
 
     <el-dialog v-model="randomFilterVisible" title="选择随机目录范围" width="min(460px, 92vw)">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-        <span class="muted">勾选要参与抽取的内容</span>
-        <el-button
-          v-if="folders.length"
-          size="small"
-          text
-          type="primary"
-          @click="toggleRandomFolderSelectAll"
-        >
-          {{ selectedRandomFolderIds.length === folders.length ? "全不选" : "全选" }}
-        </el-button>
-      </div>
-      <el-checkbox-group v-if="folderOptions.length" v-model="selectedRandomFolderIds" class="random-filter-list">
-        <div
-          v-for="folder in folderOptions"
+      <span class="muted">选择一个平级范围进行抽取</span>
+      <div ref="randomFolderTreeElement" class="random-folder-tree">
+        <button
+          v-for="folder in randomFolderOptions"
           :key="folder.id"
-          class="random-filter-item"
+          type="button"
+          class="random-folder-node"
+          :class="{ 'is-active': selectedRandomFolderId === String(folder.id), 'is-special': folder.type !== 'folder' }"
+          :style="{ paddingLeft: `${8 + folder.depth * 20}px` }"
+          @click="selectRandomFolder(folder)"
         >
-          <el-checkbox :value="String(folder.id)" :label="String(folder.id)">
-            <span>{{ folder.label }}</span>
-          </el-checkbox>
-        </div>
-      </el-checkbox-group>
-      <el-empty v-else :image-size="48" description="暂无可选择的内容" />
+          <el-icon class="random-folder-icon"><component :is="folder.type === 'all' ? CollectionTag : folder.type === 'uncategorized' ? Link : Folder" /></el-icon><span>{{ folder.name }}</span>
+          <el-icon v-if="selectedRandomFolderId === String(folder.id)" class="random-folder-selected"><CircleCheckFilled /></el-icon>
+        </button>
+      </div>
       <template #footer>
         <el-button @click="randomFilterVisible = false">取消</el-button>
         <el-button type="primary" :icon="Dish" @click="startRandomFromFilter">开始随机</el-button>
