@@ -65,9 +65,12 @@ function endRowResize() {
   window.removeEventListener("mouseup", endRowResize);
 }
 const statusText = computed(() => `${rows.value.length} 行 · ${columns.value.length} 列 · 实时协作`);
+const activeEditors = computed(() => [...new Set(Object.values(cellLocks.value).filter((name) => name && name !== user.value.name))]);
 const connectionText = ref("连接中");
 const editingCell = ref(null);
 const cellLocks = ref({});
+const pendingUpdates = reactive({});
+const saveState = ref("已同步");
 const passwordDialogVisible = ref(false);
 const passwordLoading = ref(false);
 const passwordForm = reactive({ currentPassword: "", newPassword: "", confirmPassword: "" });
@@ -87,7 +90,6 @@ function beginCellEdit(row, column) {
   const key = cellKey(row, column);
   if (cellLocks.value[key] && cellLocks.value[key] !== user.value.name) return false;
   editingCell.value = key;
-  cellLocks.value[key] = user.value.name;
   send({ type: "cell:lock", topicId: activeTopicId.value, row, column });
   return true;
 }
@@ -139,6 +141,16 @@ function connect() {
       } else if (message.type === "cell:lock" || message.type === "cell:unlock") {
         if (message.type === "cell:lock") cellLocks.value[message.key] = message.user;
         else delete cellLocks.value[message.key];
+    } else if (message.type === "cell:lock:rejected") {
+      if (editingCell.value === message.key) editingCell.value = null;
+      ElMessage.warning(`${message.user || "其他用户"}正在编辑此单元格`);
+    } else if (message.type === "cell:update:ack") {
+      if (pendingUpdates[message.requestId]) delete pendingUpdates[message.requestId];
+      saveState.value = "已同步";
+    } else if (message.type === "cell:update:rejected") {
+      if (pendingUpdates[message.requestId]) delete pendingUpdates[message.requestId];
+      saveState.value = "保存失败";
+      ElMessage.error(`${message.user || "其他用户"}已占用此单元格，内容未覆盖`);
     } else if (message.type === "topic:created") {
       topics.value.push(message.topic);
       selectTopic(message.topic);
@@ -149,7 +161,7 @@ function connect() {
       topic.cells[message.row][message.column] = message.value;
       topic.cellAuthors ||= {};
       topic.cellAuthors[`${message.row}:${message.column}`] = message.user;
-      if (topic.id === activeTopicId.value) selectTopic(topic);
+      if (topic.id === activeTopicId.value && editingCell.value !== `${message.topicId}:${message.row}:${message.column}`) selectTopic(topic);
     }
   };
 }
@@ -175,15 +187,36 @@ function flushEditingCell() {
   if (!editingCell.value || !activeTopic.value) return;
   const [, row, column] = editingCell.value.split(":").map(Number);
   const value = activeTopic.value.cells[row]?.[column] || "";
-  send({ type: "cell:update", topicId: activeTopicId.value, row, column, value });
-  updateCellFallback(activeTopicId.value, row, column, value);
+  const requestId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  pendingUpdates[requestId] = { key: editingCell.value, topicId: activeTopicId.value, row, column, value };
+  saveState.value = "保存中";
+  send({ type: "cell:update", requestId, topicId: activeTopicId.value, row, column, value });
+  if (socket.value?.readyState !== WebSocket.OPEN) updateCellFallback(activeTopicId.value, row, column, value);
   delete cellLocks.value[editingCell.value];
   send({ type: "cell:unlock", topicId: activeTopicId.value, row, column });
   editingCell.value = null;
 }
 
-function handleFocusOut() {
-  if (document.activeElement?.tagName !== "INPUT") flushEditingCell();
+function handleFocusOut(event) {
+  if (event.target?.tagName === "INPUT") flushEditingCell();
+}
+
+function handleFocusIn(event) {
+  const input = event.target;
+  if (input.tagName !== "INPUT" || !activeTopic.value) return;
+  const row = input.closest("tbody tr");
+  const cell = input.closest("td");
+  if (!row || !cell) return;
+  const rowIndex = [...row.parentElement.children].indexOf(row);
+  const column = cell.cellIndex - 1;
+  const key = cellKey(rowIndex + 2, column);
+  if (cellLocks.value[key] && cellLocks.value[key] !== user.value.name) {
+    input.blur();
+    ElMessage.warning(`${cellLocks.value[key]}正在编辑此单元格`);
+    return;
+  }
+  selectedCell.value = `${String.fromCharCode(65 + column)}${rowIndex + 3}`;
+  beginCellEdit(rowIndex + 2, column);
 }
 
 function updateTitle(value) {
@@ -213,6 +246,11 @@ function cellAuthor(rowIndex, cellIndex) {
 
 function fixedCellAuthor(rowIndex, cellIndex) {
   return activeTopic.value?.cellAuthors?.[`${rowIndex}:${cellIndex}`] || "";
+}
+
+function cellEditor(row, column) {
+  const editor = cellLocks.value[cellKey(row, column)];
+  return editor && editor !== user.value.name ? editor : "";
 }
 
 function addTopic() {
@@ -251,7 +289,10 @@ async function submitPassword() {
 }
 
 onMounted(connect);
-onMounted(() => document.addEventListener("focusout", handleFocusOut, true));
+onMounted(() => {
+  document.addEventListener("focusout", handleFocusOut, true);
+  document.addEventListener("focusin", handleFocusIn, true);
+});
 onMounted(async () => {
   try {
     const response = await fetch("/api/office/snapshot", { headers: { Authorization: localStorage.getItem("wwjing_token") || "" } });
@@ -261,17 +302,6 @@ onMounted(async () => {
     topics.value = snapshot.topics;
     cellLocks.value = snapshot.locks || {};
     if (topics.value[0] && !activeTopicId.value) selectTopic(topics.value[0]);
-    snapshotTimer = window.setInterval(async () => {
-      const poll = await fetch("/api/office/snapshot", { headers: { Authorization: localStorage.getItem("wwjing_token") || "" } }).catch(() => null);
-      if (!poll?.ok) return;
-      if (editingCell.value || document.activeElement?.tagName === "INPUT") return;
-      const latest = await poll.json();
-      topics.value = latest.topics;
-      user.value = latest.user;
-      cellLocks.value = latest.locks || {};
-      const current = topics.value.find((topic) => topic.id === activeTopicId.value) || topics.value[0];
-      if (current) selectTopic(current);
-    }, 2000);
   } catch {
     connectionText.value = "离线";
   }
@@ -284,6 +314,7 @@ onUnmounted(() => {
   endResize();
   endRowResize();
   document.removeEventListener("focusout", handleFocusOut, true);
+  document.removeEventListener("focusin", handleFocusIn, true);
 });
 </script>
 
@@ -293,7 +324,7 @@ onUnmounted(() => {
     <nav class="office-ribbon"><button>文件</button><button class="is-active">开始</button><button>插入</button><button>布局</button><button>审阅</button><span class="ribbon-separator"></span><span class="ribbon-tool">剪切</span><span class="ribbon-tool">复制</span><span class="ribbon-tool">粘贴</span><span class="ribbon-separator"></span><span class="ribbon-tool">自动换行</span><span class="ribbon-tool">筛选</span></nav>
     <section class="workbench-shell">
       <div class="sheet-panel">
-        <div class="sheet-toolbar"><div class="sheet-tab"><span class="sheet-tab-icon">▦</span> 工作表</div><div class="sheet-actions"><button type="button" @click="addRow">＋ 行</button><span class="sheet-save-state">已同步</span></div></div>
+         <div class="sheet-toolbar"><div class="sheet-tab"><span class="sheet-tab-icon">▦</span> 工作表</div><div class="sheet-actions"><span v-if="activeEditors.length" class="sheet-editing-state">{{ activeEditors.join("、") }}正在编辑</span><button type="button" @click="addRow">＋ 行</button><span class="sheet-save-state">{{ saveState }}</span></div></div>
         <div class="formula-bar"><span class="name-box">{{ selectedCell }}</span><span class="formula-symbol">fx</span><input value="点击单元格编辑内容" readonly aria-label="公式栏提示"></div>
         <div class="sheet-scroll"><table class="workbench-sheet"><colgroup><col class="col-row-number"><col v-for="(_, index) in sheetColumns" :key="index" :style="{ width: `${columnWidths[index]}px` }"></colgroup><thead><tr class="column-letters" :style="{ height: `${rowHeights.letters || 26}px` }"><th class="row-number"></th><th v-for="(_, index) in sheetColumns" :key="index">{{ String.fromCharCode(65 + index) }}<span class="column-resize-handle" @mousedown="beginResize(index, $event)"></span><span class="row-resize-handle" @mousedown="beginRowResize(0, $event)"></span></th></tr><tr class="sheet-title-row" :style="{ height: `${rowHeights.title || 30}px` }"><th class="row-number">1</th><th :colspan="sheetColumns.length" class="sheet-title-cell"><span v-if="fixedCellAuthor(0, 0)" class="cell-author">{{ fixedCellAuthor(0, 0) }}：</span><input :value="title" aria-label="表格标题" @input="updateTitle($event.target.value)"><span class="row-resize-handle" @mousedown="beginRowResize(1, $event)"></span></th></tr><tr class="sheet-header" :style="{ height: `${rowHeights.header || 28}px` }"><th class="row-number">2</th><th v-for="(_, index) in sheetColumns" :key="index"><span v-if="index < 7 && fixedCellAuthor(1, index)" class="cell-author">{{ fixedCellAuthor(1, index) }}：</span><input v-if="index < 7" :value="columns[index]" :aria-label="`第 ${index + 1} 列标题`" @input="updateHeader(index, $event.target.value)"></th></tr></thead><tbody><tr v-for="(row, rowIndex) in rows" :key="rowIndex" :style="{ height: `${rowHeights[rowIndex + 2] || 28}px` }"><td class="row-number">{{ rowIndex + 3 }}</td><td v-for="(_, cellIndex) in sheetColumns" :key="cellIndex" :class="{ 'is-selected': selectedCell === `${String.fromCharCode(65 + cellIndex)}${rowIndex + 3}` }" @click="selectedCell = `${String.fromCharCode(65 + cellIndex)}${rowIndex + 3}`"><span v-if="cellAuthor(rowIndex, cellIndex)" class="cell-author">{{ cellAuthor(rowIndex, cellIndex) }}：</span><input :value="row[cellIndex] || ''" :aria-label="`${sheetColumns[cellIndex]} 第 ${rowIndex + 3} 行`" @input="updateCell(rowIndex, cellIndex, $event.target.value)"><span class="row-resize-handle" @mousedown="beginRowResize(rowIndex + 2, $event)"></span></td></tr></tbody></table></div>
         <footer class="sheet-status"><span>{{ statusText }}</span><span>◉ {{ user.name }}</span></footer>

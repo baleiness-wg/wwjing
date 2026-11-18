@@ -1,5 +1,5 @@
 const rooms = new Map();
-const ROOM_VERSION = 3;
+const ROOM_VERSION = 4;
 
 function createRoom() {
   const rows = [
@@ -49,6 +49,8 @@ function createRoom() {
       cells: [["MES添加新测试站的流程"], ["No", "系统", "步骤", "详细信息", "RD", "时间", "结果"], ...rows.map((row, index) => [index + 1, "BOP", row[0], row[2], "", "", row[1]])],
     cellAuthors: {},
     locks: {},
+    lockClients: new Map(),
+    revision: 0,
       messages: []
     }],
     clients: new Set()
@@ -73,6 +75,13 @@ function removeClient(roomId, client) {
   const room = rooms.get(roomId);
   if (!room) return;
   room.clients.delete(client);
+  for (const [key, owner] of room.lockClients) {
+    if (owner === client) {
+      room.lockClients.delete(key);
+      delete room.locks[key];
+      broadcast(room, { type: "cell:unlock", key, user: client.officeUser?.name || "用户", reason: "disconnect" });
+    }
+  }
   if (!room.clients.size) rooms.delete(roomId);
 }
 

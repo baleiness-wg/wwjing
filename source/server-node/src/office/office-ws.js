@@ -20,19 +20,31 @@ function attachOfficeWebSocket(server) {
     const roomId = "main";
     const room = getRoom(roomId);
     room.clients.add(client);
-    const user = { id: String(request.user.sub), name: request.user.username || "用户" };
-    client.send(JSON.stringify({ type: "snapshot", user, topics: room.topics }));
+     const user = { id: String(request.user.sub), name: request.user.username || "用户" };
+     client.officeUser = user;
+     client.send(JSON.stringify({ type: "snapshot", user, topics: room.topics, locks: room.locks, revision: room.revision }));
     broadcast(room, { type: "presence", name: user.name, count: room.clients.size }, client);
     client.on("message", (raw) => {
       let message;
       try { message = JSON.parse(raw.toString()); } catch { return; }
       if (!message.type) return;
-      if (message.type === "cell:lock" || message.type === "cell:unlock") {
-        const key = `${message.topicId}:${message.row}:${message.column}`;
-        if (message.type === "cell:lock") room.locks[key] = user.name;
-        else if (room.locks[key] === user.name) delete room.locks[key];
-        broadcast(room, { type: message.type, key, user: user.name });
-        return;
+       if (message.type === "cell:lock" || message.type === "cell:unlock") {
+         const key = `${message.topicId}:${message.row}:${message.column}`;
+         if (message.type === "cell:lock") {
+           const owner = room.lockClients.get(key);
+           if (owner && owner !== client) {
+             client.send(JSON.stringify({ type: "cell:lock:rejected", key, user: room.locks[key] }));
+             return;
+           }
+           room.locks[key] = user.name;
+           room.lockClients.set(key, client);
+           broadcast(room, { type: "cell:lock", key, user: user.name });
+         } else if (room.lockClients.get(key) === client) {
+           room.lockClients.delete(key);
+           delete room.locks[key];
+           broadcast(room, { type: "cell:unlock", key, user: user.name });
+         }
+         return;
       }
       if (message.type === "topic:create") {
         const topic = { id: `topic-${Date.now()}`, name: String(message.name || "未命名话题").slice(0, 80), cells: [["任务记录", "负责人", "状态", "备注"]], messages: [] };
@@ -42,10 +54,18 @@ function attachOfficeWebSocket(server) {
         const topic = room.topics.find((item) => item.id === message.topicId);
         if (!topic || !Number.isInteger(message.row) || !Number.isInteger(message.column)) return;
         topic.cells[message.row] ||= [];
-        topic.cells[message.row][message.column] = String(message.value || "").slice(0, 2000);
+         const key = `${message.topicId}:${message.row}:${message.column}`;
+         if (room.lockClients.get(key) && room.lockClients.get(key) !== client) {
+           client.send(JSON.stringify({ type: "cell:update:rejected", requestId: message.requestId, key, user: room.locks[key] }));
+           return;
+         }
+         topic.cells[message.row][message.column] = String(message.value || "").slice(0, 2000);
+         room.revision += 1;
         topic.cellAuthors ||= {};
         topic.cellAuthors[`${message.row}:${message.column}`] = user.name;
-        broadcast(room, { ...message, type: "cell:updated", user: user.name }, client);
+         const update = { ...message, type: "cell:updated", value: topic.cells[message.row][message.column], user: user.name, revision: room.revision };
+         broadcast(room, update);
+         client.send(JSON.stringify({ type: "cell:update:ack", requestId: message.requestId, revision: room.revision }));
       } else if (message.type === "chat:send") {
         const topic = room.topics.find((item) => item.id === message.topicId);
         if (!topic) return;

@@ -4,7 +4,9 @@ function snapshot(req, res) {
   const room = getRoom("main");
   res.json({
     user: { id: String(req.auth.sub), name: req.auth.username || "用户" },
-    topics: room.topics
+    topics: room.topics,
+    locks: room.locks,
+    revision: room.revision
   });
 }
 
@@ -19,10 +21,11 @@ function updateCell(req, res) {
   }
   topic.cells[row] ||= [];
   topic.cells[row][column] = String(value || "").slice(0, 2000);
+  room.revision += 1;
   topic.cellAuthors ||= {};
   topic.cellAuthors[`${row}:${column}`] = req.auth.username || "用户";
-  broadcast(room, { type: "cell:updated", topicId, row, column, value: topic.cells[row][column], user: req.auth.username || "用户" });
-  return res.json({ ok: true });
+  broadcast(room, { type: "cell:updated", topicId, row, column, value: topic.cells[row][column], user: req.auth.username || "用户", revision: room.revision });
+  return res.json({ ok: true, revision: room.revision });
 }
 
 module.exports.updateCell = updateCell;
