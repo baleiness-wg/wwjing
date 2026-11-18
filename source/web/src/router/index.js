@@ -33,7 +33,9 @@ router.beforeEach((to) => {
   const isAuthenticated = Boolean(localStorage.getItem("wwjing_token"));
 
   if (to.meta.requiresAuth && !isAuthenticated) return "/login";
-  if (to.name === "login" && isAuthenticated) return "/transfer";
+  if (to.name === "login" && isAuthenticated) {
+    return sessionStorage.getItem("wwjing_login_return") || "/transfer";
+  }
 });
 
 export default router;

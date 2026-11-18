@@ -18,7 +18,9 @@ async function submit() {
     localStorage.setItem("wwjing_token", result.token);
     localStorage.setItem("wwjing_user", JSON.stringify(result.user));
     ElMessage.success(isRegister.value ? "注册并登录成功" : "登录成功");
-    router.push("/");
+    const returnPath = sessionStorage.getItem("wwjing_login_return");
+    sessionStorage.removeItem("wwjing_login_return");
+    router.push(returnPath || "/");
   } catch (error) {
     ElMessage.error(error.message);
   } finally {

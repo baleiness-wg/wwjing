@@ -1,5 +1,7 @@
 <script setup>
-import { computed, onMounted, onUnmounted, ref } from "vue";
+import { computed, onMounted, onUnmounted, reactive, ref } from "vue";
+import { ElMessage } from "element-plus";
+import { changePassword } from "../api/auth";
 
 const columns = ref([]);
 const topics = ref([]);
@@ -7,6 +9,14 @@ const activeTopicId = ref("");
 const user = ref({ name: "用户" });
 const selectedCell = ref("A1");
 const socket = ref(null);
+const columnWidths = ref([58, 58, 180, 380, 58, 58, 58, ...Array(19).fill(58)]);
+const resizingColumn = ref(null);
+const resizeStartX = ref(0);
+const resizeStartWidth = ref(0);
+const rowHeights = ref({});
+const resizingRow = ref(null);
+const resizeStartY = ref(0);
+const resizeStartHeight = ref(28);
 const activeTopic = computed(() => topics.value.find((topic) => topic.id === activeTopicId.value));
 const title = computed(() => activeTopic.value?.cells[0]?.[0] || "Book1");
 const rows = computed(() => activeTopic.value?.cells.slice(2) || []);
@@ -14,8 +24,51 @@ const sheetColumns = computed(() => [
   ...columns.value,
   ...Array.from({ length: 19 }, (_, index) => "列" + String.fromCharCode(72 + index))
 ]);
+
+function beginResize(index, event) {
+  event.preventDefault();
+  resizingColumn.value = index;
+  resizeStartX.value = event.clientX;
+  resizeStartWidth.value = columnWidths.value[index] || 58;
+  window.addEventListener("mousemove", resizeColumn);
+  window.addEventListener("mouseup", endResize);
+}
+
+function resizeColumn(event) {
+  if (resizingColumn.value === null) return;
+  columnWidths.value[resizingColumn.value] = Math.max(42, resizeStartWidth.value + event.clientX - resizeStartX.value);
+}
+
+function endResize() {
+  resizingColumn.value = null;
+  window.removeEventListener("mousemove", resizeColumn);
+  window.removeEventListener("mouseup", endResize);
+}
+
+function beginRowResize(rowIndex, event) {
+  event.preventDefault();
+  resizingRow.value = rowIndex;
+  resizeStartY.value = event.clientY;
+  resizeStartHeight.value = rowHeights.value[rowIndex] || 28;
+  window.addEventListener("mousemove", resizeRow);
+  window.addEventListener("mouseup", endRowResize);
+}
+
+function resizeRow(event) {
+  if (resizingRow.value === null) return;
+  rowHeights.value[resizingRow.value] = Math.max(22, resizeStartHeight.value + event.clientY - resizeStartY.value);
+}
+
+function endRowResize() {
+  resizingRow.value = null;
+  window.removeEventListener("mousemove", resizeRow);
+  window.removeEventListener("mouseup", endRowResize);
+}
 const statusText = computed(() => `${rows.value.length} 行 · ${columns.value.length} 列 · 实时协作`);
 const connectionText = ref("连接中");
+const passwordDialogVisible = ref(false);
+const passwordLoading = ref(false);
+const passwordForm = reactive({ currentPassword: "", newPassword: "", confirmPassword: "" });
 let snapshotTimer;
 
 function send(message) {
@@ -117,6 +170,36 @@ function addTopic() {
   if (name?.trim()) send({ type: "topic:create", name: name.trim() });
 }
 
+function logout() {
+  socket.value?.close();
+  window.clearInterval(snapshotTimer);
+  localStorage.removeItem("wwjing_token");
+  localStorage.removeItem("wwjing_user");
+  sessionStorage.setItem("wwjing_login_return", `${import.meta.env.BASE_URL}office`);
+  window.location.href = `${import.meta.env.BASE_URL}login`;
+}
+
+function openPasswordDialog() {
+  Object.assign(passwordForm, { currentPassword: "", newPassword: "", confirmPassword: "" });
+  passwordDialogVisible.value = true;
+}
+
+async function submitPassword() {
+  if (!passwordForm.currentPassword || !passwordForm.newPassword || !passwordForm.confirmPassword) return ElMessage.warning("请填写完整密码信息");
+  if (passwordForm.newPassword !== passwordForm.confirmPassword) return ElMessage.warning("两次输入的新密码不一致");
+  passwordLoading.value = true;
+  try {
+    await changePassword(passwordForm);
+    ElMessage.success("密码修改成功，请重新登录");
+    passwordDialogVisible.value = false;
+    logout();
+  } catch (error) {
+    ElMessage.error(error.message);
+  } finally {
+    passwordLoading.value = false;
+  }
+}
+
 onMounted(connect);
 onMounted(async () => {
   try {
@@ -142,21 +225,24 @@ onMounted(async () => {
 onUnmounted(() => {
   socket.value?.close();
   window.clearInterval(snapshotTimer);
+  endResize();
+  endRowResize();
 });
 </script>
 
 <template>
   <div class="office-page">
-    <header class="office-titlebar"><span class="office-app-icon">X</span><strong>{{ title }}</strong><span class="office-save">{{ user.name }}</span><span class="office-online"><span class="presence-dot"></span>{{ connectionText }}</span></header>
+    <header class="office-titlebar"><span class="office-app-icon">X</span><strong>{{ title }}</strong><span class="office-online"><span class="presence-dot"></span>{{ connectionText }}</span><el-dropdown class="office-user-menu" @command="(command) => command === 'password' ? openPasswordDialog() : logout()"><button type="button" class="office-user">{{ user.name }}⌄</button><template #dropdown><el-dropdown-menu><el-dropdown-item command="password">修改密码</el-dropdown-item><el-dropdown-item command="logout">退出登录</el-dropdown-item></el-dropdown-menu></template></el-dropdown></header>
     <nav class="office-ribbon"><button>文件</button><button class="is-active">开始</button><button>插入</button><button>布局</button><button>审阅</button><span class="ribbon-separator"></span><span class="ribbon-tool">剪切</span><span class="ribbon-tool">复制</span><span class="ribbon-tool">粘贴</span><span class="ribbon-separator"></span><span class="ribbon-tool">自动换行</span><span class="ribbon-tool">筛选</span></nav>
     <section class="workbench-shell">
       <div class="sheet-panel">
         <div class="sheet-toolbar"><div class="sheet-tab"><span class="sheet-tab-icon">▦</span> 工作表</div><div class="sheet-actions"><button type="button" @click="addRow">＋ 行</button><span class="sheet-save-state">已同步</span></div></div>
         <div class="formula-bar"><span class="name-box">{{ selectedCell }}</span><span class="formula-symbol">fx</span><input value="点击单元格编辑内容" readonly aria-label="公式栏提示"></div>
-        <div class="sheet-scroll"><table class="workbench-sheet"><colgroup><col class="col-row-number"><col v-for="(_, index) in sheetColumns" :key="index" :class="index < 7 ? `col-${['no', 'system', 'step', 'detail', 'rd', 'time', 'result'][index]}` : 'col-blank'"></colgroup><thead><tr class="column-letters"><th class="row-number"></th><th v-for="(_, index) in sheetColumns" :key="index">{{ String.fromCharCode(65 + index) }}</th></tr><tr class="sheet-title-row"><th class="row-number">1</th><th :colspan="sheetColumns.length" class="sheet-title-cell"><span v-if="fixedCellAuthor(0, 0)" class="cell-author">{{ fixedCellAuthor(0, 0) }}：</span><input :value="title" aria-label="表格标题" @input="updateTitle($event.target.value)"></th></tr><tr class="sheet-header"><th class="row-number">2</th><th v-for="(_, index) in sheetColumns" :key="index"><span v-if="index < 7 && fixedCellAuthor(1, index)" class="cell-author">{{ fixedCellAuthor(1, index) }}：</span><input v-if="index < 7" :value="columns[index]" :aria-label="`第 ${index + 1} 列标题`" @input="updateHeader(index, $event.target.value)"></th></tr></thead><tbody><tr v-for="(row, rowIndex) in rows" :key="rowIndex"><td class="row-number">{{ rowIndex + 3 }}</td><td v-for="(_, cellIndex) in sheetColumns" :key="cellIndex" :class="{ 'is-selected': selectedCell === `${String.fromCharCode(65 + cellIndex)}${rowIndex + 3}` }" @click="selectedCell = `${String.fromCharCode(65 + cellIndex)}${rowIndex + 3}`"><span v-if="cellAuthor(rowIndex, cellIndex)" class="cell-author">{{ cellAuthor(rowIndex, cellIndex) }}：</span><input :value="row[cellIndex] || ''" :aria-label="`${sheetColumns[cellIndex]} 第 ${rowIndex + 3} 行`" @input="updateCell(rowIndex, cellIndex, $event.target.value)"></td></tr></tbody></table></div>
+        <div class="sheet-scroll"><table class="workbench-sheet"><colgroup><col class="col-row-number"><col v-for="(_, index) in sheetColumns" :key="index" :style="{ width: `${columnWidths[index]}px` }"></colgroup><thead><tr class="column-letters" :style="{ height: `${rowHeights.letters || 26}px` }"><th class="row-number"></th><th v-for="(_, index) in sheetColumns" :key="index">{{ String.fromCharCode(65 + index) }}<span class="column-resize-handle" @mousedown="beginResize(index, $event)"></span><span class="row-resize-handle" @mousedown="beginRowResize(0, $event)"></span></th></tr><tr class="sheet-title-row" :style="{ height: `${rowHeights.title || 30}px` }"><th class="row-number">1</th><th :colspan="sheetColumns.length" class="sheet-title-cell"><span v-if="fixedCellAuthor(0, 0)" class="cell-author">{{ fixedCellAuthor(0, 0) }}：</span><input :value="title" aria-label="表格标题" @input="updateTitle($event.target.value)"><span class="row-resize-handle" @mousedown="beginRowResize(1, $event)"></span></th></tr><tr class="sheet-header" :style="{ height: `${rowHeights.header || 28}px` }"><th class="row-number">2</th><th v-for="(_, index) in sheetColumns" :key="index"><span v-if="index < 7 && fixedCellAuthor(1, index)" class="cell-author">{{ fixedCellAuthor(1, index) }}：</span><input v-if="index < 7" :value="columns[index]" :aria-label="`第 ${index + 1} 列标题`" @input="updateHeader(index, $event.target.value)"></th></tr></thead><tbody><tr v-for="(row, rowIndex) in rows" :key="rowIndex" :style="{ height: `${rowHeights[rowIndex + 2] || 28}px` }"><td class="row-number">{{ rowIndex + 3 }}</td><td v-for="(_, cellIndex) in sheetColumns" :key="cellIndex" :class="{ 'is-selected': selectedCell === `${String.fromCharCode(65 + cellIndex)}${rowIndex + 3}` }" @click="selectedCell = `${String.fromCharCode(65 + cellIndex)}${rowIndex + 3}`"><span v-if="cellAuthor(rowIndex, cellIndex)" class="cell-author">{{ cellAuthor(rowIndex, cellIndex) }}：</span><input :value="row[cellIndex] || ''" :aria-label="`${sheetColumns[cellIndex]} 第 ${rowIndex + 3} 行`" @input="updateCell(rowIndex, cellIndex, $event.target.value)"><span class="row-resize-handle" @mousedown="beginRowResize(rowIndex + 2, $event)"></span></td></tr></tbody></table></div>
         <footer class="sheet-status"><span>{{ statusText }}</span><span>◉ {{ user.name }}</span></footer>
         <div class="office-sheet-tabs"><button v-for="topic in topics" :key="topic.id" type="button" :class="{ 'is-active': topic.id === activeTopicId }" @click="selectTopic(topic)">▦ {{ topic.name }}</button><button type="button" class="add-sheet" title="新建话题" @click="addTopic">＋</button></div>
       </div>
     </section>
+    <el-dialog v-model="passwordDialogVisible" title="修改密码" width="min(92vw, 420px)"><el-form label-position="top" @submit.prevent="submitPassword"><el-form-item label="当前密码"><el-input v-model="passwordForm.currentPassword" type="password" show-password /></el-form-item><el-form-item label="新密码"><el-input v-model="passwordForm.newPassword" type="password" show-password /></el-form-item><el-form-item label="确认新密码"><el-input v-model="passwordForm.confirmPassword" type="password" show-password @keyup.enter="submitPassword" /></el-form-item></el-form><template #footer><el-button @click="passwordDialogVisible = false">取消</el-button><el-button type="primary" :loading="passwordLoading" @click="submitPassword">确认修改</el-button></template></el-dialog>
   </div>
 </template>

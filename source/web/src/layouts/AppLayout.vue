@@ -51,7 +51,8 @@ function go(path) {
 }
 
 function openOffice() {
-  window.open(`${import.meta.env.BASE_URL}office`, "_blank", "noopener,noreferrer");
+  const officeUrl = new URL(`${import.meta.env.BASE_URL}office`, window.location.origin);
+  window.open(officeUrl.href, "_blank", "noopener,noreferrer");
 }
 
 function toggleMenu() {
