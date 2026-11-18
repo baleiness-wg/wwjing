@@ -66,8 +66,31 @@ function updateCell(rowIndex, cellIndex, value) {
   send({ type: "cell:update", topicId: activeTopicId.value, row: rowIndex + 2, column: cellIndex, value });
 }
 
+function updateTitle(value) {
+  if (activeTopic.value) {
+    activeTopic.value.cells[0][0] = value;
+    activeTopic.value.cellAuthors ||= {};
+    activeTopic.value.cellAuthors["0:0"] = user.value.name;
+  }
+  send({ type: "cell:update", topicId: activeTopicId.value, row: 0, column: 0, value });
+}
+
+function updateHeader(cellIndex, value) {
+  if (activeTopic.value) {
+    activeTopic.value.cells[1][cellIndex] = value;
+    activeTopic.value.cellAuthors ||= {};
+    activeTopic.value.cellAuthors[`1:${cellIndex}`] = user.value.name;
+  }
+  columns.value[cellIndex] = value;
+  send({ type: "cell:update", topicId: activeTopicId.value, row: 1, column: cellIndex, value });
+}
+
 function cellAuthor(rowIndex, cellIndex) {
   return activeTopic.value?.cellAuthors?.[`${rowIndex + 2}:${cellIndex}`] || "";
+}
+
+function fixedCellAuthor(rowIndex, cellIndex) {
+  return activeTopic.value?.cellAuthors?.[`${rowIndex}:${cellIndex}`] || "";
 }
 
 function addTopic() {
@@ -87,7 +110,7 @@ onUnmounted(() => socket.value?.close());
       <div class="sheet-panel">
         <div class="sheet-toolbar"><div class="sheet-tab"><span class="sheet-tab-icon">▦</span> 工作表</div><div class="sheet-actions"><button type="button" @click="addRow">＋ 行</button><span class="sheet-save-state">已同步</span></div></div>
         <div class="formula-bar"><span class="name-box">{{ selectedCell }}</span><span class="formula-symbol">fx</span><input value="点击单元格编辑内容" readonly aria-label="公式栏提示"></div>
-        <div class="sheet-scroll"><table class="workbench-sheet"><colgroup><col class="col-row-number"><col v-for="(_, index) in sheetColumns" :key="index" :class="index < 7 ? `col-${['no', 'system', 'step', 'detail', 'rd', 'time', 'result'][index]}` : 'col-blank'"></colgroup><thead><tr class="column-letters"><th class="row-number"></th><th v-for="(_, index) in sheetColumns" :key="index">{{ String.fromCharCode(65 + index) }}</th></tr><tr class="sheet-title-row"><th class="row-number">1</th><th :colspan="sheetColumns.length" class="sheet-title-cell">{{ title }}</th></tr><tr class="sheet-header"><th class="row-number">2</th><th v-for="(column, index) in sheetColumns" :key="index">{{ index < 7 ? column : '' }}</th></tr></thead><tbody><tr v-for="(row, rowIndex) in rows" :key="rowIndex"><td class="row-number">{{ rowIndex + 3 }}</td><td v-for="(_, cellIndex) in sheetColumns" :key="cellIndex" :class="{ 'is-selected': selectedCell === `${String.fromCharCode(65 + cellIndex)}${rowIndex + 3}` }" @click="selectedCell = `${String.fromCharCode(65 + cellIndex)}${rowIndex + 3}`"><span v-if="cellAuthor(rowIndex, cellIndex)" class="cell-author">{{ cellAuthor(rowIndex, cellIndex) }}：</span><input :value="row[cellIndex] || ''" :aria-label="`${sheetColumns[cellIndex]} 第 ${rowIndex + 3} 行`" @input="updateCell(rowIndex, cellIndex, $event.target.value)"></td></tr></tbody></table></div>
+        <div class="sheet-scroll"><table class="workbench-sheet"><colgroup><col class="col-row-number"><col v-for="(_, index) in sheetColumns" :key="index" :class="index < 7 ? `col-${['no', 'system', 'step', 'detail', 'rd', 'time', 'result'][index]}` : 'col-blank'"></colgroup><thead><tr class="column-letters"><th class="row-number"></th><th v-for="(_, index) in sheetColumns" :key="index">{{ String.fromCharCode(65 + index) }}</th></tr><tr class="sheet-title-row"><th class="row-number">1</th><th :colspan="sheetColumns.length" class="sheet-title-cell"><span v-if="fixedCellAuthor(0, 0)" class="cell-author">{{ fixedCellAuthor(0, 0) }}：</span><input :value="title" aria-label="表格标题" @input="updateTitle($event.target.value)"></th></tr><tr class="sheet-header"><th class="row-number">2</th><th v-for="(_, index) in sheetColumns" :key="index"><span v-if="index < 7 && fixedCellAuthor(1, index)" class="cell-author">{{ fixedCellAuthor(1, index) }}：</span><input v-if="index < 7" :value="columns[index]" :aria-label="`第 ${index + 1} 列标题`" @input="updateHeader(index, $event.target.value)"></th></tr></thead><tbody><tr v-for="(row, rowIndex) in rows" :key="rowIndex"><td class="row-number">{{ rowIndex + 3 }}</td><td v-for="(_, cellIndex) in sheetColumns" :key="cellIndex" :class="{ 'is-selected': selectedCell === `${String.fromCharCode(65 + cellIndex)}${rowIndex + 3}` }" @click="selectedCell = `${String.fromCharCode(65 + cellIndex)}${rowIndex + 3}`"><span v-if="cellAuthor(rowIndex, cellIndex)" class="cell-author">{{ cellAuthor(rowIndex, cellIndex) }}：</span><input :value="row[cellIndex] || ''" :aria-label="`${sheetColumns[cellIndex]} 第 ${rowIndex + 3} 行`" @input="updateCell(rowIndex, cellIndex, $event.target.value)"></td></tr></tbody></table></div>
         <footer class="sheet-status"><span>{{ statusText }}</span><span>◉ {{ user.name }}</span></footer>
         <div class="office-sheet-tabs"><button v-for="topic in topics" :key="topic.id" type="button" :class="{ 'is-active': topic.id === activeTopicId }" @click="selectTopic(topic)">▦ {{ topic.name }}</button><button type="button" class="add-sheet" title="新建话题" @click="addTopic">＋</button></div>
       </div>

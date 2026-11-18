@@ -435,6 +435,8 @@ h3 { margin-bottom: 10px; color: #263d40; font-size: 17px; }
 .workbench-sheet .sheet-header th { background: #f6dada; color: #333; font-size: 11px; font-weight: 600; }
 .workbench-sheet .sheet-title-row th { height: 30px; border-color: #111; }
 .workbench-sheet .sheet-title-cell { background: #f6dada; color: #111; font-family: Georgia, serif; font-size: 16px; font-weight: 700; text-align: center; }
+.workbench-sheet .sheet-title-cell input { width: 100%; border: 0; outline: 0; background: transparent; color: #111; font-family: Georgia, serif; font-size: 16px; font-weight: 700; text-align: center; }
+.workbench-sheet .sheet-header input { width: 100%; border: 0; outline: 0; background: transparent; color: #333; font: inherit; font-size: 11px; font-weight: 600; }
 .workbench-sheet .col-row-number { width: 34px; }
 .workbench-sheet .col-no { width: 58px; }
 .workbench-sheet .col-system { width: 58px; }

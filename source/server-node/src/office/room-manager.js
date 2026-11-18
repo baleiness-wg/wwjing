@@ -1,4 +1,5 @@
 const rooms = new Map();
+const ROOM_VERSION = 3;
 
 function createRoom() {
   const rows = [
@@ -41,6 +42,7 @@ function createRoom() {
     ["报销单", "", ""]
   ];
   return {
+    version: ROOM_VERSION,
     topics: [{
       id: "topic-1",
       name: "今日记录",
@@ -53,7 +55,9 @@ function createRoom() {
 }
 
 function getRoom(roomId = "main") {
-  if (!rooms.has(roomId)) rooms.set(roomId, createRoom());
+  if (!rooms.has(roomId) || rooms.get(roomId).version !== ROOM_VERSION) {
+    rooms.set(roomId, createRoom());
+  }
   return rooms.get(roomId);
 }
 
