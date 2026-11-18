@@ -33,7 +33,7 @@ function attachOfficeWebSocket(server) {
          if (message.type === "cell:lock") {
            const owner = room.lockClients.get(key);
            if (owner && owner !== client) {
-             client.send(JSON.stringify({ type: "cell:lock:rejected", key, user: room.locks[key] }));
+              client.send(JSON.stringify({ type: "cell:lock-rejected", key, user: room.locks[key] }));
              return;
            }
            room.locks[key] = user.name;

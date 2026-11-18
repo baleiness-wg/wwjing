@@ -141,7 +141,7 @@ function connect() {
       } else if (message.type === "cell:lock" || message.type === "cell:unlock") {
         if (message.type === "cell:lock") cellLocks.value[message.key] = message.user;
         else delete cellLocks.value[message.key];
-    } else if (message.type === "cell:lock:rejected") {
+    } else if (message.type === "cell:lock-rejected") {
       if (editingCell.value === message.key) editingCell.value = null;
       ElMessage.warning(`${message.user || "其他用户"}正在编辑此单元格`);
     } else if (message.type === "cell:update:ack") {

@@ -61,7 +61,12 @@ function getRoom(roomId = "main") {
   if (!rooms.has(roomId) || rooms.get(roomId).version !== ROOM_VERSION) {
     rooms.set(roomId, createRoom());
   }
-  return rooms.get(roomId);
+  const room = rooms.get(roomId);
+  room.locks ||= {};
+  room.lockClients ||= new Map();
+  room.revision ||= 0;
+  room.topics.forEach((topic) => { topic.cellAuthors ||= {}; });
+  return room;
 }
 
 function broadcast(room, message, except) {
