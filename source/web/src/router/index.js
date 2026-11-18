@@ -3,9 +3,10 @@ import LoginView from "../views/LoginView.vue";
 import TransferView from "../views/TransferView.vue";
 import BookmarksView from "../views/BookmarksView.vue";
 import ChatWorkbenchView from "../views/ChatWorkbenchView.vue";
+import { getApplicationBase } from "./base";
 
 const router = createRouter({
-  history: createWebHistory(import.meta.env.BASE_URL),
+  history: createWebHistory(getApplicationBase()),
   routes: [
     { path: "/", redirect: "/transfer" },
     { path: "/transfer", name: "transfer", component: TransferView, meta: { requiresAuth: true } },
