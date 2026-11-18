@@ -15,6 +15,7 @@ const sheetColumns = computed(() => [
   ...Array.from({ length: 19 }, (_, index) => "列" + String.fromCharCode(72 + index))
 ]);
 const statusText = computed(() => `${rows.value.length} 行 · ${columns.value.length} 列 · 实时协作`);
+const connectionText = ref("连接中");
 
 function send(message) {
   if (socket.value?.readyState === WebSocket.OPEN) socket.value.send(JSON.stringify(message));
@@ -29,6 +30,9 @@ function connect() {
   const token = localStorage.getItem("wwjing_token") || "";
   const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
   socket.value = new WebSocket(`${protocol}//${window.location.host}/api/office/ws?token=${encodeURIComponent(token)}`);
+  socket.value.onopen = () => { connectionText.value = "实时"; };
+  socket.value.onerror = () => { connectionText.value = "已加载"; };
+  socket.value.onclose = () => { connectionText.value = "离线"; };
   socket.value.onmessage = ({ data }) => {
     const message = JSON.parse(data);
     if (message.type === "snapshot") {
@@ -99,12 +103,24 @@ function addTopic() {
 }
 
 onMounted(connect);
+onMounted(async () => {
+  try {
+    const response = await fetch("/api/office/snapshot", { headers: { Authorization: localStorage.getItem("wwjing_token") || "" } });
+    if (!response.ok) return;
+    const snapshot = await response.json();
+    user.value = snapshot.user;
+    topics.value = snapshot.topics;
+    if (topics.value[0] && !activeTopicId.value) selectTopic(topics.value[0]);
+  } catch {
+    connectionText.value = "离线";
+  }
+});
 onUnmounted(() => socket.value?.close());
 </script>
 
 <template>
   <div class="office-page">
-    <header class="office-titlebar"><span class="office-app-icon">X</span><strong>{{ title }}</strong><span class="office-save">{{ user.name }}</span><span class="office-online"><span class="presence-dot"></span>已连接</span></header>
+    <header class="office-titlebar"><span class="office-app-icon">X</span><strong>{{ title }}</strong><span class="office-save">{{ user.name }}</span><span class="office-online"><span class="presence-dot"></span>{{ connectionText }}</span></header>
     <nav class="office-ribbon"><button>文件</button><button class="is-active">开始</button><button>插入</button><button>布局</button><button>审阅</button><span class="ribbon-separator"></span><span class="ribbon-tool">剪切</span><span class="ribbon-tool">复制</span><span class="ribbon-tool">粘贴</span><span class="ribbon-separator"></span><span class="ribbon-tool">自动换行</span><span class="ribbon-tool">筛选</span></nav>
     <section class="workbench-shell">
       <div class="sheet-panel">
