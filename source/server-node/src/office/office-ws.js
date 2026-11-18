@@ -27,6 +27,13 @@ function attachOfficeWebSocket(server) {
       let message;
       try { message = JSON.parse(raw.toString()); } catch { return; }
       if (!message.type) return;
+      if (message.type === "cell:lock" || message.type === "cell:unlock") {
+        const key = `${message.topicId}:${message.row}:${message.column}`;
+        if (message.type === "cell:lock") room.locks[key] = user.name;
+        else if (room.locks[key] === user.name) delete room.locks[key];
+        broadcast(room, { type: message.type, key, user: user.name });
+        return;
+      }
       if (message.type === "topic:create") {
         const topic = { id: `topic-${Date.now()}`, name: String(message.name || "未命名话题").slice(0, 80), cells: [["任务记录", "负责人", "状态", "备注"]], messages: [] };
         room.topics.push(topic);

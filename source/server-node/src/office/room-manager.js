@@ -47,7 +47,8 @@ function createRoom() {
       id: "topic-1",
       name: "今日记录",
       cells: [["MES添加新测试站的流程"], ["No", "系统", "步骤", "详细信息", "RD", "时间", "结果"], ...rows.map((row, index) => [index + 1, "BOP", row[0], row[2], "", "", row[1]])],
-      cellAuthors: {},
+    cellAuthors: {},
+    locks: {},
       messages: []
     }],
     clients: new Set()

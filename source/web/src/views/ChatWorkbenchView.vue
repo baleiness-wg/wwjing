@@ -67,6 +67,7 @@ function endRowResize() {
 const statusText = computed(() => `${rows.value.length} 行 · ${columns.value.length} 列 · 实时协作`);
 const connectionText = ref("连接中");
 const editingCell = ref(null);
+const cellLocks = ref({});
 const passwordDialogVisible = ref(false);
 const passwordLoading = ref(false);
 const passwordForm = reactive({ currentPassword: "", newPassword: "", confirmPassword: "" });
@@ -74,6 +75,27 @@ let snapshotTimer;
 
 function send(message) {
   if (socket.value?.readyState === WebSocket.OPEN) socket.value.send(JSON.stringify(message));
+}
+
+function cellKey(row, column) {
+  return `${activeTopicId.value}:${row}:${column}`;
+}
+
+function beginCellEdit(row, column) {
+  const key = cellKey(row, column);
+  if (cellLocks.value[key] && cellLocks.value[key] !== user.value.name) return false;
+  editingCell.value = key;
+  cellLocks.value[key] = user.value.name;
+  send({ type: "cell:lock", topicId: activeTopicId.value, row, column });
+  return true;
+}
+
+function endCellEdit(row, column, value) {
+  updateCell(row - 2, column, value, true);
+  const key = cellKey(row, column);
+  delete cellLocks.value[key];
+  editingCell.value = null;
+  send({ type: "cell:unlock", topicId: activeTopicId.value, row, column });
 }
 
 async function updateCellFallback(topicId, row, column, value) {
@@ -101,10 +123,14 @@ function connect() {
   socket.value.onclose = () => { connectionText.value = "离线"; };
   socket.value.onmessage = ({ data }) => {
     const message = JSON.parse(data);
-    if (message.type === "snapshot") {
-      user.value = message.user;
-      topics.value = message.topics;
-      if (topics.value[0]) selectTopic(topics.value[0]);
+      if (message.type === "snapshot") {
+        user.value = message.user;
+        topics.value = message.topics;
+        cellLocks.value = message.locks || {};
+        if (topics.value[0]) selectTopic(topics.value[0]);
+      } else if (message.type === "cell:lock" || message.type === "cell:unlock") {
+        if (message.type === "cell:lock") cellLocks.value[message.key] = message.user;
+        else delete cellLocks.value[message.key];
     } else if (message.type === "topic:created") {
       topics.value.push(message.topic);
       selectTopic(message.topic);
@@ -127,23 +153,29 @@ function addRow() {
   send({ type: "cell:update", topicId: activeTopicId.value, row: activeTopic.value.cells.length - 1, column: 2, value: row[2] });
 }
 
-function updateCell(rowIndex, cellIndex, value) {
+function updateCell(rowIndex, cellIndex, value, sync = true) {
   editingCell.value = `${activeTopicId.value}:${rowIndex + 2}:${cellIndex}`;
   if (activeTopic.value) {
     activeTopic.value.cells[rowIndex + 2][cellIndex] = value;
     activeTopic.value.cellAuthors ||= {};
     activeTopic.value.cellAuthors[`${rowIndex + 2}:${cellIndex}`] = user.value.name;
   }
-  send({ type: "cell:update", topicId: activeTopicId.value, row: rowIndex + 2, column: cellIndex, value });
-  updateCellFallback(activeTopicId.value, rowIndex + 2, cellIndex, value);
+  if (sync) return;
 }
 
-function beginCellEdit(rowIndex, cellIndex) {
-  editingCell.value = `${activeTopicId.value}:${rowIndex + 2}:${cellIndex}`;
-}
-
-function endCellEdit() {
+function flushEditingCell() {
+  if (!editingCell.value || !activeTopic.value) return;
+  const [, row, column] = editingCell.value.split(":").map(Number);
+  const value = activeTopic.value.cells[row]?.[column] || "";
+  send({ type: "cell:update", topicId: activeTopicId.value, row, column, value });
+  updateCellFallback(activeTopicId.value, row, column, value);
+  delete cellLocks.value[editingCell.value];
+  send({ type: "cell:unlock", topicId: activeTopicId.value, row, column });
   editingCell.value = null;
+}
+
+function handleFocusOut() {
+  if (document.activeElement?.tagName !== "INPUT") flushEditingCell();
 }
 
 function updateTitle(value) {
@@ -211,6 +243,7 @@ async function submitPassword() {
 }
 
 onMounted(connect);
+onMounted(() => document.addEventListener("focusout", handleFocusOut, true));
 onMounted(async () => {
   try {
     const response = await fetch("/api/office/snapshot", { headers: { Authorization: localStorage.getItem("wwjing_token") || "" } });
@@ -218,6 +251,7 @@ onMounted(async () => {
     const snapshot = await response.json();
     user.value = snapshot.user;
     topics.value = snapshot.topics;
+    cellLocks.value = snapshot.locks || {};
     if (topics.value[0] && !activeTopicId.value) selectTopic(topics.value[0]);
     snapshotTimer = window.setInterval(async () => {
       const poll = await fetch("/api/office/snapshot", { headers: { Authorization: localStorage.getItem("wwjing_token") || "" } }).catch(() => null);
@@ -226,6 +260,7 @@ onMounted(async () => {
       const latest = await poll.json();
       topics.value = latest.topics;
       user.value = latest.user;
+      cellLocks.value = latest.locks || {};
       const current = topics.value.find((topic) => topic.id === activeTopicId.value) || topics.value[0];
       if (current) selectTopic(current);
     }, 2000);
@@ -238,6 +273,7 @@ onUnmounted(() => {
   window.clearInterval(snapshotTimer);
   endResize();
   endRowResize();
+  document.removeEventListener("focusout", handleFocusOut, true);
 });
 </script>
 
