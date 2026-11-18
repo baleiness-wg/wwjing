@@ -2,12 +2,14 @@ import { createRouter, createWebHistory } from "vue-router";
 import LoginView from "../views/LoginView.vue";
 import TransferView from "../views/TransferView.vue";
 import BookmarksView from "../views/BookmarksView.vue";
+import ChatWorkbenchView from "../views/ChatWorkbenchView.vue";
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
     { path: "/", redirect: "/transfer" },
     { path: "/transfer", name: "transfer", component: TransferView, meta: { requiresAuth: true } },
+    { path: "/office", name: "office", component: ChatWorkbenchView, meta: { requiresAuth: true } },
     { path: "/tools", redirect: "/tools/bookmarks/star" },
     { path: "/tools/transfer", redirect: "/transfer" },
     { path: "/tools/bookmarks", redirect: "/tools/bookmarks/star" },

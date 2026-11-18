@@ -5,6 +5,7 @@ import {
   ArrowLeft,
   ArrowRight,
   Close,
+  ChatDotRound,
   Folder,
   FolderOpened,
   Menu,
@@ -47,6 +48,10 @@ watch(
 function go(path) {
   router.push(path);
   if (isMobile()) menuVisible.value = false;
+}
+
+function openOffice() {
+  window.open(`${import.meta.env.BASE_URL}office`, "_blank", "noopener,noreferrer");
 }
 
 function toggleMenu() {
@@ -179,6 +184,7 @@ async function submitPassword() {
         </div>
         <div class="header-actions">
           <el-button text circle :icon="Switch" title="数据传输" aria-label="数据传输" @click="go('/transfer')" />
+          <el-button text circle :icon="ChatDotRound" title="Office 协作" aria-label="Office 协作" @click="openOffice" />
           <el-dropdown @command="handleUserCommand">
             <el-button text class="user-button">
               <el-icon><User /></el-icon>
