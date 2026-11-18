@@ -72,6 +72,8 @@ const passwordDialogVisible = ref(false);
 const passwordLoading = ref(false);
 const passwordForm = reactive({ currentPassword: "", newPassword: "", confirmPassword: "" });
 let snapshotTimer;
+let reconnectTimer;
+let reconnectDelay = 1000;
 
 function send(message) {
   if (socket.value?.readyState === WebSocket.OPEN) socket.value.send(JSON.stringify(message));
@@ -115,12 +117,18 @@ function selectTopic(topic) {
 }
 
 function connect() {
+  if (socket.value?.readyState === WebSocket.OPEN || socket.value?.readyState === WebSocket.CONNECTING) return;
   const token = localStorage.getItem("wwjing_token") || "";
   const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
   socket.value = new WebSocket(`${protocol}//${window.location.host}/api/office/ws?token=${encodeURIComponent(token)}`);
-  socket.value.onopen = () => { connectionText.value = "实时"; };
+  socket.value.onopen = () => { reconnectDelay = 1000; connectionText.value = "实时"; };
   socket.value.onerror = () => { connectionText.value = "已加载"; };
-  socket.value.onclose = () => { connectionText.value = "离线"; };
+  socket.value.onclose = () => {
+    connectionText.value = "轮询";
+    window.clearTimeout(reconnectTimer);
+    reconnectTimer = window.setTimeout(connect, reconnectDelay);
+    reconnectDelay = Math.min(reconnectDelay * 2, 10000);
+  };
   socket.value.onmessage = ({ data }) => {
     const message = JSON.parse(data);
       if (message.type === "snapshot") {
@@ -270,7 +278,9 @@ onMounted(async () => {
 });
 onUnmounted(() => {
   socket.value?.close();
+  window.clearTimeout(reconnectTimer);
   window.clearInterval(snapshotTimer);
+  window.clearTimeout(reconnectTimer);
   endResize();
   endRowResize();
   document.removeEventListener("focusout", handleFocusOut, true);
