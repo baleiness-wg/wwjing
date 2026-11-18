@@ -66,6 +66,7 @@ function endRowResize() {
 }
 const statusText = computed(() => `${rows.value.length} 行 · ${columns.value.length} 列 · 实时协作`);
 const connectionText = ref("连接中");
+const editingCell = ref(null);
 const passwordDialogVisible = ref(false);
 const passwordLoading = ref(false);
 const passwordForm = reactive({ currentPassword: "", newPassword: "", confirmPassword: "" });
@@ -127,6 +128,7 @@ function addRow() {
 }
 
 function updateCell(rowIndex, cellIndex, value) {
+  editingCell.value = `${activeTopicId.value}:${rowIndex + 2}:${cellIndex}`;
   if (activeTopic.value) {
     activeTopic.value.cells[rowIndex + 2][cellIndex] = value;
     activeTopic.value.cellAuthors ||= {};
@@ -134,6 +136,14 @@ function updateCell(rowIndex, cellIndex, value) {
   }
   send({ type: "cell:update", topicId: activeTopicId.value, row: rowIndex + 2, column: cellIndex, value });
   updateCellFallback(activeTopicId.value, rowIndex + 2, cellIndex, value);
+}
+
+function beginCellEdit(rowIndex, cellIndex) {
+  editingCell.value = `${activeTopicId.value}:${rowIndex + 2}:${cellIndex}`;
+}
+
+function endCellEdit() {
+  editingCell.value = null;
 }
 
 function updateTitle(value) {
@@ -212,6 +222,7 @@ onMounted(async () => {
     snapshotTimer = window.setInterval(async () => {
       const poll = await fetch("/api/office/snapshot", { headers: { Authorization: localStorage.getItem("wwjing_token") || "" } }).catch(() => null);
       if (!poll?.ok) return;
+      if (editingCell.value || document.activeElement?.tagName === "INPUT") return;
       const latest = await poll.json();
       topics.value = latest.topics;
       user.value = latest.user;
