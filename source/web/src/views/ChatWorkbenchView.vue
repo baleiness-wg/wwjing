@@ -175,7 +175,7 @@ function logout() {
   window.clearInterval(snapshotTimer);
   localStorage.removeItem("wwjing_token");
   localStorage.removeItem("wwjing_user");
-  sessionStorage.setItem("wwjing_login_return", `${import.meta.env.BASE_URL}office`);
+  sessionStorage.setItem("office_login_return", "/office");
   window.location.href = `${import.meta.env.BASE_URL}login`;
 }
 

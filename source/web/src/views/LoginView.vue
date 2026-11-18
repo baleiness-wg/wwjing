@@ -18,8 +18,8 @@ async function submit() {
     localStorage.setItem("wwjing_token", result.token);
     localStorage.setItem("wwjing_user", JSON.stringify(result.user));
     ElMessage.success(isRegister.value ? "注册并登录成功" : "登录成功");
-    const returnPath = sessionStorage.getItem("wwjing_login_return");
-    sessionStorage.removeItem("wwjing_login_return");
+    const returnPath = sessionStorage.getItem("office_login_return");
+    sessionStorage.removeItem("office_login_return");
     router.push(returnPath || "/");
   } catch (error) {
     ElMessage.error(error.message);
@@ -33,8 +33,7 @@ async function submit() {
   <main class="login-page">
     <el-card class="login-card" shadow="never">
       <p class="eyebrow">WWJ / 鲸界</p>
-      <h1>{{ isRegister ? "创建账号" : "回来继续整理" }}</h1>
-      <p class="lead">把常用工具集中到一个属于你的工作台。。</p>
+      <h1> {{ isRegister ? "Register" : "Login" }} </h1>
       <el-form label-position="top" @submit.prevent="submit">
         <el-form-item label="用户名">
           <el-input v-model="form.username" autocomplete="username" />
@@ -43,11 +42,11 @@ async function submit() {
           <el-input v-model="form.password" type="password" show-password autocomplete="current-password" @keyup.enter="submit" />
         </el-form-item>
         <el-button type="primary" :loading="loading" class="full-button" @click="submit">
-          {{ isRegister ? "注册并登录" : "登录" }}
+          {{ isRegister ? "Register" : "Login" }}
         </el-button>
       </el-form>
       <el-button text class="switch-button" @click="isRegister = !isRegister">
-        {{ isRegister ? "已有账号，去登录" : "还没有账号，先注册" }}
+         {{ isRegister ? "已有账号？去登录" : "还没有账号？去注册" }}
       </el-button>
     </el-card>
   </main>

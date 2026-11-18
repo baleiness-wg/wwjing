@@ -125,7 +125,7 @@ async function submitPassword() {
       </div>
 
       <nav class="side-menu" aria-label="主导航">
-        <template v-for="item in navigationItems" :key="item.path">
+        <div v-for="item in navigationItems" :key="item.path" class="side-menu-entry">
           <button
             v-if="!item.children"
             class="side-menu-item"
@@ -152,29 +152,18 @@ async function submitPassword() {
           </button>
 
           <div v-if="item.children && menuVisible && toolsExpanded" id="tools-submenu" class="side-submenu">
-            <template v-for="child in item.children" :key="child.path">
-              <button
-                v-if="!child.children"
-                class="side-menu-item side-submenu-item"
-                :class="{ 'is-active': route.path === child.path }"
-                @click="go(child.path)"
-              >
-                <el-icon><component :is="child.icon" /></el-icon>
-                <span>{{ child.label }}</span>
-              </button>
-
-              <button
-                v-else
-                class="side-menu-item side-submenu-item"
-                :class="{ 'is-active': route.path === child.path }"
-                @click="go(child.path)"
-              >
-                <el-icon><component :is="child.icon" /></el-icon>
-                <span>{{ child.label }}</span>
-              </button>
-            </template>
+            <button
+              v-for="child in item.children"
+              :key="child.path"
+              class="side-menu-item side-submenu-item"
+              :class="{ 'is-active': route.path === child.path }"
+              @click="go(child.path)"
+            >
+              <el-icon><component :is="child.icon" /></el-icon>
+              <span>{{ child.label }}</span>
+            </button>
           </div>
-        </template>
+        </div>
       </nav>
     </el-aside>
 
