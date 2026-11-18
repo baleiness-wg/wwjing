@@ -1,6 +1,9 @@
 const { getRoom, broadcast } = require("../office/room-manager");
 
 function snapshot(req, res) {
+  res.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+  res.set("Pragma", "no-cache");
+  res.set("Expires", "0");
   const room = getRoom("main");
   res.json({
     user: { id: String(req.auth.sub), name: req.auth.username || "用户" },

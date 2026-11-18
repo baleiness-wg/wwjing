@@ -295,7 +295,7 @@ onMounted(() => {
 });
 onMounted(async () => {
   try {
-    const response = await fetch("/api/office/snapshot", { headers: { Authorization: localStorage.getItem("wwjing_token") || "" } });
+    const response = await fetch("/api/office/snapshot", { cache: "no-store", headers: { Authorization: localStorage.getItem("wwjing_token") || "" } });
     if (!response.ok) return;
     const snapshot = await response.json();
     user.value = snapshot.user;
