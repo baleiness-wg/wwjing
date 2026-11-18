@@ -16,9 +16,21 @@ const sheetColumns = computed(() => [
 ]);
 const statusText = computed(() => `${rows.value.length} 行 · ${columns.value.length} 列 · 实时协作`);
 const connectionText = ref("连接中");
+let snapshotTimer;
 
 function send(message) {
   if (socket.value?.readyState === WebSocket.OPEN) socket.value.send(JSON.stringify(message));
+}
+
+async function updateCellFallback(topicId, row, column, value) {
+  await fetch("/api/office/cell", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: localStorage.getItem("wwjing_token") || ""
+    },
+    body: JSON.stringify({ topicId, row, column, value })
+  }).catch(() => {});
 }
 
 function selectTopic(topic) {
@@ -68,6 +80,7 @@ function updateCell(rowIndex, cellIndex, value) {
     activeTopic.value.cellAuthors[`${rowIndex + 2}:${cellIndex}`] = user.value.name;
   }
   send({ type: "cell:update", topicId: activeTopicId.value, row: rowIndex + 2, column: cellIndex, value });
+  updateCellFallback(activeTopicId.value, rowIndex + 2, cellIndex, value);
 }
 
 function updateTitle(value) {
@@ -77,6 +90,7 @@ function updateTitle(value) {
     activeTopic.value.cellAuthors["0:0"] = user.value.name;
   }
   send({ type: "cell:update", topicId: activeTopicId.value, row: 0, column: 0, value });
+  updateCellFallback(activeTopicId.value, 0, 0, value);
 }
 
 function updateHeader(cellIndex, value) {
@@ -87,6 +101,7 @@ function updateHeader(cellIndex, value) {
   }
   columns.value[cellIndex] = value;
   send({ type: "cell:update", topicId: activeTopicId.value, row: 1, column: cellIndex, value });
+  updateCellFallback(activeTopicId.value, 1, cellIndex, value);
 }
 
 function cellAuthor(rowIndex, cellIndex) {
@@ -111,11 +126,23 @@ onMounted(async () => {
     user.value = snapshot.user;
     topics.value = snapshot.topics;
     if (topics.value[0] && !activeTopicId.value) selectTopic(topics.value[0]);
+    snapshotTimer = window.setInterval(async () => {
+      const poll = await fetch("/api/office/snapshot", { headers: { Authorization: localStorage.getItem("wwjing_token") || "" } }).catch(() => null);
+      if (!poll?.ok) return;
+      const latest = await poll.json();
+      topics.value = latest.topics;
+      user.value = latest.user;
+      const current = topics.value.find((topic) => topic.id === activeTopicId.value) || topics.value[0];
+      if (current) selectTopic(current);
+    }, 2000);
   } catch {
     connectionText.value = "离线";
   }
 });
-onUnmounted(() => socket.value?.close());
+onUnmounted(() => {
+  socket.value?.close();
+  window.clearInterval(snapshotTimer);
+});
 </script>
 
 <template>

@@ -30,9 +30,9 @@ const passwordForm = reactive({ currentPassword: "", newPassword: "", confirmPas
 const navigationItems = [
   {
     path: "/tools",
-    label: "工具",
+    label: "Tools",
     icon: Folder,
-      children: [{ path: "/tools/bookmarks/star", label: "鲸界", icon: Star }]
+      children: [{ path: "/tools/bookmarks/star", label: "Bookmarks", icon: Star }]
   }
 ];
 
