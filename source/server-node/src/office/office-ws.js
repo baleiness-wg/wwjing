@@ -43,7 +43,7 @@ function attachOfficeWebSocket(server) {
          broadcast(room, { type: "column:resized", index, width }, client);
          return;
        }
-       if (message.type === "cell:lock" || message.type === "cell:unlock") {
+        if (message.type === "cell:lock" || message.type === "cell:unlock") {
          const key = `${message.topicId}:${message.row}:${message.column}`;
          if (message.type === "cell:lock") {
            const owner = room.lockClients.get(key);
@@ -53,11 +53,11 @@ function attachOfficeWebSocket(server) {
            }
            room.locks[key] = user.name;
            room.lockClients.set(key, client);
-           broadcast(room, { type: "cell:lock", key, user: user.name });
+            broadcast(room, { type: "cell:editing", key, user: user.name });
          } else if (room.lockClients.get(key) === client) {
            room.lockClients.delete(key);
            delete room.locks[key];
-           broadcast(room, { type: "cell:unlock", key, user: user.name });
+            broadcast(room, { type: "cell:editing-end", key, user: user.name });
          }
          return;
       }

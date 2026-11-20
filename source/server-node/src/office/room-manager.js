@@ -110,7 +110,7 @@ function removeClient(roomId, client) {
       broadcast(room, { type: "cell:unlock", key, user: client.officeUser?.name || "用户", reason: "disconnect" });
     }
   }
-  if (!room.clients.size) rooms.delete(roomId);
+  // 房间只在 Node 进程重启时重置，短暂断线和自动重连不能丢失内容。
 }
 
 module.exports = { getRoom, listRooms, createNamedRoom, verifyRoom, broadcast, removeClient };
