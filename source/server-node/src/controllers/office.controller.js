@@ -34,16 +34,17 @@ function updateCell(req, res) {
   topic.cells[row][column] = nextValue;
   room.revision += 1;
   topic.cellAuthors ||= {};
+  const displayName = String(req.headers["x-office-display-name"] || req.auth.username || "用户").trim().slice(0, 40) || "用户";
   const authorKey = `${row}:${column}`;
   topic.cellEditedAt ||= {};
   if (nextValue.trim()) {
-    topic.cellAuthors[authorKey] = req.auth.username || "用户";
+    topic.cellAuthors[authorKey] = displayName;
     topic.cellEditedAt[authorKey] = Date.now();
   } else {
     delete topic.cellAuthors[authorKey];
     delete topic.cellEditedAt[authorKey];
   }
-  broadcast(room, { type: "cell:updated", topicId, row, column, value: topic.cells[row][column], user: req.auth.username || "用户", editedAt: topic.cellEditedAt[authorKey] || null, revision: room.revision });
+  broadcast(room, { type: "cell:updated", topicId, row, column, value: topic.cells[row][column], user: displayName, editedAt: topic.cellEditedAt[authorKey] || null, revision: room.revision });
   return res.json({ ok: true, revision: room.revision });
 }
 

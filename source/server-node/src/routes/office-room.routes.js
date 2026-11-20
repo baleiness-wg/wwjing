@@ -1,8 +1,8 @@
 const express = require("express");
-const auth = require("../middlewares/auth");
+const officeAuth = require("../middlewares/office-auth");
 const controller = require("../controllers/office-room.controller");
 const router = express.Router();
-router.use(auth);
+router.use(...officeAuth);
 router.get("/", controller.list);
 router.post("/", controller.create);
 module.exports = router;

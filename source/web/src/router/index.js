@@ -10,7 +10,7 @@ const router = createRouter({
   routes: [
     { path: "/", redirect: "/transfer" },
     { path: "/transfer", name: "transfer", component: TransferView, meta: { requiresAuth: true } },
-    { path: "/office", name: "office", component: ChatWorkbenchView, meta: { requiresAuth: true } },
+    { path: "/office", name: "office", component: ChatWorkbenchView },
     { path: "/tools", redirect: "/tools/bookmarks/star" },
     { path: "/tools/transfer", redirect: "/transfer" },
     { path: "/tools/bookmarks", redirect: "/tools/bookmarks/star" },
@@ -33,10 +33,7 @@ const router = createRouter({
 router.beforeEach((to) => {
   const isAuthenticated = Boolean(localStorage.getItem("wwjing_token"));
 
-  if (to.meta.requiresAuth && !isAuthenticated) {
-    if (to.name === "office") sessionStorage.setItem("office_login_return", "/office");
-    return "/login";
-  }
+  if (to.meta.requiresAuth && !isAuthenticated) return "/login";
   if (to.name === "login" && isAuthenticated) return "/transfer";
 });
 

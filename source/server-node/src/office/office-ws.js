@@ -7,9 +7,10 @@ function attachOfficeWebSocket(server) {
   const wss = new WebSocketServer({ noServer: true });
   server.on("upgrade", (request, socket, head) => {
     if (new URL(request.url, "http://localhost").pathname !== "/api/office/ws") return;
-    const token = new URL(request.url, "http://localhost").searchParams.get("token")?.replace(/^Bearer\s+/i, "");
+    const requestUrl = new URL(request.url, "http://localhost");
+    const token = requestUrl.searchParams.get("token")?.replace(/^Bearer\s+/i, "");
     try {
-      request.user = jwt.verify(token, config.jwtSecretKey);
+      request.user = token ? jwt.verify(token, config.jwtSecretKey) : { sub: `guest:${requestUrl.searchParams.get("guest") || "游客"}`, username: requestUrl.searchParams.get("guest") || "游客" };
     } catch {
       socket.destroy();
       return;
@@ -25,7 +26,8 @@ function attachOfficeWebSocket(server) {
       return;
     }
     room.clients.add(client);
-     const user = { id: String(request.user.sub), name: request.user.username || "用户" };
+     const displayName = String(url.searchParams.get("displayName") || request.user.username || "用户").trim().slice(0, 40);
+     const user = { id: String(request.user.sub), name: displayName || "用户" };
      client.officeUser = user;
       client.send(JSON.stringify({ type: "snapshot", user, topics: room.topics, locks: room.locks, columnWidths: room.columnWidths, revision: room.revision }));
     broadcast(room, { type: "presence", name: user.name, count: room.clients.size }, client);

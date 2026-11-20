@@ -15,6 +15,9 @@ const roomDialogMode = ref("enter");
 const roomName = ref("");
 const activeTopicId = ref("");
 const user = ref({ name: "用户" });
+const guestName = ref(localStorage.getItem("office_guest_name") || `游客${Math.floor(100 + Math.random() * 900)}`);
+const displayName = ref(localStorage.getItem("office_display_name") || "");
+const currentDisplayName = computed(() => displayName.value || user.value.name || guestName.value);
 const selectedCell = ref("A1");
 const socket = ref(null);
 const columnWidths = ref([58, 58, 180, 380, 58, 58, 58, ...Array(19).fill(58)]);
@@ -89,9 +92,11 @@ function endRowResize() {
   window.removeEventListener("mouseup", endRowResize);
 }
 const statusText = computed(() => `${rows.value.length} 行 · ${columns.value.length} 列 · 实时协作`);
-const activeEditors = computed(() => [...new Set(Object.values(cellLocks.value).filter((name) => name && name !== user.value.name))]);
+const activeEditors = computed(() => [...new Set(Object.values(cellLocks.value).filter((name) => name && name !== currentDisplayName.value))]);
 const connectionText = ref("连接中");
 const editingCell = ref(null);
+const editingOriginalValue = ref("");
+const editingLockSent = ref(false);
 const cellLocks = ref({});
 const drafts = reactive({});
 const pendingUpdates = reactive({});
@@ -115,10 +120,11 @@ function cellKey(row, column) {
 
 function beginCellEdit(row, column) {
   const key = cellKey(row, column);
-  if (cellLocks.value[key] && cellLocks.value[key] !== user.value.name) return false;
+  if (cellLocks.value[key] && cellLocks.value[key] !== currentDisplayName.value) return false;
   editingCell.value = key;
-  drafts[key] = activeTopic.value?.cells?.[row]?.[column] || "";
-  send({ type: "cell:lock", topicId: activeTopicId.value, row, column });
+  editingOriginalValue.value = activeTopic.value?.cells?.[row]?.[column] || "";
+  drafts[key] = editingOriginalValue.value;
+  editingLockSent.value = false;
   return true;
 }
 
@@ -135,7 +141,9 @@ async function updateCellFallback(topicId, row, column, value) {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: localStorage.getItem("wwjing_token") || ""
+      Authorization: localStorage.getItem("wwjing_token") || "",
+      "X-Office-Guest": guestName.value
+      ,"X-Office-Display-Name": currentDisplayName.value
       ,"X-Office-Room": activeRoomId.value
       ,"X-Office-Password": roomPassword.value
     },
@@ -177,7 +185,7 @@ function connect() {
   if (socket.value?.readyState === WebSocket.OPEN || socket.value?.readyState === WebSocket.CONNECTING) return;
   const token = localStorage.getItem("wwjing_token") || "";
   const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-  socket.value = new WebSocket(`${protocol}//${window.location.host}/api/office/ws?token=${encodeURIComponent(token)}&roomId=${encodeURIComponent(activeRoomId.value)}&password=${encodeURIComponent(roomPassword.value)}`);
+  socket.value = new WebSocket(`${protocol}//${window.location.host}/api/office/ws?token=${encodeURIComponent(token)}&guest=${encodeURIComponent(guestName.value)}&displayName=${encodeURIComponent(displayName.value)}&roomId=${encodeURIComponent(activeRoomId.value)}&password=${encodeURIComponent(roomPassword.value)}`);
   socket.value.onopen = () => { reconnectDelay = 1000; connectionText.value = "实时"; };
   socket.value.onerror = () => { connectionText.value = "已加载"; };
   socket.value.onclose = (event) => {
@@ -195,7 +203,7 @@ function connect() {
   socket.value.onmessage = ({ data }) => {
     const message = JSON.parse(data);
       if (message.type === "snapshot") {
-        user.value = message.user;
+        user.value = { ...message.user, name: currentDisplayName.value };
         topics.value = message.topics;
         cellLocks.value = message.locks || {};
         columnWidths.value = message.columnWidths || columnWidths.value;
@@ -235,6 +243,11 @@ function connect() {
   };
 }
 
+function currentIdentity() {
+  const savedUser = JSON.parse(localStorage.getItem("wwjing_user") || "null");
+  return savedUser?.username || guestName.value;
+}
+
 function addRow() {
   if (!activeTopic.value) return;
   const row = [activeTopic.value.cells.length - 1, "", "新事项", "", "", "", ""];
@@ -243,20 +256,32 @@ function addRow() {
 }
 
 function updateCell(rowIndex, cellIndex, value, sync = true) {
-  editingCell.value = `${activeTopicId.value}:${rowIndex + 2}:${cellIndex}`;
-  drafts[editingCell.value] = value;
+  const key = `${activeTopicId.value}:${rowIndex + 2}:${cellIndex}`;
+  if (editingCell.value !== key) beginCellEdit(rowIndex + 2, cellIndex);
+  if (!editingLockSent.value) {
+    if (cellLocks.value[key] && cellLocks.value[key] !== currentDisplayName.value) return;
+    editingLockSent.value = true;
+    cellLocks.value[key] = currentDisplayName.value;
+    send({ type: "cell:lock", topicId: activeTopicId.value, row: rowIndex + 2, column: cellIndex });
+  }
+  drafts[key] = value;
 }
 
 function flushEditingCell() {
   if (!editingCell.value || !activeTopic.value) return;
   const [, row, column] = editingCell.value.split(":").map(Number);
   const value = drafts[editingCell.value] ?? (activeTopic.value.cells[row]?.[column] || "");
+  if (!editingLockSent.value && value === editingOriginalValue.value) {
+    delete drafts[editingCell.value];
+    editingCell.value = null;
+    return;
+  }
   activeTopic.value.cells[row][column] = value;
   activeTopic.value.cellAuthors ||= {};
   activeTopic.value.cellEditedAt ||= {};
   const authorKey = `${row}:${column}`;
   if (String(value).trim()) {
-    activeTopic.value.cellAuthors[authorKey] = user.value.name;
+    activeTopic.value.cellAuthors[authorKey] = currentDisplayName.value;
     activeTopic.value.cellEditedAt[authorKey] = Date.now();
   } else {
     delete activeTopic.value.cellAuthors[authorKey];
@@ -272,6 +297,7 @@ function flushEditingCell() {
   send({ type: "cell:unlock", topicId: activeTopicId.value, row, column });
   fitColumnWidth(column);
   editingCell.value = null;
+  editingLockSent.value = false;
 }
 
 function displayCellValue(row, column) {
@@ -292,7 +318,7 @@ function handleFocusIn(event) {
   const rowIndex = [...row.parentElement.children].indexOf(row);
   const column = cell.cellIndex - 1;
   const key = cellKey(rowIndex + 2, column);
-  if (cellLocks.value[key] && cellLocks.value[key] !== user.value.name) {
+  if (cellLocks.value[key] && cellLocks.value[key] !== currentDisplayName.value) {
     input.blur();
     ElMessage.warning(`${cellLocks.value[key]}正在编辑此单元格`);
     return;
@@ -305,7 +331,7 @@ function updateTitle(value) {
   if (activeTopic.value) {
     activeTopic.value.cells[0][0] = value;
     activeTopic.value.cellAuthors ||= {};
-    activeTopic.value.cellAuthors["0:0"] = user.value.name;
+    activeTopic.value.cellAuthors["0:0"] = currentDisplayName.value;
     activeTopic.value.cellEditedAt ||= {};
     activeTopic.value.cellEditedAt["0:0"] = Date.now();
   }
@@ -317,7 +343,7 @@ function updateHeader(cellIndex, value) {
   if (activeTopic.value) {
     activeTopic.value.cells[1][cellIndex] = value;
     activeTopic.value.cellAuthors ||= {};
-    activeTopic.value.cellAuthors[`1:${cellIndex}`] = user.value.name;
+    activeTopic.value.cellAuthors[`1:${cellIndex}`] = currentDisplayName.value;
     activeTopic.value.cellEditedAt ||= {};
     activeTopic.value.cellEditedAt[`1:${cellIndex}`] = Date.now();
   }
@@ -354,7 +380,7 @@ function fixedCellAuthor(rowIndex, cellIndex) {
 
 function cellEditor(row, column) {
   const editor = cellLocks.value[cellKey(row, column)];
-  return editor && editor !== user.value.name ? editor : "";
+  return editor && editor !== currentDisplayName.value ? editor : "";
 }
 
 function addTopic() {
@@ -406,10 +432,17 @@ function confirmEnterRoom() {
 function logout() {
   socket.value?.close();
   window.clearInterval(snapshotTimer);
-  localStorage.removeItem("wwjing_token");
-  localStorage.removeItem("wwjing_user");
-  sessionStorage.setItem("office_login_return", "/office");
-  window.location.href = `${import.meta.env.BASE_URL}login`;
+  connectionText.value = "已退出房间";
+}
+
+function renameGuest() {
+  const next = window.prompt("修改昵称", currentDisplayName.value)?.trim();
+  if (!next) return;
+  displayName.value = next.slice(0, 40);
+  localStorage.setItem("office_display_name", displayName.value);
+  user.value = { ...user.value, name: displayName.value };
+  socket.value?.close();
+  window.setTimeout(connect, 100);
 }
 
 function openPasswordDialog() {
@@ -455,7 +488,7 @@ onUnmounted(() => {
 
 <template>
   <div class="office-page">
-    <header class="office-titlebar"><span class="office-app-icon">X</span><strong>{{ title }}</strong><span class="office-online"><span class="presence-dot"></span>{{ connectionText }}</span><el-dropdown class="office-user-menu" @command="(command) => command === 'password' ? openPasswordDialog() : logout()"><button type="button" class="office-user">{{ user.name }}⌄</button><template #dropdown><el-dropdown-menu><el-dropdown-item command="password">修改密码</el-dropdown-item><el-dropdown-item command="logout">退出登录</el-dropdown-item></el-dropdown-menu></template></el-dropdown></header>
+    <header class="office-titlebar"><span class="office-app-icon">X</span><strong>{{ title }}</strong><span class="office-online"><span class="presence-dot"></span>{{ connectionText }}</span><button type="button" class="office-user" @click="renameGuest">{{ currentDisplayName }}⌄</button></header>
     <nav class="office-ribbon"><button>文件</button><button class="is-active">开始</button><button>插入</button><button>布局</button><button>审阅</button><span class="ribbon-separator"></span><span class="ribbon-tool">剪切</span><span class="ribbon-tool">复制</span><span class="ribbon-tool">粘贴</span><span class="ribbon-separator"></span><span class="ribbon-tool">自动换行</span><span class="ribbon-tool">筛选</span></nav>
     <section class="workbench-shell">
       <aside v-if="!roomListCollapsed" class="office-room-list"><div class="office-room-head"><strong>聊天房间</strong><span><button type="button" title="新建房间" @click="roomDialogMode = 'create'; roomName = ''; roomPassword = ''; roomDialogVisible = true">＋</button><button type="button" title="收起房间列表" @click="roomListCollapsed = true">－</button></span></div><button v-for="room in rooms" :key="room.id" type="button" class="office-room-item" :class="{ 'is-active': room.id === activeRoomId }" @click="room.id === activeRoomId ? null : enterRoom(room)">{{ room.name }}<small>{{ room.protected ? '🔒' : '' }} {{ room.online || 0 }}</small></button></aside>
