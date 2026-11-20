@@ -62,12 +62,18 @@ function endResize() {
 
 function fitColumnWidth(index, broadcast = true) {
   const values = [columns.value[index] || ""];
-  topics.value.forEach((topic) => topic.cells?.forEach((row) => values.push(row?.[index] == null ? "" : String(row[index]))));
+  topics.value.forEach((topic) => topic.cells?.forEach((row, rowIndex) => {
+    const value = row?.[index] == null ? "" : String(row[index]);
+    const author = topic.cellAuthors?.[`${rowIndex}:${index}`];
+    const editedAt = topic.cellEditedAt?.[`${rowIndex}:${index}`];
+    const time = editedAt ? formatEditedAt(editedAt) : "";
+    values.push(`${author ? `${author} ` : ""}${time ? `${time} ` : ""}${value}`);
+  }));
   const canvas = document.createElement("canvas");
   const context = canvas.getContext("2d");
   context.font = "12px Arial, Microsoft YaHei, sans-serif";
   const longest = Math.max(...values.map((value) => context.measureText(value).width), 42);
-  const width = Math.min(800, Math.max(42, Math.ceil(longest + 52)));
+  const width = Math.min(800, Math.max(42, Math.ceil(longest + 88)));
   columnWidths.value[index] = width;
   if (broadcast) send({ type: "column:resize", index, width });
 }
