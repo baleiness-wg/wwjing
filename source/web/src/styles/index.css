@@ -413,6 +413,15 @@ h3 { margin-bottom: 10px; color: #263d40; font-size: 17px; }
 .workbench-presence { display: flex; align-items: center; gap: 7px; color: #70827d; font-size: 12px; }
 .presence-dot { width: 8px; height: 8px; border-radius: 50%; background: #45a981; box-shadow: 0 0 0 4px #e6f4ec; }
 .workbench-shell { display: grid; min-height: 0; flex: 1; grid-template-columns: minmax(0, 1fr); overflow: hidden; border: 1px solid #dfe8e1; border-radius: 0; background: #fff; box-shadow: none; }
+.workbench-shell:has(.office-room-list) { grid-template-columns: 180px minmax(0, 1fr); }
+.office-room-list { overflow-y: auto; border-right: 1px solid #d5d5d5; background: #f3f3f3; padding: 8px; }
+.office-room-head { display: flex; align-items: center; justify-content: space-between; color: #555; font-size: 12px; padding: 4px; }
+.office-room-head button { border: 1px solid #ccc; background: #fff; color: #555; cursor: pointer; margin-left: 3px; }
+.office-room-item { display: flex; width: 100%; align-items: center; justify-content: space-between; border: 0; border-radius: 2px; background: transparent; color: #555; cursor: pointer; font: inherit; font-size: 12px; padding: 8px 6px; text-align: left; }
+.office-room-item:hover, .office-room-item.is-active { background: #e2e2e2; color: #222; font-weight: 600; }
+.office-room-item small { color: #888; font-size: 10px; }
+.office-room-expand { position: absolute; z-index: 3; top: 76px; left: 4px; border: 1px solid #ccc; background: #fff; color: #555; cursor: pointer; font-size: 16px; }
+.office-room-head span { display: inline-flex; gap: 2px; }
 .topic-panel { min-width: 150px; border-right: 1px solid #e1ebe5; background: #f7faf8; padding: 14px 10px; }
 .topic-panel-heading { display: flex; align-items: center; justify-content: space-between; padding: 2px 6px 12px; color: #35554a; font-size: 13px; }
 .topic-panel-heading button { border: 0; border-radius: 5px; background: #e2f2e9; color: #287761; cursor: pointer; font-size: 17px; line-height: 1; padding: 3px 7px; }
@@ -456,6 +465,8 @@ h3 { margin-bottom: 10px; color: #263d40; font-size: 17px; }
 .workbench-sheet td input { width: 100%; border: 0; outline: 0; background: transparent; color: inherit; font: inherit; }
 .workbench-sheet td { white-space: nowrap; }
 .cell-author { display: inline-block; margin-right: 5px; color: #769287; font-size: 10px; font-weight: 600; vertical-align: middle; }
+.cell-author small { color: #aaa; font-size: 10px; font-weight: 400; }
+.cell-edited-at { margin-left: 3px; color: #aaa; font-size: 10px; vertical-align: middle; }
 .workbench-sheet td.is-selected { box-shadow: inset 0 0 0 2px #217346; background: #fff; }
 .sheet-status { justify-content: space-between; min-height: 26px; border-top: 1px solid #d4d4d4; padding: 0 8px; color: #777; font-size: 10px; }
 .office-sheet-tabs { display: flex; height: 30px; align-items: flex-end; gap: 1px; border-top: 1px solid #cfcfcf; background: #e7e7e7; padding: 0 5px; }

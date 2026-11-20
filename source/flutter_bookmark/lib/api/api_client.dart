@@ -136,11 +136,66 @@ class ApiClient {
     await _request('DELETE', '/bookmarks/folders/$id?space=$space');
   }
 
+  Future<List<InspirationEntry>> getInspirations() async {
+    final data = await _request(
+      'GET',
+      '/bookmarks/inspirations',
+      query: {'space': space},
+    ) as Map<String, dynamic>;
+    return (data['entries'] as List? ?? const [])
+        .map(
+          (value) => InspirationEntry.fromJson(value as Map<String, dynamic>),
+        )
+        .toList();
+  }
+
+  Future<InspirationEntry> createInspiration({
+    required String content,
+    String? title,
+    String? folderId,
+  }) async {
+    final data = await _request(
+      'POST',
+      '/bookmarks/inspirations',
+      body: {
+        'content': content,
+        'title': title,
+        'folderId': folderId,
+        'space': space,
+      },
+    ) as Map<String, dynamic>;
+    return InspirationEntry.fromJson(data['entry'] as Map<String, dynamic>);
+  }
+
+  Future<InspirationEntry> updateInspiration(
+    String id, {
+    required String content,
+    String? title,
+    String? folderId,
+  }) async {
+    final data = await _request(
+      'PATCH',
+      '/bookmarks/inspirations/$id',
+      body: {
+        'content': content,
+        'title': title,
+        'folderId': folderId,
+        'space': space,
+      },
+    ) as Map<String, dynamic>;
+    return InspirationEntry.fromJson(data['entry'] as Map<String, dynamic>);
+  }
+
+  Future<void> deleteInspiration(String id) async {
+    await _request('DELETE', '/bookmarks/inspirations/$id?space=$space');
+  }
+
   Future<({List<BookmarkItem> items, int page, int totalPages})> getItems({
     String? folderId,
     bool includeDescendants = false,
     bool uncategorized = false,
     String query = '',
+    String? platform,
     int page = 1,
     int pageSize = 20,
   }) async {
@@ -153,6 +208,7 @@ class ApiClient {
     if (includeDescendants) params['includeDescendants'] = 'true';
     if (uncategorized) params['uncategorized'] = 'true';
     if (query.trim().isNotEmpty) params['query'] = query.trim();
+    if (platform != null && platform != 'all') params['platform'] = platform;
     final data = await _request('GET', '/bookmarks/items', query: params);
     final map = data is Map<String, dynamic>
         ? data

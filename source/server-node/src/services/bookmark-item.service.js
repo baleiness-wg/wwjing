@@ -114,7 +114,11 @@ async function list(userId, input = {}) {
     throw new BookmarkError(400, "INVALID_INPUT", "page 和 pageSize 必须是有效的分页参数");
   }
   const query = typeof input.query === "string" ? input.query.trim() : "";
-  const result = await itemModel.list(userId, {
+  const platform = typeof input.platform === "string" ? input.platform.trim() : "";
+  if (platform && !["all", "xiaohongshu", "douyin", "bilibili"].includes(platform)) {
+    throw new BookmarkError(400, "INVALID_INPUT", "platform 不是有效的平台筛选值");
+  }
+  const filters = {
     folderId,
     space,
     includeDescendants: input.includeDescendants === "true",
@@ -122,7 +126,9 @@ async function list(userId, input = {}) {
     query,
     page,
     pageSize
-  });
+  };
+  if (platform) filters.platform = platform;
+  const result = await itemModel.list(userId, filters);
   return { ...result, page, pageSize };
 }
 

@@ -5,6 +5,14 @@ import { changePassword } from "../api/auth";
 
 const columns = ref([]);
 const topics = ref([]);
+const rooms = ref([]);
+const activeRoomId = ref("main");
+const pendingRoomId = ref("");
+const roomListCollapsed = ref(false);
+const roomPassword = ref("");
+const roomDialogVisible = ref(false);
+const roomDialogMode = ref("enter");
+const roomName = ref("");
 const activeTopicId = ref("");
 const user = ref({ name: "用户" });
 const selectedCell = ref("A1");
@@ -19,7 +27,10 @@ const resizeStartY = ref(0);
 const resizeStartHeight = ref(28);
 const activeTopic = computed(() => topics.value.find((topic) => topic.id === activeTopicId.value));
 const title = computed(() => activeTopic.value?.cells[0]?.[0] || "Book1");
-const rows = computed(() => activeTopic.value?.cells.slice(2) || []);
+const rows = computed(() => (activeTopic.value?.cells.slice(2) || []).map((row, rowIndex) => row.map((value, columnIndex) => {
+  const draftKey = `${activeTopicId.value}:${rowIndex + 2}:${columnIndex}`;
+  return Object.prototype.hasOwnProperty.call(drafts, draftKey) ? drafts[draftKey] : value;
+})));
 const sheetColumns = computed(() => [
   ...columns.value,
   ...Array.from({ length: 19 }, (_, index) => "列" + String.fromCharCode(72 + index))
@@ -40,9 +51,22 @@ function resizeColumn(event) {
 }
 
 function endResize() {
+  if (resizingColumn.value !== null) send({ type: "column:resize", index: resizingColumn.value, width: columnWidths.value[resizingColumn.value] });
   resizingColumn.value = null;
   window.removeEventListener("mousemove", resizeColumn);
   window.removeEventListener("mouseup", endResize);
+}
+
+function fitColumnWidth(index, broadcast = true) {
+  const values = [columns.value[index] || ""];
+  topics.value.forEach((topic) => topic.cells?.forEach((row) => values.push(row?.[index] == null ? "" : String(row[index]))));
+  const canvas = document.createElement("canvas");
+  const context = canvas.getContext("2d");
+  context.font = "12px Arial, Microsoft YaHei, sans-serif";
+  const longest = Math.max(...values.map((value) => context.measureText(value).width), 42);
+  const width = Math.min(800, Math.max(42, Math.ceil(longest + 52)));
+  columnWidths.value[index] = width;
+  if (broadcast) send({ type: "column:resize", index, width });
 }
 
 function beginRowResize(rowIndex, event) {
@@ -69,12 +93,15 @@ const activeEditors = computed(() => [...new Set(Object.values(cellLocks.value).
 const connectionText = ref("连接中");
 const editingCell = ref(null);
 const cellLocks = ref({});
+const drafts = reactive({});
 const pendingUpdates = reactive({});
 const saveState = ref("已同步");
 const passwordDialogVisible = ref(false);
 const passwordLoading = ref(false);
 const passwordForm = reactive({ currentPassword: "", newPassword: "", confirmPassword: "" });
 let snapshotTimer;
+let snapshotSequence = 0;
+let snapshotRequestId = 0;
 let reconnectTimer;
 let reconnectDelay = 1000;
 
@@ -90,6 +117,7 @@ function beginCellEdit(row, column) {
   const key = cellKey(row, column);
   if (cellLocks.value[key] && cellLocks.value[key] !== user.value.name) return false;
   editingCell.value = key;
+  drafts[key] = activeTopic.value?.cells?.[row]?.[column] || "";
   send({ type: "cell:lock", topicId: activeTopicId.value, row, column });
   return true;
 }
@@ -108,24 +136,57 @@ async function updateCellFallback(topicId, row, column, value) {
     headers: {
       "Content-Type": "application/json",
       Authorization: localStorage.getItem("wwjing_token") || ""
+      ,"X-Office-Room": activeRoomId.value
+      ,"X-Office-Password": roomPassword.value
     },
     body: JSON.stringify({ topicId, row, column, value })
   }).catch(() => {});
 }
 
 function selectTopic(topic) {
+  if (!topic || !Array.isArray(topic.cells) || topic.cells.length < 3) return;
   activeTopicId.value = topic.id;
   columns.value = topic.cells[1] || [];
+}
+
+async function loadSnapshotForCurrentRoom() {
+  const sequence = ++snapshotSequence;
+  const roomId = activeRoomId.value;
+  const response = await fetch("/api/office/snapshot", {
+    cache: "no-store",
+    headers: {
+      Authorization: localStorage.getItem("wwjing_token") || "",
+      "X-Office-Room": roomId,
+      "X-Office-Password": roomPassword.value
+    }
+  }).catch(() => null);
+  if (!response?.ok || sequence !== snapshotSequence || roomId !== activeRoomId.value) return;
+  const snapshot = await response.json();
+  if (!snapshot.topics?.[0]?.cells?.length) {
+    ElMessage.error("房间没有可用表格数据");
+    return;
+  }
+  user.value = snapshot.user;
+  topics.value = snapshot.topics;
+  cellLocks.value = snapshot.locks || {};
+  columnWidths.value = snapshot.columnWidths || columnWidths.value;
+  selectTopic(snapshot.topics[0]);
 }
 
 function connect() {
   if (socket.value?.readyState === WebSocket.OPEN || socket.value?.readyState === WebSocket.CONNECTING) return;
   const token = localStorage.getItem("wwjing_token") || "";
   const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-  socket.value = new WebSocket(`${protocol}//${window.location.host}/api/office/ws?token=${encodeURIComponent(token)}`);
+  socket.value = new WebSocket(`${protocol}//${window.location.host}/api/office/ws?token=${encodeURIComponent(token)}&roomId=${encodeURIComponent(activeRoomId.value)}&password=${encodeURIComponent(roomPassword.value)}`);
   socket.value.onopen = () => { reconnectDelay = 1000; connectionText.value = "实时"; };
   socket.value.onerror = () => { connectionText.value = "已加载"; };
-  socket.value.onclose = () => {
+  socket.value.onclose = (event) => {
+    if (pendingRoomId.value && event.code === 4003) {
+      roomDialogVisible.value = true;
+      ElMessage.error("房间密码错误，无法进入");
+      pendingRoomId.value = "";
+      return;
+    }
     connectionText.value = "轮询";
     window.clearTimeout(reconnectTimer);
     reconnectTimer = window.setTimeout(connect, reconnectDelay);
@@ -137,7 +198,10 @@ function connect() {
         user.value = message.user;
         topics.value = message.topics;
         cellLocks.value = message.locks || {};
+        columnWidths.value = message.columnWidths || columnWidths.value;
         if (topics.value[0]) selectTopic(topics.value[0]);
+      } else if (message.type === "column:resized") {
+        columnWidths.value[message.index] = message.width;
       } else if (message.type === "cell:lock" || message.type === "cell:unlock") {
         if (message.type === "cell:lock") cellLocks.value[message.key] = message.user;
         else delete cellLocks.value[message.key];
@@ -159,8 +223,13 @@ function connect() {
       if (!topic) return;
       topic.cells[message.row] ||= [];
       topic.cells[message.row][message.column] = message.value;
+      fitColumnWidth(message.column, false);
       topic.cellAuthors ||= {};
-      topic.cellAuthors[`${message.row}:${message.column}`] = message.user;
+      if (String(message.value || "").trim()) topic.cellAuthors[`${message.row}:${message.column}`] = message.user;
+      else delete topic.cellAuthors[`${message.row}:${message.column}`];
+      topic.cellEditedAt ||= {};
+      if (message.editedAt) topic.cellEditedAt[`${message.row}:${message.column}`] = message.editedAt;
+      else delete topic.cellEditedAt[`${message.row}:${message.column}`];
       if (topic.id === activeTopicId.value && editingCell.value !== `${message.topicId}:${message.row}:${message.column}`) selectTopic(topic);
     }
   };
@@ -175,26 +244,39 @@ function addRow() {
 
 function updateCell(rowIndex, cellIndex, value, sync = true) {
   editingCell.value = `${activeTopicId.value}:${rowIndex + 2}:${cellIndex}`;
-  if (activeTopic.value) {
-    activeTopic.value.cells[rowIndex + 2][cellIndex] = value;
-    activeTopic.value.cellAuthors ||= {};
-    activeTopic.value.cellAuthors[`${rowIndex + 2}:${cellIndex}`] = user.value.name;
-  }
-  if (sync) return;
+  drafts[editingCell.value] = value;
 }
 
 function flushEditingCell() {
   if (!editingCell.value || !activeTopic.value) return;
   const [, row, column] = editingCell.value.split(":").map(Number);
-  const value = activeTopic.value.cells[row]?.[column] || "";
+  const value = drafts[editingCell.value] ?? (activeTopic.value.cells[row]?.[column] || "");
+  activeTopic.value.cells[row][column] = value;
+  activeTopic.value.cellAuthors ||= {};
+  activeTopic.value.cellEditedAt ||= {};
+  const authorKey = `${row}:${column}`;
+  if (String(value).trim()) {
+    activeTopic.value.cellAuthors[authorKey] = user.value.name;
+    activeTopic.value.cellEditedAt[authorKey] = Date.now();
+  } else {
+    delete activeTopic.value.cellAuthors[authorKey];
+    delete activeTopic.value.cellEditedAt[authorKey];
+  }
   const requestId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
   pendingUpdates[requestId] = { key: editingCell.value, topicId: activeTopicId.value, row, column, value };
   saveState.value = "保存中";
   send({ type: "cell:update", requestId, topicId: activeTopicId.value, row, column, value });
-  if (socket.value?.readyState !== WebSocket.OPEN) updateCellFallback(activeTopicId.value, row, column, value);
+  updateCellFallback(activeTopicId.value, row, column, value);
   delete cellLocks.value[editingCell.value];
+  delete drafts[editingCell.value];
   send({ type: "cell:unlock", topicId: activeTopicId.value, row, column });
+  fitColumnWidth(column);
   editingCell.value = null;
+}
+
+function displayCellValue(row, column) {
+  const key = cellKey(row, column);
+  return Object.prototype.hasOwnProperty.call(drafts, key) ? drafts[key] : activeTopic.value?.cells?.[row]?.[column] || "";
 }
 
 function handleFocusOut(event) {
@@ -224,6 +306,8 @@ function updateTitle(value) {
     activeTopic.value.cells[0][0] = value;
     activeTopic.value.cellAuthors ||= {};
     activeTopic.value.cellAuthors["0:0"] = user.value.name;
+    activeTopic.value.cellEditedAt ||= {};
+    activeTopic.value.cellEditedAt["0:0"] = Date.now();
   }
   send({ type: "cell:update", topicId: activeTopicId.value, row: 0, column: 0, value });
   updateCellFallback(activeTopicId.value, 0, 0, value);
@@ -234,6 +318,8 @@ function updateHeader(cellIndex, value) {
     activeTopic.value.cells[1][cellIndex] = value;
     activeTopic.value.cellAuthors ||= {};
     activeTopic.value.cellAuthors[`1:${cellIndex}`] = user.value.name;
+    activeTopic.value.cellEditedAt ||= {};
+    activeTopic.value.cellEditedAt[`1:${cellIndex}`] = Date.now();
   }
   columns.value[cellIndex] = value;
   send({ type: "cell:update", topicId: activeTopicId.value, row: 1, column: cellIndex, value });
@@ -241,11 +327,29 @@ function updateHeader(cellIndex, value) {
 }
 
 function cellAuthor(rowIndex, cellIndex) {
-  return activeTopic.value?.cellAuthors?.[`${rowIndex + 2}:${cellIndex}`] || "";
+  const key = `${rowIndex + 2}:${cellIndex}`;
+  const author = activeTopic.value?.cellAuthors?.[key];
+  return author ? `${author} ${formatEditedAt(activeTopic.value?.cellEditedAt?.[key])}` : "";
+}
+
+function cellEditedAt(rowIndex, cellIndex) {
+  return activeTopic.value?.cellEditedAt?.[`${rowIndex + 2}:${cellIndex}`] || null;
+}
+
+function formatEditedAt(value) {
+  return value ? new Intl.DateTimeFormat("zh-CN", { hour: "2-digit", minute: "2-digit" }).format(new Date(value)) : "";
+}
+
+function displayAuthor(rowIndex, cellIndex) {
+  const author = cellAuthor(rowIndex, cellIndex);
+  const editedAt = activeTopic.value?.cellEditedAt?.[`${rowIndex + 2}:${cellIndex}`];
+  return author ? `${author} ${formatEditedAt(editedAt)}` : "";
 }
 
 function fixedCellAuthor(rowIndex, cellIndex) {
-  return activeTopic.value?.cellAuthors?.[`${rowIndex}:${cellIndex}`] || "";
+  const key = `${rowIndex}:${cellIndex}`;
+  const author = activeTopic.value?.cellAuthors?.[key];
+  return author ? `${author} ${formatEditedAt(activeTopic.value?.cellEditedAt?.[key])}` : "";
 }
 
 function cellEditor(row, column) {
@@ -256,6 +360,47 @@ function cellEditor(row, column) {
 function addTopic() {
   const name = window.prompt("新建话题", "未命名话题");
   if (name?.trim()) send({ type: "topic:create", name: name.trim() });
+}
+
+async function loadRooms() {
+  const response = await fetch("/api/office/rooms", { headers: { Authorization: localStorage.getItem("wwjing_token") || "" } });
+  if (response.ok) rooms.value = (await response.json()).rooms || [];
+}
+
+function enterRoom(room) {
+  pendingRoomId.value = room.id;
+  if (room.id === "main") { activeRoomId.value = room.id; roomPassword.value = ""; snapshotSequence += 1; topics.value = []; activeTopicId.value = ""; columns.value = []; socket.value?.close(); window.setTimeout(() => { connect(); loadSnapshotForCurrentRoom(); }, 100); return; }
+  roomDialogMode.value = "enter";
+  roomDialogVisible.value = true;
+}
+
+async function createRoom() {
+  if (!roomName.value.trim() || roomPassword.value.length < 4) return ElMessage.warning("请输入房间名称和至少 4 位密码");
+  const response = await fetch("/api/office/rooms", { method: "POST", headers: { "Content-Type": "application/json", Authorization: localStorage.getItem("wwjing_token") || "" }, body: JSON.stringify({ name: roomName.value.trim(), password: roomPassword.value }) });
+  if (!response.ok) return ElMessage.error("创建房间失败");
+  const { room } = await response.json();
+  rooms.value.push(room);
+  roomDialogVisible.value = false;
+  pendingRoomId.value = room.id;
+  activeRoomId.value = room.id;
+  snapshotSequence += 1;
+  topics.value = [];
+  activeTopicId.value = "";
+  columns.value = [];
+  socket.value?.close();
+  window.setTimeout(() => { connect(); loadSnapshotForCurrentRoom(); }, 100);
+}
+
+function confirmEnterRoom() {
+  roomDialogVisible.value = false;
+  activeRoomId.value = pendingRoomId.value;
+  snapshotRequestId += 1;
+  snapshotSequence += 1;
+  topics.value = [];
+  activeTopicId.value = "";
+  columns.value = [];
+  socket.value?.close();
+  window.setTimeout(() => { connect(); loadSnapshotForCurrentRoom(); }, 100);
 }
 
 function logout() {
@@ -288,23 +433,13 @@ async function submitPassword() {
   }
 }
 
-onMounted(connect);
+onMounted(() => { loadRooms(); connect(); loadSnapshotForCurrentRoom(); });
+onMounted(() => {
+  snapshotTimer = window.setInterval(loadSnapshotForCurrentRoom, 1500);
+});
 onMounted(() => {
   document.addEventListener("focusout", handleFocusOut, true);
   document.addEventListener("focusin", handleFocusIn, true);
-});
-onMounted(async () => {
-  try {
-    const response = await fetch("/api/office/snapshot", { cache: "no-store", headers: { Authorization: localStorage.getItem("wwjing_token") || "" } });
-    if (!response.ok) return;
-    const snapshot = await response.json();
-    user.value = snapshot.user;
-    topics.value = snapshot.topics;
-    cellLocks.value = snapshot.locks || {};
-    if (topics.value[0] && !activeTopicId.value) selectTopic(topics.value[0]);
-  } catch {
-    connectionText.value = "离线";
-  }
 });
 onUnmounted(() => {
   socket.value?.close();
@@ -323,6 +458,8 @@ onUnmounted(() => {
     <header class="office-titlebar"><span class="office-app-icon">X</span><strong>{{ title }}</strong><span class="office-online"><span class="presence-dot"></span>{{ connectionText }}</span><el-dropdown class="office-user-menu" @command="(command) => command === 'password' ? openPasswordDialog() : logout()"><button type="button" class="office-user">{{ user.name }}⌄</button><template #dropdown><el-dropdown-menu><el-dropdown-item command="password">修改密码</el-dropdown-item><el-dropdown-item command="logout">退出登录</el-dropdown-item></el-dropdown-menu></template></el-dropdown></header>
     <nav class="office-ribbon"><button>文件</button><button class="is-active">开始</button><button>插入</button><button>布局</button><button>审阅</button><span class="ribbon-separator"></span><span class="ribbon-tool">剪切</span><span class="ribbon-tool">复制</span><span class="ribbon-tool">粘贴</span><span class="ribbon-separator"></span><span class="ribbon-tool">自动换行</span><span class="ribbon-tool">筛选</span></nav>
     <section class="workbench-shell">
+      <aside v-if="!roomListCollapsed" class="office-room-list"><div class="office-room-head"><strong>聊天房间</strong><span><button type="button" title="新建房间" @click="roomDialogMode = 'create'; roomName = ''; roomPassword = ''; roomDialogVisible = true">＋</button><button type="button" title="收起房间列表" @click="roomListCollapsed = true">－</button></span></div><button v-for="room in rooms" :key="room.id" type="button" class="office-room-item" :class="{ 'is-active': room.id === activeRoomId }" @click="room.id === activeRoomId ? null : enterRoom(room)">{{ room.name }}<small>{{ room.protected ? '🔒' : '' }} {{ room.online || 0 }}</small></button></aside>
+      <button v-else type="button" class="office-room-expand" title="展开房间列表" @click="roomListCollapsed = false">＋</button>
       <div class="sheet-panel">
          <div class="sheet-toolbar"><div class="sheet-tab"><span class="sheet-tab-icon">▦</span> 工作表</div><div class="sheet-actions"><span v-if="activeEditors.length" class="sheet-editing-state">{{ activeEditors.join("、") }}正在编辑</span><button type="button" @click="addRow">＋ 行</button><span class="sheet-save-state">{{ saveState }}</span></div></div>
         <div class="formula-bar"><span class="name-box">{{ selectedCell }}</span><span class="formula-symbol">fx</span><input value="点击单元格编辑内容" readonly aria-label="公式栏提示"></div>
@@ -331,6 +468,7 @@ onUnmounted(() => {
         <div class="office-sheet-tabs"><button v-for="topic in topics" :key="topic.id" type="button" :class="{ 'is-active': topic.id === activeTopicId }" @click="selectTopic(topic)">▦ {{ topic.name }}</button><button type="button" class="add-sheet" title="新建话题" @click="addTopic">＋</button></div>
       </div>
     </section>
+    <el-dialog v-model="roomDialogVisible" :title="roomDialogMode === 'create' ? '新建聊天房间' : '进入聊天房间'" width="min(92vw, 380px)"><el-form label-position="top"><el-form-item v-if="roomDialogMode === 'create'" label="房间名称"><el-input v-model="roomName" /></el-form-item><el-form-item label="房间密码"><el-input v-model="roomPassword" type="password" show-password /></el-form-item></el-form><template #footer><el-button @click="roomDialogVisible = false">取消</el-button><el-button type="primary" @click="roomDialogMode === 'create' ? createRoom() : confirmEnterRoom()">{{ roomDialogMode === 'create' ? '创建' : '进入' }}</el-button></template></el-dialog>
     <el-dialog v-model="passwordDialogVisible" title="修改密码" width="min(92vw, 420px)"><el-form label-position="top" @submit.prevent="submitPassword"><el-form-item label="当前密码"><el-input v-model="passwordForm.currentPassword" type="password" show-password /></el-form-item><el-form-item label="新密码"><el-input v-model="passwordForm.newPassword" type="password" show-password /></el-form-item><el-form-item label="确认新密码"><el-input v-model="passwordForm.confirmPassword" type="password" show-password @keyup.enter="submitPassword" /></el-form-item></el-form><template #footer><el-button @click="passwordDialogVisible = false">取消</el-button><el-button type="primary" :loading="passwordLoading" @click="submitPassword">确认修改</el-button></template></el-dialog>
   </div>
 </template>

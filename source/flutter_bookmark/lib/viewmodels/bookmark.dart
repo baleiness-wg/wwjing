@@ -161,6 +161,36 @@ class BookmarkDraft {
   final bool fetchMetadataOnOpen;
 }
 
+class InspirationEntry {
+  const InspirationEntry({
+    required this.id,
+    required this.content,
+    this.title,
+    this.folderId,
+    this.createdAt,
+    this.updatedAt,
+  });
+
+  factory InspirationEntry.fromJson(Map<String, dynamic> json) =>
+      InspirationEntry(
+        id: '${json['id']}',
+        title: json['title'] as String?,
+        content: json['content'] as String? ?? '',
+        folderId: json['folderId'] == null && json['folder_id'] == null
+            ? null
+            : '${json['folderId'] ?? json['folder_id']}',
+        createdAt: json['createdAt'] as String?,
+        updatedAt: json['updatedAt'] as String?,
+      );
+
+  final String id;
+  final String? title;
+  final String content;
+  final String? folderId;
+  final String? createdAt;
+  final String? updatedAt;
+}
+
 class DuplicateBookmarkInfo {
   const DuplicateBookmarkInfo({
     required this.id,

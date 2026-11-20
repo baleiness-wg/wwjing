@@ -8,6 +8,7 @@ import '../constants/app_config.dart';
 import '../pages/bookmark_form.dart';
 import '../pages/home_page.dart';
 import '../pages/login_page.dart';
+import '../pages/my_page.dart';
 import '../stores/bookmark_state.dart';
 import '../utils/preferences_store.dart';
 import '../utils/share_service.dart';
@@ -63,6 +64,8 @@ class _BookmarkAppState extends State<BookmarkApp> with WidgetsBindingObserver {
   final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
   String? _clipboardCandidate;
   String? _clipboardText;
+  int _selectedTab = 0;
+  final GlobalKey<ScaffoldState> _homeScaffoldKey = GlobalKey<ScaffoldState>();
 
   @override
   void initState() {
@@ -124,8 +127,7 @@ class _BookmarkAppState extends State<BookmarkApp> with WidgetsBindingObserver {
   }
 
   Future<void> _checkClipboard() async {
-    if (!widget.state.initialized ||
-        !widget.state.authenticated) {
+    if (!widget.state.initialized || !widget.state.authenticated) {
       return;
     }
     final text = (await Clipboard.getData(Clipboard.kTextPlain))?.text;
@@ -171,22 +173,47 @@ class _BookmarkAppState extends State<BookmarkApp> with WidgetsBindingObserver {
         home: Consumer<AppState>(
           builder: (context, state, _) {
             if (!state.initialized) {
-              return const Scaffold(body: Center(child: CircularProgressIndicator()));
+              return const Scaffold(
+                body: Center(child: CircularProgressIndicator()),
+              );
             }
             if (!state.authenticated) {
               return LoginPage(appConfig: widget.appConfig);
             }
             if (state.draft != null) return const BookmarkForm();
             return Scaffold(
-              body: HomePage(appConfig: widget.appConfig),
-              bottomNavigationBar: _clipboardCandidate == null
-                  ? null
-                  : Material(
+              body: IndexedStack(
+                index: _selectedTab,
+                children: [
+                  HomePage(
+                    appConfig: widget.appConfig,
+                    scaffoldKey: _homeScaffoldKey,
+                  ),
+                  MyPage(
+                    appConfig: widget.appConfig,
+                    onOpenFolders: () {
+                      widget.state.selectView(BookmarkView.all);
+                      setState(() => _selectedTab = 0);
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        _homeScaffoldKey.currentState?.openDrawer();
+                      });
+                    },
+                  ),
+                ],
+              ),
+              bottomNavigationBar: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (_clipboardCandidate != null)
+                    Material(
                       color: Theme.of(context).colorScheme.secondaryContainer,
                       child: SafeArea(
                         top: false,
                         child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
                           child: Row(
                             children: [
                               const Expanded(child: Text('剪贴板中发现新链接，是否收藏？')),
@@ -203,6 +230,28 @@ class _BookmarkAppState extends State<BookmarkApp> with WidgetsBindingObserver {
                         ),
                       ),
                     ),
+                  NavigationBar(
+                    height: 54,
+                    labelBehavior:
+                        NavigationDestinationLabelBehavior.alwaysHide,
+                    selectedIndex: _selectedTab,
+                    onDestinationSelected: (index) =>
+                        setState(() => _selectedTab = index),
+                    destinations: const [
+                      NavigationDestination(
+                        icon: Icon(Icons.home_outlined),
+                        selectedIcon: Icon(Icons.home),
+                        label: '首页',
+                      ),
+                      NavigationDestination(
+                        icon: Icon(Icons.person_outline),
+                        selectedIcon: Icon(Icons.person),
+                        label: '我的',
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             );
           },
         ),
@@ -223,7 +272,9 @@ class _BookmarkAppState extends State<BookmarkApp> with WidgetsBindingObserver {
           EdgeInsets.symmetric(horizontal: 12),
         ),
       ),
-      inputDecorationTheme: const InputDecorationTheme(border: OutlineInputBorder()),
+      inputDecorationTheme: const InputDecorationTheme(
+        border: OutlineInputBorder(),
+      ),
       cardTheme: CardThemeData(
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),

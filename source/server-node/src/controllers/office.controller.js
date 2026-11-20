@@ -4,11 +4,14 @@ function snapshot(req, res) {
   res.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
   res.set("Pragma", "no-cache");
   res.set("Expires", "0");
-  const room = getRoom("main");
+  const roomId = req.headers["x-office-room"] || "main";
+  const room = roomId === "main" ? getRoom("main") : require("../office/room-manager").verifyRoom(roomId, req.headers["x-office-password"] || "");
+  if (!room) return res.status(403).json({ message: "房间密码错误" });
   res.json({
     user: { id: String(req.auth.sub), name: req.auth.username || "用户" },
     topics: room.topics,
     locks: room.locks,
+    columnWidths: room.columnWidths,
     revision: room.revision
   });
 }
@@ -17,17 +20,30 @@ module.exports = { snapshot };
 
 function updateCell(req, res) {
   const { topicId, row, column, value } = req.body || {};
-  const room = getRoom("main");
+  const roomId = req.headers["x-office-room"] || "main";
+  const room = roomId === "main" ? getRoom("main") : require("../office/room-manager").verifyRoom(roomId, req.headers["x-office-password"] || "");
+  if (!room) return res.status(403).json({ message: "房间密码错误" });
   const topic = room.topics.find((item) => item.id === topicId);
   if (!topic || !Number.isInteger(row) || !Number.isInteger(column)) {
     return res.status(400).json({ message: "无效的单元格" });
   }
   topic.cells[row] ||= [];
-  topic.cells[row][column] = String(value || "").slice(0, 2000);
+  const nextValue = String(value || "").slice(0, 2000);
+  const previousValue = String(topic.cells[row][column] || "");
+  if (nextValue === previousValue) return res.json({ ok: true, changed: false });
+  topic.cells[row][column] = nextValue;
   room.revision += 1;
   topic.cellAuthors ||= {};
-  topic.cellAuthors[`${row}:${column}`] = req.auth.username || "用户";
-  broadcast(room, { type: "cell:updated", topicId, row, column, value: topic.cells[row][column], user: req.auth.username || "用户", revision: room.revision });
+  const authorKey = `${row}:${column}`;
+  topic.cellEditedAt ||= {};
+  if (nextValue.trim()) {
+    topic.cellAuthors[authorKey] = req.auth.username || "用户";
+    topic.cellEditedAt[authorKey] = Date.now();
+  } else {
+    delete topic.cellAuthors[authorKey];
+    delete topic.cellEditedAt[authorKey];
+  }
+  broadcast(room, { type: "cell:updated", topicId, row, column, value: topic.cells[row][column], user: req.auth.username || "用户", editedAt: topic.cellEditedAt[authorKey] || null, revision: room.revision });
   return res.json({ ok: true, revision: room.revision });
 }
 

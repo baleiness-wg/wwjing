@@ -37,6 +37,7 @@ class AppState extends ChangeNotifier {
   BookmarkView view = BookmarkView.all;
   String? selectedFolderId;
   String query = '';
+  String platform = 'all';
   int page = 1;
   int totalPages = 1;
   bool loadingMore = false;
@@ -78,7 +79,11 @@ class AppState extends ChangeNotifier {
     });
   }
 
-  Future<bool> changePassword(String currentPassword, String newPassword, String confirmPassword) async {
+  Future<bool> changePassword(
+    String currentPassword,
+    String newPassword,
+    String confirmPassword,
+  ) async {
     var changed = false;
     await _run(() async {
       await api.changePassword(
@@ -103,10 +108,7 @@ class AppState extends ChangeNotifier {
 
   Future<void> handleUnauthorized() => logout(expired: true);
 
-  Future<void> refresh({
-    bool resetPage = true,
-    bool clearItems = true,
-  }) async {
+  Future<void> refresh({bool resetPage = true, bool clearItems = true}) async {
     if (!authenticated) return;
     if (resetPage || clearItems) _viewRequestId++;
     if (resetPage) page = 1;
@@ -118,6 +120,7 @@ class AppState extends ChangeNotifier {
     final requestView = view;
     final requestFolderId = selectedFolderId;
     final requestQuery = query;
+    final requestPlatform = platform;
     final requestPage = page;
     await _run(() async {
       final nextFolders = await api.getFolders();
@@ -126,6 +129,7 @@ class AppState extends ChangeNotifier {
         includeDescendants: requestView == BookmarkView.folder,
         uncategorized: requestView == BookmarkView.uncategorized,
         query: requestQuery,
+        platform: requestPlatform,
         page: requestPage,
       );
       if (requestId != _viewRequestId) return;
@@ -142,6 +146,7 @@ class AppState extends ChangeNotifier {
     final requestView = view;
     final requestFolderId = selectedFolderId;
     final requestQuery = query;
+    final requestPlatform = platform;
     final nextPage = page + 1;
     loadingMore = true;
     notifyListeners();
@@ -151,12 +156,14 @@ class AppState extends ChangeNotifier {
         includeDescendants: requestView == BookmarkView.folder,
         uncategorized: requestView == BookmarkView.uncategorized,
         query: requestQuery,
+        platform: requestPlatform,
         page: nextPage,
       );
       if (requestId == _viewRequestId &&
           requestView == view &&
           requestFolderId == selectedFolderId &&
-          requestQuery == query) {
+          requestQuery == query &&
+          requestPlatform == platform) {
         items = [...items, ...result.items];
         page = result.page;
         totalPages = result.totalPages;
@@ -182,6 +189,12 @@ class AppState extends ChangeNotifier {
 
   Future<void> search(String value) async {
     query = value;
+    await refresh(resetPage: true);
+  }
+
+  Future<void> selectPlatform(String value) async {
+    if (value == platform) return;
+    platform = value;
     await refresh(resetPage: true);
   }
 

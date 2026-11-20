@@ -1,6 +1,12 @@
 const pool = require("../db");
 const { randomId } = require("../utils/id");
 
+const platformDomains = {
+  xiaohongshu: ["xiaohongshu.com", "xhslink.cn", "xhslink.com"],
+  douyin: ["douyin.com", "iesdouyin.com"],
+  bilibili: ["bilibili.com", "b23.tv"]
+};
+
 const selectFields = `id, space, folder_id AS "folderId", item_type AS "itemType", title,
   description, images, images->>0 AS "coverUrl", source_url AS "sourceUrl", normalized_url AS "normalizedUrl",
   source_host AS "sourceHost", metadata, created_at AS "createdAt", updated_at AS "updatedAt"`;
@@ -59,6 +65,20 @@ async function list(userId, filters) {
     conditions.push(`(COALESCE(item.title, '') ILIKE $${parameters.length} ESCAPE '\\'
       OR COALESCE(item.description, '') ILIKE $${parameters.length} ESCAPE '\\'
       OR item.source_url ILIKE $${parameters.length} ESCAPE '\\')`);
+  }
+  if (filters.platform && filters.platform !== "all") {
+    const domains = platformDomains[filters.platform];
+    const escapedDomains = domains.map((domain) =>
+      domain.replaceAll('.', '\\.')
+    );
+    parameters.push(
+      `(^|://)([^/]+\\.)?(${escapedDomains.join('|')})([/:]|$)`
+    );
+    const patternIndex = parameters.length;
+    conditions.push(`(
+      lower(coalesce(item.source_host, '')) ~ $${patternIndex}
+      OR lower(coalesce(item.source_url, '')) ~ $${patternIndex}
+    )`);
   }
   parameters.push(filters.pageSize, (filters.page - 1) * filters.pageSize);
   const limitIndex = parameters.length - 1;

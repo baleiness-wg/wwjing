@@ -24,6 +24,10 @@ bookmark-management 模块为同一账号提供跨 Android 与 Web 的私人链�
 - 用户进入某个收藏夹后，同级链接和子目录均可拖动；将项目拖到子目录上并释放后，链接移动到该目录，目录成为该目录的子目录。
 - 系统保存原始链接、规范化链接和来源主机；检测到同一用户已有相同规范化链接时提示原收藏位置，用户仍可明确选择重复保存。
 - Web 用户从“工具 / 收藏夹”进入管理页面，可按目录或未分类状态浏览，通过标题、描述或链接搜索，并创建、编辑、移动、批量移动或删除收藏。
+- Flutter 收藏主页的搜索框下方 SHALL 显示“全部”“小红书”“抖音”“bilibili”平台标签；点击平台标签后按收藏来源主机筛选收藏，并与关键词搜索、目录筛选和分页共同生效。
+- Flutter 登录后的主界面底部 SHALL 显示“首页”和“我的”两个底部导航入口；首页保留现有收藏功能，我页面用于承载个人工具入口。
+- “我的”页面 SHALL 提供“灵感库”入口；灵感库支持记录标题和正文，并可关联当前收藏空间中的一个收藏夹目录。
+- 灵感库条目 SHALL 支持新增、编辑和删除，正文不能为空；关联目录删除后，灵感条目仍保留但自动变为未关联目录。
 - Android 与 Web 修改同一服务端数据，任一客户端刷新后均显示最新目录和收藏内容。
 - 用户可通过收藏条目的明确按钮打开原始链接；Android 对配置为直达首页的平台域名直接启动对应 App，其他已配置平台尝试用原链接唤起对应 App，未安装或唤起失败时回退到系统可处理该链接的外部应用或浏览器，Web 在新标签页打开。
 - 每条收藏可保存封面 URL；Android 在接收分享或剪贴板链接时尝试识别公开页面标题、描述和封面，Web 与 Android 均允许重新识别或手动修改封面。
@@ -133,7 +137,7 @@ bookmark-management 模块为同一账号提供跨 Android 与 Web 的私人链�
 
 - **接口路径**：`/api/bookmarks/items`
 - **请求方式**：GET
-- **请求参数**：支持 `folderId`、`uncategorized=true`、`query`、`page` 和 `pageSize`；`folderId` 与 `uncategorized` 不得同时提交。
+- **请求参数**：支持 `folderId`、`uncategorized=true`、`query`、`platform`、`page` 和 `pageSize`；`platform` 可为 `all`、`xiaohongshu`、`douyin` 或 `bilibili`；平台筛选按 `source_host` 和 `source_url` 的主域名及子域名匹配，小红书支持 `xiaohongshu.com`、`xhslink.cn` 和 `xhslink.com`；`folderId` 与 `uncategorized` 不得同时提交。
 - **返回参数**：按更新时间和标识稳定排序的分页收藏列表及总数。
 
 ```json
@@ -228,6 +232,22 @@ bookmark-management 模块为同一账号提供跨 Android 与 Web 的私人链�
 }
 ```
 
+### 灵感库条目
+
+- **接口路径**：`/api/bookmarks/inspirations`
+- **请求方式**：GET、POST；单条更新使用 PATCH `/api/bookmarks/inspirations/:id`，删除使用 DELETE `/api/bookmarks/inspirations/:id`。
+- **请求参数**：`space` 为 `star` 或 `kitchen`；创建和更新支持可选 `title`、可选 `folderId` 和必填 `content`。
+- **返回参数**：灵感条目包含 `id`、`title`、`content`、`folderId`、`createdAt` 和 `updatedAt`；关联目录删除后 `folderId` 返回 `null`。
+
+```json
+{
+  "content": "想到一个新的菜谱分类方式",
+  "title": "菜谱灵感",
+  "folderId": "folder-id",
+  "space": "kitchen"
+}
+```
+
 ## 版本记录
 
 | 日期 | 版本 | 变更说明 |
@@ -274,3 +294,5 @@ bookmark-management 模块为同一账号提供跨 Android 与 Web 的私人链�
 | 2026-11-18 | 202611180139 | Today 随机目录筛选改为与 Web 一致的单选范围和选中标识 |
 | 2026-11-18 | 202611180144 | 降低 Today 随机目录单选高亮的绿色饱和度，改用灰蓝色调 |
 | 2026-11-18 | 202611180149 | Today 随机目录单选高亮改为低饱和浅绿色背景 |
+| 2026-11-19 | 202611191930 | Flutter 搜索框下方增加平台标签，并支持服务端分页平台筛选 |
+| 2026-11-19 | 202611192000 | 增加首页/我的底部导航和可关联收藏夹目录的灵感库 |

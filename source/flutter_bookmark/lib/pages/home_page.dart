@@ -15,10 +15,12 @@ class HomePage extends StatefulWidget {
   const HomePage({
     super.key,
     required this.appConfig,
+    this.scaffoldKey,
     this.linkLauncher = const LinkLauncher(),
   });
 
   final AppConfig appConfig;
+  final GlobalKey<ScaffoldState>? scaffoldKey;
   final LinkLauncher linkLauncher;
 
   @override
@@ -316,6 +318,7 @@ class _HomePageState extends State<HomePage> {
       builder: (context, constraints) {
         final wide = constraints.maxWidth >= 760;
         final scaffold = Scaffold(
+          key: widget.scaffoldKey,
           appBar: AppBar(
             leadingWidth: _editMode ? 72 : null,
             leading: _editMode
@@ -424,6 +427,43 @@ class _HomePageState extends State<HomePage> {
                         ),
                       ],
                       onSubmitted: state.search,
+                    ),
+                  ),
+                  SizedBox(
+                    height: 48,
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.fromLTRB(10, 3, 10, 5),
+                      child: Row(
+                        children: [
+                          for (final platform in const [
+                            ('all', '全部'),
+                            ('xiaohongshu', '小红书'),
+                            ('douyin', '抖音'),
+                            ('bilibili', 'bilibili'),
+                          ])
+                            Padding(
+                              padding: const EdgeInsets.only(right: 7),
+                              child: FilterChip(
+                                showCheckmark: false,
+                                avatar: Icon(
+                                  platform.$1 == 'all'
+                                      ? Icons.apps_outlined
+                                      : platform.$1 == 'xiaohongshu'
+                                      ? Icons.auto_awesome_outlined
+                                      : platform.$1 == 'douyin'
+                                      ? Icons.music_note_outlined
+                                      : Icons.play_circle_outline,
+                                  size: 16,
+                                ),
+                                label: Text(platform.$2),
+                                selected: state.platform == platform.$1,
+                                onSelected: (_) =>
+                                    state.selectPlatform(platform.$1),
+                              ),
+                            ),
+                        ],
+                      ),
                     ),
                   ),
                   if (state.error != null)

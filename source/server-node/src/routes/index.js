@@ -5,6 +5,7 @@ const transferRoutes = require("./transfer.routes");
 const bookmarkRoutes = require("./bookmark.routes");
 const aiRoutes = require("./ai.routes");
 const officeRoutes = require("./office.routes");
+const officeRoomRoutes = require("./office-room.routes");
 
 const router = express.Router();
 
@@ -14,5 +15,6 @@ router.use("/transfer", transferRoutes);
 router.use("/bookmarks", bookmarkRoutes);
 router.use("/ai", aiRoutes);
 router.use("/office", officeRoutes);
+router.use("/office/rooms", officeRoomRoutes);
 
 module.exports = router;

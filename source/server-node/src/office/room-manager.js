@@ -1,7 +1,7 @@
 const rooms = new Map();
-const ROOM_VERSION = 4;
+const ROOM_VERSION = 6;
 
-function createRoom() {
+function createRoom(roomId = "main", name = "默认房间", password = "") {
   const rows = [
     ["周报素材整理", "进行中", "下午再看一下"],
     ["页面间距调整", "已完成", "视觉更紧凑"],
@@ -43,13 +43,18 @@ function createRoom() {
   ];
   return {
     version: ROOM_VERSION,
+    id: roomId,
+    name,
+    password,
     topics: [{
       id: "topic-1",
       name: "今日记录",
-      cells: [["MES添加新测试站的流程"], ["No", "系统", "步骤", "详细信息", "RD", "时间", "结果"], ...rows.map((row, index) => [index + 1, "BOP", row[0], row[2], "", "", row[1]])],
+      cells: [["System添加新测试站的流程"], ["No", "系统", "步骤", "详细信息", "RD", "时间", "结果"], ...rows.map((row, index) => [index + 1, "TEST", row[0], row[2], "", "", row[1]])],
     cellAuthors: {},
+    cellEditedAt: {},
     locks: {},
     lockClients: new Map(),
+    columnWidths: [58, 58, 180, 380, 58, 58, 58, ...Array(19).fill(58)],
     revision: 0,
       messages: []
     }],
@@ -65,8 +70,26 @@ function getRoom(roomId = "main") {
   room.locks ||= {};
   room.lockClients ||= new Map();
   room.revision ||= 0;
-  room.topics.forEach((topic) => { topic.cellAuthors ||= {}; });
+  room.columnWidths ||= [58, 58, 180, 380, 58, 58, 58, ...Array(19).fill(58)];
+  room.topics.forEach((topic) => { topic.cellAuthors ||= {}; topic.cellEditedAt ||= {}; });
   return room;
+}
+
+function listRooms() {
+  if (!rooms.has("main")) rooms.set("main", createRoom());
+  return [...rooms.values()].map((room) => ({ id: room.id, name: room.name, online: room.clients.size, protected: Boolean(room.password) }));
+}
+
+function createNamedRoom(name, password) {
+  const id = `room-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  const room = createRoom(id, name, password);
+  rooms.set(id, room);
+  return room;
+}
+
+function verifyRoom(roomId, password) {
+  const room = rooms.get(roomId);
+  return room && room.password === password ? room : null;
 }
 
 function broadcast(room, message, except) {
@@ -90,4 +113,4 @@ function removeClient(roomId, client) {
   if (!room.clients.size) rooms.delete(roomId);
 }
 
-module.exports = { getRoom, broadcast, removeClient };
+module.exports = { getRoom, listRooms, createNamedRoom, verifyRoom, broadcast, removeClient };

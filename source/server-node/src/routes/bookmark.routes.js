@@ -4,6 +4,7 @@ const folderController = require("../controllers/bookmark-folder.controller");
 const itemController = require("../controllers/bookmark-item.controller");
 const metadataController = require("../controllers/bookmark-metadata.controller");
 const randomController = require("../controllers/bookmark-random.controller");
+const inspirationController = require("../controllers/inspiration-entry.controller");
 
 const router = express.Router();
 
@@ -23,5 +24,9 @@ router.patch("/items/:id", itemController.update);
 router.post("/items/:id/images", itemController.uploadImages);
 router.delete("/items/:id", itemController.remove);
 router.get("/random", randomController.random);
+router.get("/inspirations", inspirationController.list);
+router.post("/inspirations", inspirationController.create);
+router.patch("/inspirations/:id", inspirationController.update);
+router.delete("/inspirations/:id", inspirationController.remove);
 
 module.exports = router;

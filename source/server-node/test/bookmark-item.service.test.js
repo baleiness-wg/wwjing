@@ -122,6 +122,25 @@ test("list supports uncategorized keyword search and stable pagination inputs", 
   }
 });
 
+test("list passes the selected platform to the data query", async () => {
+  const originalList = itemModel.list;
+  let received;
+  itemModel.list = async (userId, filters) => {
+    received = { userId, ...filters };
+    return { items: [], total: 0 };
+  };
+  try {
+    await itemService.list("22", {
+      platform: "xiaohongshu",
+      page: "1",
+      pageSize: "20"
+    });
+    assert.equal(received.platform, "xiaohongshu");
+  } finally {
+    itemModel.list = originalList;
+  }
+});
+
 test("create rejects another user's folder without creating an item", async () => {
   const originalFindFolder = folderModel.findById;
   const originalCreate = itemModel.create;
