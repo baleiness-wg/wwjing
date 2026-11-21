@@ -8,7 +8,7 @@ const topics = ref([]);
 const rooms = ref([]);
 const activeRoomId = ref("main");
 const pendingRoomId = ref("");
-const roomListCollapsed = ref(false);
+const roomListCollapsed = ref(true);
 const roomPassword = ref("");
 const roomDialogVisible = ref(false);
 const roomDialogMode = ref("enter");
@@ -141,6 +141,21 @@ function send(message) {
   if (socket.value?.readyState === WebSocket.OPEN) socket.value.send(JSON.stringify(message));
 }
 
+function updateLockFallback(row, column, locked) {
+  return fetch("/api/office/lock", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: localStorage.getItem("wwjing_token") || "",
+      "X-Office-Guest": guestName.value,
+      "X-Office-Display-Name": currentDisplayName.value,
+      "X-Office-Room": activeRoomId.value,
+      "X-Office-Password": roomPassword.value
+    },
+    body: JSON.stringify({ topicId: activeTopicId.value, row, column, locked })
+  }).catch(() => {});
+}
+
 function cellKey(row, column) {
   return `${activeTopicId.value}:${row}:${column}`;
 }
@@ -161,6 +176,7 @@ function endCellEdit(row, column, value) {
   delete cellLocks.value[key];
   editingCell.value = null;
   send({ type: "cell:unlock", topicId: activeTopicId.value, row, column });
+  updateLockFallback(row, column, false);
 }
 
 async function updateCellFallback(topicId, row, column, value) {
@@ -262,7 +278,19 @@ function connect() {
     } else if (message.type === "topic:created") {
       topics.value.push(message.topic);
       selectTopic(message.topic);
-    } else if (message.type === "cell:updated") {
+    } else if (message.type === "cell:draft") {
+      const topic = topics.value.find((item) => item.id === message.topicId);
+      if (!topic || editingCell.value === `${message.topicId}:${message.row}:${message.column}`) return;
+      topic.cells[message.row] ||= [];
+      topic.cells[message.row][message.column] = message.value;
+      } else if (message.type === "cell:draft") {
+        const topic = topics.value.find((item) => item.id === message.topicId);
+        if (!topic || editingCell.value === `${message.topicId}:${message.row}:${message.column}`) return;
+        topic.cells[message.row] ||= [];
+        topic.cells[message.row][message.column] = message.value;
+        topic.cellAuthors ||= {};
+        topic.cellAuthors[`${message.row}:${message.column}`] = message.user;
+      } else if (message.type === "cell:updated") {
       const topic = topics.value.find((item) => item.id === message.topicId);
       if (!topic) return;
       topic.cells[message.row] ||= [];
@@ -301,6 +329,7 @@ function updateCell(rowIndex, cellIndex, value, sync = true) {
     send({ type: "cell:lock", topicId: activeTopicId.value, row: rowIndex + 2, column: cellIndex });
   }
   drafts[key] = value;
+  send({ type: "cell:draft", topicId: activeTopicId.value, row: rowIndex + 2, column: cellIndex, value });
 }
 
 function flushEditingCell() {
@@ -438,8 +467,27 @@ async function loadRooms() {
   if (response.ok) rooms.value = (await response.json()).rooms || [];
 }
 
+async function changeRoomPassword(room) {
+  const password = window.prompt("输入新房间密码", "")?.trim();
+  if (!password) return;
+  const response = await fetch(`/api/office/rooms/${encodeURIComponent(room.id)}/password`, { method: "PATCH", headers: { "Content-Type": "application/json", Authorization: localStorage.getItem("wwjing_token") || "" }, body: JSON.stringify({ password }) });
+  if (!response.ok) return ElMessage.error("修改密码失败");
+  localStorage.setItem(`office_room_password:${room.id}`, password);
+  ElMessage.success("房间密码已修改");
+}
+
+async function deleteRoom(room) {
+  if (!window.confirm(`确定删除房间“${room.name}”吗？`)) return;
+  const response = await fetch(`/api/office/rooms/${encodeURIComponent(room.id)}`, { method: "DELETE", headers: { Authorization: localStorage.getItem("wwjing_token") || "" } });
+  if (!response.ok) return ElMessage.error("删除房间失败");
+  rooms.value = rooms.value.filter((item) => item.id !== room.id);
+  if (activeRoomId.value === room.id) enterRoom(rooms.value[0] || { id: "main" });
+  ElMessage.success("房间已删除");
+}
+
 function enterRoom(room) {
   pendingRoomId.value = room.id;
+  if (room.id !== "main") roomPassword.value = localStorage.getItem(`office_room_password:${room.id}`) || "";
   if (room.id === "main") { activeRoomId.value = room.id; roomPassword.value = ""; snapshotSequence += 1; topics.value = []; activeTopicId.value = ""; columns.value = []; socket.value?.close(); window.setTimeout(() => { connect(); loadSnapshotForCurrentRoom(); }, 100); return; }
   roomDialogMode.value = "enter";
   roomDialogVisible.value = true;
@@ -465,6 +513,7 @@ async function createRoom() {
 function confirmEnterRoom() {
   roomDialogVisible.value = false;
   activeRoomId.value = pendingRoomId.value;
+  localStorage.setItem(`office_room_password:${activeRoomId.value}`, roomPassword.value);
   snapshotRequestId += 1;
   snapshotSequence += 1;
   topics.value = [];
@@ -536,7 +585,7 @@ onUnmounted(() => {
     <header class="office-titlebar"><span class="office-app-icon">X</span><strong>{{ title }}</strong><span class="office-online"><span class="presence-dot"></span>{{ connectionText }}</span><button type="button" class="office-user" @click="renameGuest">{{ currentDisplayName }}⌄</button></header>
     <nav class="office-ribbon"><button>文件</button><button class="is-active">开始</button><button>插入</button><button>布局</button><button>审阅</button><span class="ribbon-separator"></span><span class="ribbon-tool">剪切</span><span class="ribbon-tool">复制</span><span class="ribbon-tool">粘贴</span><span class="ribbon-separator"></span><span class="ribbon-tool">自动换行</span><span class="ribbon-tool">筛选</span></nav>
     <section class="workbench-shell">
-      <aside v-if="!roomListCollapsed" class="office-room-list"><div class="office-room-head"><strong>聊天房间</strong><span><button type="button" title="新建房间" @click="roomDialogMode = 'create'; roomName = ''; roomPassword = ''; roomDialogVisible = true">＋</button><button type="button" title="收起房间列表" @click="roomListCollapsed = true">－</button></span></div><button v-for="room in rooms" :key="room.id" type="button" class="office-room-item" :class="{ 'is-active': room.id === activeRoomId }" @click="room.id === activeRoomId ? null : enterRoom(room)">{{ room.name }}<small>{{ room.protected ? '🔒' : '' }} {{ room.online || 0 }}</small></button></aside>
+      <aside v-if="!roomListCollapsed" class="office-room-list"><div class="office-room-head"><strong>聊天房间</strong><span><button type="button" title="新建房间" @click="roomDialogMode = 'create'; roomName = ''; roomPassword = ''; roomDialogVisible = true">＋</button><button type="button" class="room-collapse-button" title="收起房间列表" aria-label="收起房间列表" @click="roomListCollapsed = true">‹</button></span></div><div v-for="room in rooms" :key="room.id" class="office-room-row"><button type="button" class="office-room-item" :class="{ 'is-active': room.id === activeRoomId }" @click="room.id === activeRoomId ? null : enterRoom(room)">{{ room.name }}<small>{{ room.protected ? '🔒' : '' }} {{ room.online || 0 }}</small></button><el-dropdown v-if="room.id !== 'main'" trigger="click"><button type="button" class="office-room-more">⋯</button><template #dropdown><el-dropdown-menu><el-dropdown-item @click="changeRoomPassword(room)">修改密码</el-dropdown-item><el-dropdown-item divided @click="deleteRoom(room)">删除房间</el-dropdown-item></el-dropdown-menu></template></el-dropdown></div></aside>
       <button v-else type="button" class="office-room-expand" title="展开房间列表" @click="roomListCollapsed = false">＋</button>
       <div class="sheet-panel">
          <div class="sheet-toolbar"><div class="sheet-tab"><span class="sheet-tab-icon">▦</span> 工作表</div><div class="sheet-actions"><button type="button" @click="addRow">＋ 行</button><span class="sheet-save-state">{{ saveState }}</span></div></div>

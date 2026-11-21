@@ -5,4 +5,6 @@ const router = express.Router();
 router.use(...officeAuth);
 router.get("/", controller.list);
 router.post("/", controller.create);
+router.patch("/:id/password", controller.updatePassword);
+router.delete("/:id", controller.remove);
 module.exports = router;

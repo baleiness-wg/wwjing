@@ -6,5 +6,6 @@ const router = express.Router();
 router.use(...officeAuth);
 router.get("/snapshot", officeController.snapshot);
 router.post("/cell", officeController.updateCell);
+router.post("/lock", officeController.updateLock);
 
 module.exports = router;

@@ -49,3 +49,21 @@ function updateCell(req, res) {
 }
 
 module.exports.updateCell = updateCell;
+
+function updateLock(req, res) {
+  const { topicId, row, column, locked } = req.body || {};
+  const roomId = req.headers["x-office-room"] || "main";
+  const rooms = require("../office/room-manager");
+  const room = roomId === "main" ? rooms.getRoom("main") : rooms.verifyRoom(roomId, req.headers["x-office-password"] || "");
+  if (!room) return res.status(403).json({ message: "房间密码错误" });
+  const key = `${topicId}:${row}:${column}`;
+  const user = String(req.headers["x-office-display-name"] || req.auth.username || "用户").trim();
+  if (locked) {
+    if (room.locks[key] && room.locks[key] !== user) return res.status(409).json({ user: room.locks[key] });
+    room.locks[key] = user;
+  } else if (room.locks[key] === user) delete room.locks[key];
+  broadcast(room, { type: locked ? "cell:editing" : "cell:editing-end", key, user });
+  res.json({ ok: true, key, user });
+}
+
+module.exports.updateLock = updateLock;

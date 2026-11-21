@@ -1,7 +1,7 @@
 const rooms = new Map();
-const ROOM_VERSION = 6;
+const ROOM_VERSION = 7;
 
-function createRoom(roomId = "main", name = "默认房间", password = "") {
+function createRoom(roomId = "main", name = "默认房间", password = "", ownerId = null) {
   const rows = [
     ["周报素材整理", "进行中", "下午再看一下"],
     ["页面间距调整", "已完成", "视觉更紧凑"],
@@ -46,6 +46,7 @@ function createRoom(roomId = "main", name = "默认房间", password = "") {
     id: roomId,
     name,
     password,
+    ownerId,
     topics: [{
       id: "topic-1",
       name: "今日记录",
@@ -68,8 +69,9 @@ function getRoom(roomId = "main") {
   }
   const room = rooms.get(roomId);
   room.locks ||= {};
-  room.lockClients ||= new Map();
+  if (!(room.lockClients instanceof Map)) room.lockClients = new Map();
   room.revision ||= 0;
+  room.columnWidths ||= [58, 58, 180, 380, 58, 58, 58, ...Array(19).fill(58)];
   room.columnWidths ||= [58, 58, 180, 380, 58, 58, 58, ...Array(19).fill(58)];
   room.topics.forEach((topic) => { topic.cellAuthors ||= {}; topic.cellEditedAt ||= {}; });
   return room;
@@ -80,9 +82,9 @@ function listRooms() {
   return [...rooms.values()].map((room) => ({ id: room.id, name: room.name, online: room.clients.size, protected: Boolean(room.password) }));
 }
 
-function createNamedRoom(name, password) {
+function createNamedRoom(name, password, ownerId) {
   const id = `room-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-  const room = createRoom(id, name, password);
+  const room = createRoom(id, name, password, ownerId);
   rooms.set(id, room);
   return room;
 }
@@ -90,6 +92,11 @@ function createNamedRoom(name, password) {
 function verifyRoom(roomId, password) {
   const room = rooms.get(roomId);
   return room && room.password === password ? room : null;
+}
+
+function removeRoom(roomId) {
+  if (roomId === "main") return false;
+  return rooms.delete(roomId);
 }
 
 function broadcast(room, message, except) {
@@ -102,6 +109,8 @@ function broadcast(room, message, except) {
 function removeClient(roomId, client) {
   const room = rooms.get(roomId);
   if (!room) return;
+  if (!(room.lockClients instanceof Map)) room.lockClients = new Map();
+  room.locks ||= {};
   room.clients.delete(client);
   for (const [key, owner] of room.lockClients) {
     if (owner === client) {
@@ -113,4 +122,4 @@ function removeClient(roomId, client) {
   // 房间只在 Node 进程重启时重置，短暂断线和自动重连不能丢失内容。
 }
 
-module.exports = { getRoom, listRooms, createNamedRoom, verifyRoom, broadcast, removeClient };
+module.exports = { getRoom, listRooms, createNamedRoom, verifyRoom, removeRoom, broadcast, removeClient };

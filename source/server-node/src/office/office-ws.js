@@ -20,12 +20,16 @@ function attachOfficeWebSocket(server) {
   wss.on("connection", (client, request) => {
     const url = new URL(request.url, "http://localhost");
     const roomId = url.searchParams.get("roomId") || "main";
-    const room = roomId === "main" ? getRoom("main") : verifyRoom(roomId, url.searchParams.get("password") || "");
+     const room = roomId === "main" ? getRoom("main") : verifyRoom(roomId, url.searchParams.get("password") || "");
     if (!room) {
       client.close(4003, "房间密码错误");
       return;
     }
-    room.clients.add(client);
+    room.locks ||= {};
+    if (!(room.lockClients instanceof Map)) room.lockClients = new Map();
+    room.columnWidths ||= [58, 58, 180, 380, 58, 58, 58, ...Array(19).fill(58)];
+     room.clients.add(client);
+     room.columnWidths ||= [58, 58, 180, 380, 58, 58, 58, ...Array(19).fill(58)];
      const displayName = String(url.searchParams.get("displayName") || request.user.username || "用户").trim().slice(0, 40);
      const user = { id: String(request.user.sub), name: displayName || "用户" };
      client.officeUser = user;
@@ -101,7 +105,11 @@ function attachOfficeWebSocket(server) {
           const update = { ...message, type: "cell:updated", value: topic.cells[message.row][message.column], user: user.name, editedAt: topic.cellEditedAt?.[authorKey] || null, revision: room.revision };
          broadcast(room, update);
          client.send(JSON.stringify({ type: "cell:update:ack", requestId: message.requestId, revision: room.revision }));
-      } else if (message.type === "chat:send") {
+       } else if (message.type === "cell:draft") {
+         const key = `${message.topicId}:${message.row}:${message.column}`;
+         if (room.lockClients.get(key) !== client) return;
+         broadcast(room, { type: "cell:draft", ...message, value: String(message.value || "").slice(0, 2000), user: user.name }, client);
+       } else if (message.type === "chat:send") {
         const topic = room.topics.find((item) => item.id === message.topicId);
         if (!topic) return;
         const chat = { author: user.name, text: String(message.text || "").slice(0, 2000), at: Date.now() };
