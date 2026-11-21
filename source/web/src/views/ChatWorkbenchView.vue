@@ -17,7 +17,7 @@ const activeTopicId = ref("");
 const user = ref({ name: "用户" });
 const guestName = ref(localStorage.getItem("office_guest_name") || `游客${Math.floor(100 + Math.random() * 900)}`);
 const displayName = ref(localStorage.getItem("office_display_name") || "");
-const currentDisplayName = computed(() => displayName.value || user.value.name || guestName.value);
+const currentDisplayName = computed(() => displayName.value || guestName.value);
 const defaultDocumentTitle = document.title || "鲸界";
 let titleFlashTimer;
 let titleFlashIndex = 0;
@@ -221,7 +221,7 @@ function updateLockFallback(row, column, locked) {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: localStorage.getItem("wwjing_token") || "",
+      Authorization: "",
       "X-Office-Guest": guestName.value,
       "X-Office-Display-Name": currentDisplayName.value,
       "X-Office-Room": activeRoomId.value,
@@ -259,18 +259,19 @@ function endCellEdit(row, column, value) {
 }
 
 async function updateCellFallback(topicId, row, column, value) {
-  await fetch("/api/office/cell", {
+  const response = await fetch("/api/office/cell", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: localStorage.getItem("wwjing_token") || "",
+      Authorization: "",
       "X-Office-Guest": guestName.value
       ,"X-Office-Display-Name": currentDisplayName.value
       ,"X-Office-Room": activeRoomId.value
       ,"X-Office-Password": roomPassword.value
     },
     body: JSON.stringify({ topicId, row, column, value })
-  }).catch(() => {});
+  }).catch(() => null);
+  return Boolean(response?.ok);
 }
 
 function selectTopic(topic) {
@@ -285,7 +286,7 @@ async function loadSnapshotForCurrentRoom() {
   const response = await fetch("/api/office/snapshot", {
     cache: "no-store",
     headers: {
-      Authorization: localStorage.getItem("wwjing_token") || "",
+      Authorization: "",
       "X-Office-Room": roomId,
       "X-Office-Password": roomPassword.value
     }
@@ -316,7 +317,7 @@ async function loadSnapshotForCurrentRoom() {
 
 function connect() {
   if (socket.value?.readyState === WebSocket.OPEN || socket.value?.readyState === WebSocket.CONNECTING) return;
-  const token = localStorage.getItem("wwjing_token") || "";
+  const token = "";
   const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
   socket.value = new WebSocket(`${protocol}//${window.location.host}/api/office/ws?token=${encodeURIComponent(token)}&guest=${encodeURIComponent(guestName.value)}&displayName=${encodeURIComponent(displayName.value)}&roomId=${encodeURIComponent(activeRoomId.value)}&password=${encodeURIComponent(roomPassword.value)}`);
   socket.value.onopen = () => { reconnectDelay = 1000; connectionText.value = "实时"; };
@@ -416,7 +417,7 @@ function updateCell(rowIndex, cellIndex, value, sync = true) {
   send({ type: "cell:draft", topicId: activeTopicId.value, row: rowIndex + 2, column: cellIndex, value });
 }
 
-function flushEditingCell() {
+async function flushEditingCell() {
   if (!editingCell.value || !activeTopic.value) return;
   const [, row, column] = editingCell.value.split(":").map(Number);
   const value = drafts[editingCell.value] ?? (activeTopic.value.cells[row]?.[column] || "");
@@ -441,13 +442,19 @@ function flushEditingCell() {
   pendingUpdates[requestId] = { key: editingCell.value, topicId: activeTopicId.value, row, column, value };
   saveState.value = "保存中";
   send({ type: "cell:update", requestId, topicId: activeTopicId.value, row, column, value });
-  updateCellFallback(activeTopicId.value, row, column, value);
+  const saved = await updateCellFallback(activeTopicId.value, row, column, value);
+  if (!saved) {
+    saveState.value = "保存失败";
+    return;
+  }
   delete cellLocks.value[editingCell.value];
   delete drafts[editingCell.value];
   send({ type: "cell:unlock", topicId: activeTopicId.value, row, column });
+  updateLockFallback(row, column, false);
   fitColumnWidth(column);
   editingCell.value = null;
   editingLockSent.value = false;
+  saveState.value = "已同步";
 }
 
 function displayCellValue(row, column) {
@@ -565,14 +572,14 @@ function addTopic() {
 }
 
 async function loadRooms() {
-  const response = await fetch("/api/office/rooms", { headers: { Authorization: localStorage.getItem("wwjing_token") || "" } });
+  const response = await fetch("/api/office/rooms", { headers: { Authorization: "", "X-Office-Guest": guestName.value } });
   if (response.ok) rooms.value = (await response.json()).rooms || [];
 }
 
 async function changeRoomPassword(room) {
   const password = window.prompt("输入新房间密码", "")?.trim();
   if (!password) return;
-  const response = await fetch(`/api/office/rooms/${encodeURIComponent(room.id)}/password`, { method: "PATCH", headers: { "Content-Type": "application/json", Authorization: localStorage.getItem("wwjing_token") || "" }, body: JSON.stringify({ password }) });
+  const response = await fetch(`/api/office/rooms/${encodeURIComponent(room.id)}/password`, { method: "PATCH", headers: { "Content-Type": "application/json", Authorization: "", "X-Office-Guest": guestName.value }, body: JSON.stringify({ password }) });
   if (!response.ok) return ElMessage.error("修改密码失败");
   localStorage.setItem(`office_room_password:${room.id}`, password);
   ElMessage.success("房间密码已修改");
@@ -580,7 +587,7 @@ async function changeRoomPassword(room) {
 
 async function deleteRoom(room) {
   if (!window.confirm(`确定删除房间“${room.name}”吗？`)) return;
-  const response = await fetch(`/api/office/rooms/${encodeURIComponent(room.id)}`, { method: "DELETE", headers: { Authorization: localStorage.getItem("wwjing_token") || "" } });
+  const response = await fetch(`/api/office/rooms/${encodeURIComponent(room.id)}`, { method: "DELETE", headers: { Authorization: "", "X-Office-Guest": guestName.value } });
   if (!response.ok) return ElMessage.error("删除房间失败");
   rooms.value = rooms.value.filter((item) => item.id !== room.id);
   if (activeRoomId.value === room.id) enterRoom(rooms.value[0] || { id: "main" });
@@ -597,7 +604,7 @@ function enterRoom(room) {
 
 async function createRoom() {
   if (!roomName.value.trim() || roomPassword.value.length < 4) return ElMessage.warning("请输入房间名称和至少 4 位密码");
-  const response = await fetch("/api/office/rooms", { method: "POST", headers: { "Content-Type": "application/json", Authorization: localStorage.getItem("wwjing_token") || "" }, body: JSON.stringify({ name: roomName.value.trim(), password: roomPassword.value }) });
+  const response = await fetch("/api/office/rooms", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "", "X-Office-Guest": guestName.value }, body: JSON.stringify({ name: roomName.value.trim(), password: roomPassword.value }) });
   if (!response.ok) return ElMessage.error("创建房间失败");
   const { room } = await response.json();
   rooms.value.push(room);
