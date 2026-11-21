@@ -6,10 +6,12 @@ import { changePassword } from "../api/auth";
 const columns = ref([]);
 const topics = ref([]);
 const rooms = ref([]);
-const activeRoomId = ref("main");
+const activeRoomId = ref(localStorage.getItem("office_active_room") || "main");
 const pendingRoomId = ref("");
 const roomListCollapsed = ref(true);
-const roomPassword = ref("");
+const roomPassword = ref(localStorage.getItem(`office_room_password:${activeRoomId.value}`) || "");
+
+const officeHeaderName = () => encodeURIComponent(currentDisplayName.value);
 const roomDialogVisible = ref(false);
 const roomDialogMode = ref("enter");
 const roomName = ref("");
@@ -222,8 +224,8 @@ function updateLockFallback(row, column, locked) {
     headers: {
       "Content-Type": "application/json",
       Authorization: "",
-      "X-Office-Guest": guestName.value,
-      "X-Office-Display-Name": currentDisplayName.value,
+      "X-Office-Guest": encodeURIComponent(guestName.value),
+      "X-Office-Display-Name": officeHeaderName(),
       "X-Office-Room": activeRoomId.value,
       "X-Office-Password": roomPassword.value
     },
@@ -264,8 +266,8 @@ async function updateCellFallback(topicId, row, column, value) {
     headers: {
       "Content-Type": "application/json",
       Authorization: "",
-      "X-Office-Guest": guestName.value
-      ,"X-Office-Display-Name": currentDisplayName.value
+      "X-Office-Guest": encodeURIComponent(guestName.value)
+      ,"X-Office-Display-Name": officeHeaderName()
       ,"X-Office-Room": activeRoomId.value
       ,"X-Office-Password": roomPassword.value
     },
@@ -572,14 +574,14 @@ function addTopic() {
 }
 
 async function loadRooms() {
-  const response = await fetch("/api/office/rooms", { headers: { Authorization: "", "X-Office-Guest": guestName.value } });
+  const response = await fetch("/api/office/rooms", { headers: { Authorization: "", "X-Office-Guest": encodeURIComponent(guestName.value) } });
   if (response.ok) rooms.value = (await response.json()).rooms || [];
 }
 
 async function changeRoomPassword(room) {
   const password = window.prompt("输入新房间密码", "")?.trim();
   if (!password) return;
-  const response = await fetch(`/api/office/rooms/${encodeURIComponent(room.id)}/password`, { method: "PATCH", headers: { "Content-Type": "application/json", Authorization: "", "X-Office-Guest": guestName.value }, body: JSON.stringify({ password }) });
+  const response = await fetch(`/api/office/rooms/${encodeURIComponent(room.id)}/password`, { method: "PATCH", headers: { "Content-Type": "application/json", Authorization: "", "X-Office-Guest": encodeURIComponent(guestName.value) }, body: JSON.stringify({ password }) });
   if (!response.ok) return ElMessage.error("修改密码失败");
   localStorage.setItem(`office_room_password:${room.id}`, password);
   ElMessage.success("房间密码已修改");
@@ -587,7 +589,7 @@ async function changeRoomPassword(room) {
 
 async function deleteRoom(room) {
   if (!window.confirm(`确定删除房间“${room.name}”吗？`)) return;
-  const response = await fetch(`/api/office/rooms/${encodeURIComponent(room.id)}`, { method: "DELETE", headers: { Authorization: "", "X-Office-Guest": guestName.value } });
+  const response = await fetch(`/api/office/rooms/${encodeURIComponent(room.id)}`, { method: "DELETE", headers: { Authorization: "", "X-Office-Guest": encodeURIComponent(guestName.value) } });
   if (!response.ok) return ElMessage.error("删除房间失败");
   rooms.value = rooms.value.filter((item) => item.id !== room.id);
   if (activeRoomId.value === room.id) enterRoom(rooms.value[0] || { id: "main" });
@@ -596,6 +598,7 @@ async function deleteRoom(room) {
 
 function enterRoom(room) {
   pendingRoomId.value = room.id;
+  localStorage.setItem("office_active_room", room.id);
   if (room.id !== "main") roomPassword.value = localStorage.getItem(`office_room_password:${room.id}`) || "";
   if (room.id === "main") { activeRoomId.value = room.id; roomPassword.value = ""; snapshotSequence += 1; topics.value = []; activeTopicId.value = ""; columns.value = []; socket.value?.close(); window.setTimeout(() => { connect(); loadSnapshotForCurrentRoom(); }, 100); return; }
   roomDialogMode.value = "enter";
@@ -604,7 +607,7 @@ function enterRoom(room) {
 
 async function createRoom() {
   if (!roomName.value.trim() || roomPassword.value.length < 4) return ElMessage.warning("请输入房间名称和至少 4 位密码");
-  const response = await fetch("/api/office/rooms", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "", "X-Office-Guest": guestName.value }, body: JSON.stringify({ name: roomName.value.trim(), password: roomPassword.value }) });
+  const response = await fetch("/api/office/rooms", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "", "X-Office-Guest": encodeURIComponent(guestName.value) }, body: JSON.stringify({ name: roomName.value.trim(), password: roomPassword.value }) });
   if (!response.ok) return ElMessage.error("创建房间失败");
   const { room } = await response.json();
   rooms.value.push(room);

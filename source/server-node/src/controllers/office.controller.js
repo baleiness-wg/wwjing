@@ -34,7 +34,7 @@ function updateCell(req, res) {
   topic.cells[row][column] = nextValue;
   room.revision += 1;
   topic.cellAuthors ||= {};
-  const displayName = String(req.headers["x-office-display-name"] || req.auth.username || "用户").trim().slice(0, 40) || "用户";
+  const displayName = decodeOfficeHeader(req.headers["x-office-display-name"], req.auth.username || "用户");
   const authorKey = `${row}:${column}`;
   topic.cellEditedAt ||= {};
   if (nextValue.trim()) {
@@ -57,7 +57,7 @@ function updateLock(req, res) {
   const room = roomId === "main" ? rooms.getRoom("main") : rooms.verifyRoom(roomId, req.headers["x-office-password"] || "");
   if (!room) return res.status(403).json({ message: "房间密码错误" });
   const key = `${topicId}:${row}:${column}`;
-  const user = String(req.headers["x-office-display-name"] || req.auth.username || "用户").trim();
+  const user = decodeOfficeHeader(req.headers["x-office-display-name"], req.auth.username || "用户");
   if (locked) {
     if (room.locks[key] && room.locks[key] !== user) return res.status(409).json({ user: room.locks[key] });
     room.locks[key] = user;
@@ -67,3 +67,7 @@ function updateLock(req, res) {
 }
 
 module.exports.updateLock = updateLock;
+
+function decodeOfficeHeader(value, fallback) {
+  try { return decodeURIComponent(String(value || fallback)).trim().slice(0, 40) || fallback; } catch { return fallback; }
+}
