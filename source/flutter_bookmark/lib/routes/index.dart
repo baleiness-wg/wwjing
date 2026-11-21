@@ -9,6 +9,9 @@ import '../pages/bookmark_form.dart';
 import '../pages/home_page.dart';
 import '../pages/login_page.dart';
 import '../pages/my_page.dart';
+import '../pages/home_landing_page.dart';
+import '../components/ai_chat_sheet.dart';
+import '../utils/link_launcher.dart';
 import '../stores/bookmark_state.dart';
 import '../utils/preferences_store.dart';
 import '../utils/share_service.dart';
@@ -65,6 +68,7 @@ class _BookmarkAppState extends State<BookmarkApp> with WidgetsBindingObserver {
   String? _clipboardCandidate;
   String? _clipboardText;
   int _selectedTab = 0;
+  DateTime? _lastHomeBack;
 
   @override
   void initState() {
@@ -160,6 +164,65 @@ class _BookmarkAppState extends State<BookmarkApp> with WidgetsBindingObserver {
     });
   }
 
+  void _handleRootBack() {
+    if (_selectedTab != 0) {
+      setState(() => _selectedTab = 0);
+      return;
+    }
+    final now = DateTime.now();
+    if (_lastHomeBack != null &&
+        now.difference(_lastHomeBack!) < const Duration(seconds: 2)) {
+      SystemNavigator.pop();
+      return;
+    }
+    _lastHomeBack = now;
+    ScaffoldMessenger.of(_navigatorKey.currentContext!)
+        .showSnackBar(const SnackBar(content: Text('再按一次退出应用')));
+  }
+
+  Future<void> _showRootAiChat(BuildContext context, AppState state) {
+    final inStar = _selectedTab == 1;
+    final directoryId = inStar && state.view == BookmarkView.folder
+        ? state.selectedFolderId
+        : null;
+    final directoryName = inStar
+        ? switch (state.view) {
+            BookmarkView.all => '全部收藏',
+            BookmarkView.uncategorized => '灵感',
+            BookmarkView.folder =>
+              state.folders
+                      .where((folder) => folder.id == state.selectedFolderId)
+                      .firstOrNull
+                      ?.name ??
+                  '收藏夹',
+          }
+        : '全部收藏';
+    return showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (_) => AiChatSheet(
+        api: state.api,
+        directoryContext: {
+          'space': widget.appConfig.space,
+          'directoryId': directoryId,
+          'directoryName': directoryName,
+          'directoryPath': directoryName,
+          'loadedItemCount': state.items.length,
+          'items': [
+            for (final item in state.items)
+              {
+                'title': item.title,
+                'description': item.description,
+                'sourceUrl': item.sourceUrl,
+              },
+          ],
+        },
+        linkLauncher: const LinkLauncher(),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider.value(
@@ -180,64 +243,83 @@ class _BookmarkAppState extends State<BookmarkApp> with WidgetsBindingObserver {
               return LoginPage(appConfig: widget.appConfig);
             }
             if (state.draft != null) return const BookmarkForm();
-            return Scaffold(
-              body: IndexedStack(
-                index: _selectedTab,
-                children: [
-                  HomePage(appConfig: widget.appConfig),
-                  MyPage(appConfig: widget.appConfig),
-                ],
+            final body = switch (_selectedTab) {
+              0 => HomeLandingPage(appConfig: widget.appConfig),
+              1 => HomePage(appConfig: widget.appConfig),
+              _ => MyPage(
+                appConfig: widget.appConfig,
+                onOpenFolders: () => setState(() => _selectedTab = 1),
               ),
-              bottomNavigationBar: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (_clipboardCandidate != null)
-                    Material(
-                      color: Theme.of(context).colorScheme.secondaryContainer,
-                      child: SafeArea(
-                        top: false,
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 8,
-                          ),
-                          child: Row(
-                            children: [
-                              const Expanded(child: Text('剪贴板中发现新链接，是否收藏？')),
-                              TextButton(
-                                onPressed: () => _handleClipboard(false),
-                                child: const Text('忽略'),
-                              ),
-                              FilledButton(
-                                onPressed: () => _handleClipboard(true),
-                                child: const Text('打开'),
-                              ),
-                            ],
+            };
+            return PopScope(
+              canPop: false,
+              onPopInvokedWithResult: (didPop, _) {
+                if (!didPop) _handleRootBack();
+              },
+              child: Scaffold(
+                body: body,
+                floatingActionButton: FloatingActionButton(
+                  key: const Key('root-ai-chat-button'),
+                  tooltip: '和 AI 讨论收藏',
+                  onPressed: () => _showRootAiChat(context, state),
+                  child: const Icon(Icons.auto_awesome),
+                ),
+                bottomNavigationBar: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (_clipboardCandidate != null)
+                      Material(
+                        color: Theme.of(context).colorScheme.secondaryContainer,
+                        child: SafeArea(
+                          top: false,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 8,
+                            ),
+                            child: Row(
+                              children: [
+                                const Expanded(child: Text('剪贴板中发现新链接，是否收藏？')),
+                                TextButton(
+                                  onPressed: () => _handleClipboard(false),
+                                  child: const Text('忽略'),
+                                ),
+                                FilledButton(
+                                  onPressed: () => _handleClipboard(true),
+                                  child: const Text('打开'),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ),
+                    NavigationBar(
+                      height: 54,
+                      labelBehavior:
+                          NavigationDestinationLabelBehavior.alwaysHide,
+                      selectedIndex: _selectedTab,
+                      onDestinationSelected: (index) =>
+                          setState(() => _selectedTab = index),
+                      destinations: const [
+                        NavigationDestination(
+                          icon: Icon(Icons.home_outlined),
+                          selectedIcon: Icon(Icons.home),
+                          label: '首页',
+                        ),
+                        NavigationDestination(
+                          icon: Icon(Icons.star_outline),
+                          selectedIcon: Icon(Icons.star),
+                          label: 'Star',
+                        ),
+                        NavigationDestination(
+                          icon: Icon(Icons.person_outline),
+                          selectedIcon: Icon(Icons.person),
+                          label: '我的',
+                        ),
+                      ],
                     ),
-                  NavigationBar(
-                    height: 54,
-                    labelBehavior:
-                        NavigationDestinationLabelBehavior.alwaysHide,
-                    selectedIndex: _selectedTab,
-                    onDestinationSelected: (index) =>
-                        setState(() => _selectedTab = index),
-                    destinations: const [
-                      NavigationDestination(
-                        icon: Icon(Icons.home_outlined),
-                        selectedIcon: Icon(Icons.home),
-                        label: '首页',
-                      ),
-                      NavigationDestination(
-                        icon: Icon(Icons.person_outline),
-                        selectedIcon: Icon(Icons.person),
-                        label: '我的',
-                      ),
-                    ],
-                  ),
-                ],
+                  ],
+                ),
               ),
             );
           },

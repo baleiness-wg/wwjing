@@ -2,14 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../components/bookmark_item_card.dart';
-import '../components/ai_chat_sheet.dart';
 import '../components/folder_picker_dialog.dart';
 import '../components/random_folders_filter_dialog.dart';
 import '../constants/app_config.dart';
 import '../stores/bookmark_state.dart';
 import '../viewmodels/bookmark.dart';
 import '../utils/link_launcher.dart';
-import 'inspiration_library_page.dart';
+import 'folder_navigation.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({
@@ -94,65 +93,6 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _openLink(BuildContext context, BookmarkItem item) async {
     await widget.linkLauncher.open(context, item.sourceUrl);
-  }
-
-  String _folderPath(AppState state, String? folderId) {
-    if (folderId == null) return '未分类';
-    final byId = {for (final folder in state.folders) folder.id: folder};
-    final names = <String>[];
-    final visited = <String>{};
-    var current = byId[folderId];
-    while (current != null && visited.add(current.id)) {
-      names.insert(0, current.name);
-      current = current.parentId == null ? null : byId[current.parentId];
-    }
-    return names.isEmpty ? '未知目录' : names.join(' / ');
-  }
-
-  Future<void> _showAiChat(BuildContext context, AppState state) {
-    final directoryId = state.view == BookmarkView.folder
-        ? state.selectedFolderId
-        : null;
-    final directoryName = switch (state.view) {
-      BookmarkView.all => '全部收藏',
-      BookmarkView.uncategorized => '未分类',
-      BookmarkView.folder =>
-        state.folders
-                .where((folder) => folder.id == state.selectedFolderId)
-                .firstOrNull
-                ?.name ??
-            '收藏夹',
-    };
-    final directoryPath = state.view == BookmarkView.folder
-        ? _folderPath(state, state.selectedFolderId)
-        : directoryName;
-    final directoryContext = <String, Object?>{
-      'space': widget.appConfig.space,
-      'directoryId': directoryId,
-      'directoryName': directoryName,
-      'directoryPath': directoryPath,
-      'loadedItemCount': state.items.length,
-      'items': [
-        for (final item in state.items)
-          {
-            'title': item.title,
-            'description': item.description,
-            'sourceHost': item.sourceHost,
-            'sourceUrl': item.sourceUrl,
-            'folderPath': _folderPath(state, item.folderId),
-          },
-      ],
-    };
-    return showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      builder: (sheetContext) => AiChatSheet(
-        api: state.api,
-        directoryContext: directoryContext,
-        linkLauncher: widget.linkLauncher,
-      ),
-    );
   }
 
   Future<void> _showRandom(BuildContext context) async {
@@ -315,6 +255,7 @@ class _HomePageState extends State<HomePage> {
     final state = context.watch<AppState>();
     return LayoutBuilder(
       builder: (context, constraints) {
+        final wide = constraints.maxWidth >= 760;
         final scaffold = Scaffold(
           appBar: AppBar(
             leadingWidth: _editMode ? 72 : null,
@@ -399,6 +340,14 @@ class _HomePageState extends State<HomePage> {
                 ),
             ],
           ),
+          drawer: wide
+              ? null
+              : Drawer(
+                  child: FolderNavigation(
+                    closeAfterSelection: true,
+                    appConfig: widget.appConfig,
+                  ),
+                ),
           body: Stack(
             children: [
               Column(
@@ -470,24 +419,6 @@ class _HomePageState extends State<HomePage> {
                         ),
                       ),
                     ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(10, 4, 10, 2),
-                    child: Align(
-                      alignment: Alignment.centerLeft,
-                      child: OutlinedButton.icon(
-                        icon: const Icon(Icons.lightbulb_outline, size: 18),
-                        label: const Text('灵感库'),
-                        onPressed: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => InspirationLibraryPage(
-                              appConfig: widget.appConfig,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
                   if (state.error != null)
                     MaterialBanner(
                       content: Text(state.error!),
@@ -609,28 +540,25 @@ class _HomePageState extends State<HomePage> {
                     ),
                   ),
                 ),
-              if (!_editMode)
-                Positioned(
-                  right: 20,
-                  bottom: 20,
-                  child: SafeArea(
-                    top: false,
-                    child: FloatingActionButton(
-                      key: const Key('ai-chat-button'),
-                      tooltip: '和 AI 讨论当前目录',
-                      onPressed: state.busy
-                          ? null
-                          : () => _showAiChat(context, state),
-                      child: const Icon(Icons.auto_awesome),
-                    ),
-                  ),
-                ),
             ],
           ),
         );
-        final content = scaffold;
+        final content = wide
+            ? Row(
+                children: [
+                  SizedBox(
+                    width: 300,
+                    child: Material(
+                      child: FolderNavigation(appConfig: widget.appConfig),
+                    ),
+                  ),
+                  const VerticalDivider(width: 1),
+                  Expanded(child: scaffold),
+                ],
+              )
+            : scaffold;
         return PopScope(
-          canPop: !_editMode && state.view != BookmarkView.folder,
+          canPop: false,
           onPopInvokedWithResult: (didPop, _) {
             if (!didPop) _handlePageBack(context);
           },

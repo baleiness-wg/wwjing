@@ -1,7 +1,7 @@
 const rooms = new Map();
 const ROOM_VERSION = 7;
 
-function createRoom(roomId = "main", name = "默认房间", password = "", ownerId = null) {
+function createRoom(roomId = "main", name = "默认房间", password = "", ownerId = null, ownerName = null) {
   const rows = [
     ["周报素材整理", "进行中", "下午再看一下"],
     ["页面间距调整", "已完成", "视觉更紧凑"],
@@ -47,6 +47,7 @@ function createRoom(roomId = "main", name = "默认房间", password = "", owner
     name,
     password,
     ownerId,
+    ownerName,
     topics: [{
       id: "topic-1",
       name: "今日记录",
@@ -81,9 +82,9 @@ function listRooms() {
   return [...rooms.values()].map((room) => ({ id: room.id, name: room.name, online: room.clients.size, protected: Boolean(room.password) }));
 }
 
-function createNamedRoom(name, password, ownerId) {
+function createNamedRoom(name, password, ownerId, ownerName) {
   const id = `room-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-  const room = createRoom(id, name, password, ownerId);
+  const room = createRoom(id, name, password, ownerId, ownerName);
   rooms.set(id, room);
   return room;
 }

@@ -36,6 +36,7 @@ const resizingRow = ref(null);
 const resizeStartY = ref(0);
 const resizeStartHeight = ref(28);
 const activeTopic = computed(() => topics.value.find((topic) => topic.id === activeTopicId.value));
+const activeRoomName = computed(() => rooms.value.find((room) => room.id === activeRoomId.value)?.name || "未进入房间");
 const title = computed(() => activeTopic.value?.cells[0]?.[0] || "Book1");
 const rows = computed(() => (activeTopic.value?.cells.slice(2) || []).map((row, rowIndex) => row.map((value, columnIndex) => {
   const draftKey = `${activeTopicId.value}:${rowIndex + 2}:${columnIndex}`;
@@ -602,6 +603,7 @@ async function deleteRoom(room) {
 
 function enterRoom(room) {
   pendingRoomId.value = room.id;
+  lastSnapshotRevision = null;
   localStorage.setItem("office_active_room", room.id);
   if (room.id !== "main") roomPassword.value = localStorage.getItem(`office_room_password:${room.id}`) || "";
   if (!room.id) return;
@@ -717,7 +719,7 @@ onUnmounted(() => {
 
 <template>
   <div class="office-page">
-    <header class="office-titlebar"><span class="office-app-icon">X</span><strong>{{ title }}</strong><span class="office-online"><span class="presence-dot"></span>{{ connectionText }}</span><button type="button" class="office-user" @click="renameGuest">{{ currentDisplayName }}⌄</button></header>
+    <header class="office-titlebar"><span class="office-app-icon">X</span><strong>{{ activeRoomName }}</strong><span class="office-save">{{ title }}</span><span class="office-online"><span class="presence-dot"></span>{{ connectionText }}</span><button type="button" class="office-user" @click="renameGuest">{{ currentDisplayName }}⌄</button></header>
     <nav class="office-ribbon"><button>文件</button><button class="is-active">开始</button><button>插入</button><button>布局</button><button>审阅</button><span class="ribbon-separator"></span><span class="ribbon-tool">剪切</span><span class="ribbon-tool">复制</span><span class="ribbon-tool">粘贴</span><span class="ribbon-separator"></span><span class="ribbon-tool">自动换行</span><span class="ribbon-tool">筛选</span></nav>
     <section class="workbench-shell">
       <aside v-if="!roomListCollapsed" class="office-room-list"><div class="office-room-head"><strong>聊天房间</strong><span><button type="button" title="新建房间" @click="roomDialogMode = 'create'; roomName = ''; roomPassword = ''; roomDialogVisible = true">＋</button><button type="button" class="room-collapse-button" title="收起房间列表" aria-label="收起房间列表" @click="roomListCollapsed = true">‹</button></span></div><div v-for="room in rooms" :key="room.id" class="office-room-row"><button type="button" class="office-room-item" :class="{ 'is-active': room.id === activeRoomId }" @click="room.id === activeRoomId ? null : enterRoom(room)">{{ room.name }}<small>{{ room.protected ? '🔒' : '' }} {{ room.online || 0 }}</small></button><el-dropdown v-if="room.id !== 'main'" trigger="click"><button type="button" class="office-room-more">⋯</button><template #dropdown><el-dropdown-menu><el-dropdown-item @click="changeRoomPassword(room)">修改密码</el-dropdown-item><el-dropdown-item divided @click="deleteRoom(room)">删除房间</el-dropdown-item></el-dropdown-menu></template></el-dropdown></div></aside>

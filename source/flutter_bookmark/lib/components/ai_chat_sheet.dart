@@ -274,7 +274,7 @@ class _MessageBubble extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _MarkdownMessage(
+            MarkdownMessage(
               content: content,
               color: isUser ? colorScheme.onPrimary : null,
               onOpenLink: onOpenLink,
@@ -286,8 +286,8 @@ class _MessageBubble extends StatelessWidget {
   }
 }
 
-class _MarkdownMessage extends StatelessWidget {
-  const _MarkdownMessage({required this.content, this.color, this.onOpenLink});
+class MarkdownMessage extends StatelessWidget {
+  const MarkdownMessage({super.key, required this.content, this.color, this.onOpenLink});
   final String content;
   final Color? color;
   final Future<bool> Function(String url)? onOpenLink;

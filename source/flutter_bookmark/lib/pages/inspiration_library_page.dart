@@ -7,9 +7,14 @@ import '../stores/bookmark_state.dart';
 import '../viewmodels/bookmark.dart';
 
 class InspirationLibraryPage extends StatefulWidget {
-  const InspirationLibraryPage({super.key, required this.appConfig});
+  const InspirationLibraryPage({
+    super.key,
+    required this.appConfig,
+    this.embedded = false,
+  });
 
   final AppConfig appConfig;
+  final bool embedded;
 
   @override
   State<InspirationLibraryPage> createState() => _InspirationLibraryPageState();
@@ -103,78 +108,76 @@ class _InspirationLibraryPageState extends State<InspirationLibraryPage> {
   @override
   Widget build(BuildContext context) {
     final state = context.read<AppState>();
+    final content = _busy
+        ? const Center(child: CircularProgressIndicator())
+        : _entries.isEmpty
+        ? const Center(child: Text('还没有灵感，想到什么就记下来吧'))
+        : ListView.separated(
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 96),
+            itemCount: _entries.length,
+            separatorBuilder: (_, _) => const SizedBox(height: 8),
+            itemBuilder: (context, index) {
+              final entry = _entries[index];
+              final folder = state.folders
+                  .where((item) => item.id == entry.folderId)
+                  .firstOrNull;
+              return _inspirationCard(context, entry, folder);
+            },
+          );
     return Scaffold(
-      appBar: AppBar(title: const Text('灵感库')),
+      appBar: AppBar(title: Text(widget.embedded ? 'Home' : '灵感库')),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _edit,
         icon: const Icon(Icons.add),
         label: const Text('记录'),
       ),
-      body: _busy
-          ? const Center(child: CircularProgressIndicator())
-          : _entries.isEmpty
-          ? const Center(child: Text('还没有灵感，想到什么就记下来吧'))
-          : ListView.separated(
-              padding: const EdgeInsets.fromLTRB(12, 12, 12, 96),
-              itemCount: _entries.length,
-              separatorBuilder: (_, _) => const SizedBox(height: 8),
-              itemBuilder: (context, index) {
-                final entry = _entries[index];
-                final folder = state.folders
-                    .where((item) => item.id == entry.folderId)
-                    .firstOrNull;
-                return Card(
-                  child: InkWell(
-                    onTap: () => _edit(entry),
-                    onLongPress: () => _delete(entry),
-                    borderRadius: BorderRadius.circular(14),
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  entry.title?.isNotEmpty == true
-                                      ? entry.title!
-                                      : '未命名灵感',
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .titleMedium,
-                                ),
-                              ),
-                              IconButton(
-                                tooltip: '标记为已落实',
-                                onPressed: () => _complete(entry),
-                                icon: const Icon(Icons.check_circle_outline),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            entry.content,
-                            maxLines: 5,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          if (folder != null) ...[
-                            const SizedBox(height: 10),
-                            Chip(
-                              avatar: const Icon(
-                                Icons.folder_outlined,
-                                size: 16,
-                              ),
-                              label: Text(folder.name),
-                            ),
-                          ],
-                        ],
-                      ),
+      body: content,
+    );
+  }
+
+  Widget _inspirationCard(
+    BuildContext context,
+    InspirationEntry entry,
+    BookmarkFolder? folder,
+  ) {
+    return Card(
+      child: InkWell(
+        onTap: () => _edit(entry),
+        onLongPress: () => _delete(entry),
+        borderRadius: BorderRadius.circular(14),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      entry.title?.isNotEmpty == true ? entry.title! : '未命名灵感',
+                      style: Theme.of(context).textTheme.titleMedium,
                     ),
                   ),
-                );
-              },
-            ),
+                  IconButton(
+                    tooltip: '标记为已落实',
+                    onPressed: () => _complete(entry),
+                    icon: const Icon(Icons.check_circle_outline),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(entry.content, maxLines: 5, overflow: TextOverflow.ellipsis),
+              if (folder != null) ...[
+                const SizedBox(height: 10),
+                Chip(
+                  avatar: const Icon(Icons.folder_outlined, size: 16),
+                  label: Text(folder.name),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -231,59 +234,72 @@ class _InspirationEditorSheetState extends State<_InspirationEditorSheet> {
   }
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: EdgeInsets.fromLTRB(
-      16,
-      20,
-      16,
-      MediaQuery.viewInsetsOf(context).bottom + 16,
-    ),
-    child: Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Text(
-          widget.entry == null ? '记录灵感' : '编辑灵感',
-          style: Theme.of(context).textTheme.titleLarge,
+  Widget build(BuildContext context) {
+    final mediaQuery = MediaQuery.of(context);
+    return SizedBox(
+      height: mediaQuery.size.height * .8,
+      child: SingleChildScrollView(
+        padding: EdgeInsets.fromLTRB(
+          16,
+          20,
+          16,
+          mediaQuery.viewInsets.bottom + 16,
         ),
-        const SizedBox(height: 12),
-        TextField(
-          controller: _title,
-          decoration: const InputDecoration(labelText: '标题（可选）'),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              widget.entry == null ? '记录灵感' : '编辑灵感',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _title,
+              decoration: const InputDecoration(labelText: '标题（可选）'),
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              height: 260,
+              child: TextField(
+                controller: _content,
+                expands: true,
+                maxLines: null,
+                minLines: null,
+                autofocus: widget.entry == null,
+                textAlignVertical: TextAlignVertical.top,
+                decoration: const InputDecoration(
+                  labelText: '想到什么就写什么',
+                  alignLabelWithHint: true,
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              icon: const Icon(Icons.folder_outlined),
+              label: Text(_folderId == null ? '选择关联目录' : '已选择收藏夹目录'),
+              onPressed: () async {
+                final selected = await showFolderPicker(
+                  context: context,
+                  state: context.read<AppState>(),
+                  title: '关联收藏夹目录',
+                  selectedFolderId: _folderId,
+                  rootLabel: '不关联目录',
+                );
+                if (selected != null) {
+                  setState(
+                    () => _folderId = selected.isEmpty ? null : selected,
+                  );
+                }
+              },
+            ),
+            const SizedBox(height: 12),
+            FilledButton(
+              onPressed: _saving ? null : _save,
+              child: Text(_saving ? '保存中...' : '保存'),
+            ),
+          ],
         ),
-        const SizedBox(height: 8),
-        TextField(
-          controller: _content,
-          maxLines: 6,
-          autofocus: widget.entry == null,
-          decoration: const InputDecoration(
-            labelText: '想到什么就写什么',
-            alignLabelWithHint: true,
-          ),
-        ),
-        const SizedBox(height: 8),
-        OutlinedButton.icon(
-          icon: const Icon(Icons.folder_outlined),
-          label: Text(_folderId == null ? '选择关联目录' : '已选择收藏夹目录'),
-          onPressed: () async {
-            final selected = await showFolderPicker(
-              context: context,
-              state: context.read<AppState>(),
-              title: '关联收藏夹目录',
-              selectedFolderId: _folderId,
-              rootLabel: '不关联目录',
-            );
-            if (selected != null) {
-              setState(() => _folderId = selected.isEmpty ? null : selected);
-            }
-          },
-        ),
-        const SizedBox(height: 12),
-        FilledButton(
-          onPressed: _saving ? null : _save,
-          child: Text(_saving ? '保存中...' : '保存'),
-        ),
-      ],
-    ),
-  );
+      ),
+    );
+  }
 }
