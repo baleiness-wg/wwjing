@@ -152,8 +152,15 @@ function send(message) {
   if (socket.value?.readyState === WebSocket.OPEN) socket.value.send(JSON.stringify(message));
 }
 
+function isOwnAuthor(author) {
+  if (!author) return true;
+  const savedUser = JSON.parse(localStorage.getItem("wwjing_user") || "null");
+  return new Set([currentDisplayName.value, user.value.name, guestName.value, displayName.value, savedUser?.username])
+    .has(author);
+}
+
 function notifyOffice(message, body) {
-  if (!message.user || message.user === currentDisplayName.value) return;
+  if (isOwnAuthor(message.user)) return;
   officeChannel?.postMessage({ user: message.user, body, source: currentDisplayName.value, at: Date.now() });
   ElMessage.info(`${message.user}：${body}`);
   flashDocumentTitle(message.user, body);
@@ -182,7 +189,7 @@ function clearOfficeTitleNotice() {
 
 function notifyFromOtherTab(event) {
   const { user: author, body, source } = event.data || {};
-  if (!author || author === currentDisplayName.value || source === currentDisplayName.value) return;
+  if (isOwnAuthor(author) || isOwnAuthor(source)) return;
   if (document.visibilityState !== "visible" && "Notification" in window && Notification.permission === "granted") {
     new Notification("Office 协作", { body: `${author}：${body}` });
   } else {
@@ -200,7 +207,7 @@ function notifySnapshotUpdate(snapshot) {
   lastSnapshotRevision = snapshot.revision;
   const latest = snapshot.topics
     ?.flatMap((topic) => Object.entries(topic.cellEditedAt || {}).map(([key, editedAt]) => ({ topic, key, editedAt, user: topic.cellAuthors?.[key] })))
-    .filter((entry) => entry.user && entry.user !== currentDisplayName.value)
+    .filter((entry) => !isOwnAuthor(entry.user))
     .sort((a, b) => Number(b.editedAt || 0) - Number(a.editedAt || 0))[0];
   if (latest) notifyOffice({ user: latest.user }, "已完成编辑");
 }
