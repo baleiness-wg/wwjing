@@ -46,12 +46,23 @@ function messageParts(content) {
     if (match.index > cursor) parts.push({ text: content.slice(cursor, match.index) });
     const rawLink = match[2] || match[3];
     const candidates = rawLink.match(/https?:\/\/[^\s<>()]+/gi) || [];
-    const link = candidates[candidates.length - 1] || rawLink;
-    parts.push({ text: match[1] || link, link });
+    const link = cleanHttpUrl(candidates[candidates.length - 1] || rawLink);
+    if (link) parts.push({ text: match[1] || link, link });
+    else parts.push({ text: match[0] });
     cursor = pattern.lastIndex;
   }
   if (cursor < content.length) parts.push({ text: content.slice(cursor) });
   return parts;
+}
+
+function cleanHttpUrl(value) {
+  const cleaned = String(value || "").trim().replace(/[，。；：！？、）》】）>.,;:!?]+$/g, "");
+  try {
+    const url = new URL(cleaned);
+    return ["http:", "https:"].includes(url.protocol) && url.hostname ? url.toString() : "";
+  } catch {
+    return "";
+  }
 }
 
 async function sendMessage(message = draft.value) {

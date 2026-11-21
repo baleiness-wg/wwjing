@@ -30,4 +30,10 @@ class MemoryPreferencesStore implements PreferencesStore {
   @override
   Future<void> setSelectedRandomFolderIds(List<String>? folderIds) async =>
       randomFolders = folderIds;
+  List<String> savedRecommendations = [];
+  @override
+  Future<List<String>> recommendations() async => savedRecommendations;
+  @override
+  Future<void> saveRecommendation(String value) async =>
+      savedRecommendations = [value, ...savedRecommendations];
 }

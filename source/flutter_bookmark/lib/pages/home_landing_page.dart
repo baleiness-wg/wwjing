@@ -19,14 +19,25 @@ class HomeLandingPage extends StatefulWidget {
 }
 
 class _HomeLandingPageState extends State<HomeLandingPage> {
-  String? _recommendation;
+  List<String> _recommendations = [];
   bool _busy = false;
   final _linkLauncher = const LinkLauncher();
 
   @override
   void initState() {
     super.initState();
-    _refreshRecommendation();
+    _initializeHome();
+  }
+
+  Future<void> _initializeHome() async {
+    final state = context.read<AppState>();
+    while (state.busy) {
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    }
+    final saved = await state.preferences.recommendations();
+    if (!mounted) return;
+    setState(() => _recommendations = saved);
+    if (saved.isEmpty) await _refreshRecommendation();
   }
 
   Future<void> _refreshRecommendation() async {
@@ -51,11 +62,17 @@ class _HomeLandingPageState extends State<HomeLandingPage> {
         },
         message: '请根据我的收藏，推荐一个现在可以做的具体事情。只给出简短、可执行的建议。',
       );
-      if (mounted) setState(() => _recommendation = result.answer);
+      await state.preferences.saveRecommendation(result.answer);
+      final saved = await state.preferences.recommendations();
+      if (mounted) setState(() => _recommendations = saved);
     } on ApiException catch (error) {
-      if (mounted) setState(() => _recommendation = error.message);
+      if (mounted && _recommendations.isEmpty) {
+        setState(() => _recommendations = [error.message]);
+      }
     } catch (_) {
-      if (mounted) setState(() => _recommendation = '暂时无法获取推荐，请稍后重试');
+      if (mounted && _recommendations.isEmpty) {
+        setState(() => _recommendations = ['暂时无法获取推荐，请稍后重试']);
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -79,22 +96,22 @@ class _HomeLandingPageState extends State<HomeLandingPage> {
           ),
         ],
       ),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: _recommendation == null
-              ? const Text('正在准备今日推荐...')
-              : Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: MarkdownMessage(
-                      content: _recommendation!,
-                      onOpenLink: (url) => _linkLauncher.open(context, url),
-                    ),
+      body: _recommendations.isEmpty
+          ? const Center(child: Text('正在准备今日推荐...'))
+          : ListView.separated(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
+              itemCount: _recommendations.length,
+              separatorBuilder: (_, _) => const SizedBox(height: 12),
+              itemBuilder: (context, index) => Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: MarkdownMessage(
+                    content: _recommendations[index],
+                    onOpenLink: (url) => _linkLauncher.open(context, url),
                   ),
                 ),
-        ),
-      ),
+              ),
+            ),
     );
   }
 }
