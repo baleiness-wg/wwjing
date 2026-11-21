@@ -144,6 +144,7 @@ watch(activeTopicId, syncCellLockBadges);
 let snapshotTimer;
 let snapshotSequence = 0;
 let snapshotRequestId = 0;
+let lastSnapshotRevision = null;
 let reconnectTimer;
 let reconnectDelay = 1000;
 
@@ -188,6 +189,20 @@ function notifyFromOtherTab(event) {
     ElMessage.info(`${author}：${body}`);
   }
   flashDocumentTitle(author, body);
+}
+
+function notifySnapshotUpdate(snapshot) {
+  if (lastSnapshotRevision === null) {
+    lastSnapshotRevision = snapshot.revision;
+    return;
+  }
+  if (snapshot.revision === lastSnapshotRevision) return;
+  lastSnapshotRevision = snapshot.revision;
+  const latest = snapshot.topics
+    ?.flatMap((topic) => Object.entries(topic.cellEditedAt || {}).map(([key, editedAt]) => ({ topic, key, editedAt, user: topic.cellAuthors?.[key] })))
+    .filter((entry) => entry.user && entry.user !== currentDisplayName.value)
+    .sort((a, b) => Number(b.editedAt || 0) - Number(a.editedAt || 0))[0];
+  if (latest) notifyOffice({ user: latest.user }, "已完成编辑");
 }
 
 function requestOfficeNotifications() {
@@ -270,6 +285,7 @@ async function loadSnapshotForCurrentRoom() {
   }).catch(() => null);
   if (!response?.ok || sequence !== snapshotSequence || roomId !== activeRoomId.value) return;
   const snapshot = await response.json();
+  notifySnapshotUpdate(snapshot);
   snapshot.topics?.forEach((topic) => {
     topic.cells?.forEach((row, rowIndex) => row?.forEach((value, columnIndex) => {
       const localKey = `${topic.id}:${rowIndex}:${columnIndex}`;
