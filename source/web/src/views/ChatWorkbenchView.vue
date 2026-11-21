@@ -18,6 +18,11 @@ const user = ref({ name: "用户" });
 const guestName = ref(localStorage.getItem("office_guest_name") || `游客${Math.floor(100 + Math.random() * 900)}`);
 const displayName = ref(localStorage.getItem("office_display_name") || "");
 const currentDisplayName = computed(() => displayName.value || user.value.name || guestName.value);
+const defaultDocumentTitle = document.title || "鲸界";
+let titleFlashTimer;
+let titleFlashIndex = 0;
+let hasUnreadOfficeNotice = false;
+const officeChannel = typeof BroadcastChannel !== "undefined" ? new BroadcastChannel("wwjing-office-events") : null;
 const selectedCell = ref("A1");
 const socket = ref(null);
 const columnWidths = ref([58, 58, 180, 380, 58, 58, 58, ...Array(19).fill(58)]);
@@ -106,6 +111,9 @@ function syncCellLockBadges() {
         const editor = cellLocks.value[`${activeTopicId.value}:${rowIndex + 2}:${columnIndex}`];
         if (editor && editor !== currentDisplayName.value) cellElement.dataset.editor = editor;
         else delete cellElement.dataset.editor;
+        const key = `${activeTopicId.value}:${rowIndex + 2}:${columnIndex}`;
+        if (unreadCells.value[key]) cellElement.dataset.unread = "true";
+        else delete cellElement.dataset.unread;
       });
     });
   });
@@ -122,6 +130,7 @@ const editingCell = ref(null);
 const editingOriginalValue = ref("");
 const editingLockSent = ref(false);
 const cellLocks = ref({});
+const unreadCells = ref({});
 const drafts = reactive({});
 const pendingLocalValues = reactive({});
 const pendingUpdates = reactive({});
@@ -130,6 +139,7 @@ const passwordDialogVisible = ref(false);
 const passwordLoading = ref(false);
 const passwordForm = reactive({ currentPassword: "", newPassword: "", confirmPassword: "" });
 watch(cellLocks, syncCellLockBadges, { deep: true });
+watch(unreadCells, syncCellLockBadges, { deep: true });
 watch(activeTopicId, syncCellLockBadges);
 let snapshotTimer;
 let snapshotSequence = 0;
@@ -139,6 +149,49 @@ let reconnectDelay = 1000;
 
 function send(message) {
   if (socket.value?.readyState === WebSocket.OPEN) socket.value.send(JSON.stringify(message));
+}
+
+function notifyOffice(message, body) {
+  if (!message.user || message.user === currentDisplayName.value) return;
+  officeChannel?.postMessage({ user: message.user, body, source: currentDisplayName.value, at: Date.now() });
+  ElMessage.info(`${message.user}：${body}`);
+  flashDocumentTitle(message.user, body);
+  if (document.visibilityState !== "visible" && "Notification" in window && Notification.permission === "granted") {
+    new Notification("Office 协作", { body: `${message.user}：${body}` });
+  }
+}
+
+function flashDocumentTitle(author, body) {
+  if (document.visibilityState === "visible") return;
+  hasUnreadOfficeNotice = true;
+  window.clearInterval(titleFlashTimer);
+  titleFlashIndex = 0;
+  const alertTitle = `● ${author}：${body}`;
+  titleFlashTimer = window.setInterval(() => {
+    document.title = titleFlashIndex++ % 2 === 0 ? alertTitle : defaultDocumentTitle;
+  }, 700);
+}
+
+function clearOfficeTitleNotice() {
+  if (document.visibilityState !== "visible" || !hasUnreadOfficeNotice) return;
+  hasUnreadOfficeNotice = false;
+  window.clearInterval(titleFlashTimer);
+  document.title = defaultDocumentTitle;
+}
+
+function notifyFromOtherTab(event) {
+  const { user: author, body, source } = event.data || {};
+  if (!author || author === currentDisplayName.value || source === currentDisplayName.value) return;
+  if (document.visibilityState !== "visible" && "Notification" in window && Notification.permission === "granted") {
+    new Notification("Office 协作", { body: `${author}：${body}` });
+  } else {
+    ElMessage.info(`${author}：${body}`);
+  }
+  flashDocumentTitle(author, body);
+}
+
+function requestOfficeNotifications() {
+  if ("Notification" in window && Notification.permission === "default") Notification.requestPermission();
 }
 
 function updateLockFallback(row, column, locked) {
@@ -158,6 +211,10 @@ function updateLockFallback(row, column, locked) {
 
 function cellKey(row, column) {
   return `${activeTopicId.value}:${row}:${column}`;
+}
+
+function markCellRead(key) {
+  delete unreadCells.value[key];
 }
 
 function beginCellEdit(row, column) {
@@ -275,9 +332,10 @@ function connect() {
       if (pendingUpdates[message.requestId]) delete pendingUpdates[message.requestId];
       saveState.value = "保存失败";
       ElMessage.error(`${message.user || "其他用户"}已占用此单元格，内容未覆盖`);
-    } else if (message.type === "topic:created") {
-      topics.value.push(message.topic);
-      selectTopic(message.topic);
+      } else if (message.type === "topic:created") {
+        topics.value.push(message.topic);
+        selectTopic(message.topic);
+        notifyOffice({ user: message.user || "其他用户" }, `新建了话题“${message.topic.name}”`);
     } else if (message.type === "cell:draft") {
       const topic = topics.value.find((item) => item.id === message.topicId);
       if (!topic || editingCell.value === `${message.topicId}:${message.row}:${message.column}`) return;
@@ -291,10 +349,12 @@ function connect() {
         topic.cellAuthors ||= {};
         topic.cellAuthors[`${message.row}:${message.column}`] = message.user;
       } else if (message.type === "cell:updated") {
+      notifyOffice(message, "已完成编辑");
       const topic = topics.value.find((item) => item.id === message.topicId);
       if (!topic) return;
       topic.cells[message.row] ||= [];
       topic.cells[message.row][message.column] = message.value;
+      if (message.user !== currentDisplayName.value) unreadCells.value[`${message.topicId}:${message.row}:${message.column}`] = true;
       fitColumnWidth(message.column, false);
       topic.cellAuthors ||= {};
       if (String(message.value || "").trim()) topic.cellAuthors[`${message.row}:${message.column}`] = message.user;
@@ -372,7 +432,19 @@ function displayCellValue(row, column) {
 }
 
 function handleFocusOut(event) {
-  if (event.target?.tagName === "INPUT") flushEditingCell();
+  if (event.target?.tagName === "INPUT") {
+    flushEditingCell();
+    const key = event.target.dataset.officeUnreadKey;
+    if (key) {
+      delete unreadCells.value[key];
+      delete event.target.dataset.officeUnreadKey;
+      syncCellLockBadges();
+    }
+  }
+}
+
+function clearUnreadCell(row, column) {
+  delete unreadCells.value[cellKey(row, column)];
 }
 
 function handleFocusIn(event) {
@@ -384,6 +456,12 @@ function handleFocusIn(event) {
   const rowIndex = [...row.parentElement.children].indexOf(row);
   const column = cell.cellIndex - 1;
   const key = cellKey(rowIndex + 2, column);
+  if (editingCell.value && editingCell.value !== key) {
+    delete unreadCells.value[editingCell.value];
+  }
+  delete unreadCells.value[key];
+  syncCellLockBadges();
+  input.dataset.officeUnreadKey = key;
   if (cellLocks.value[key] && cellLocks.value[key] !== currentDisplayName.value) {
     input.blur();
     ElMessage.warning(`${cellLocks.value[key]}正在编辑此单元格`);
@@ -561,6 +639,9 @@ async function submitPassword() {
 }
 
 onMounted(() => { loadRooms(); connect(); loadSnapshotForCurrentRoom(); });
+onMounted(() => officeChannel?.addEventListener("message", notifyFromOtherTab));
+onMounted(() => document.addEventListener("visibilitychange", clearOfficeTitleNotice));
+onMounted(requestOfficeNotifications);
 onMounted(() => {
   snapshotTimer = window.setInterval(loadSnapshotForCurrentRoom, 1500);
 });
@@ -569,6 +650,11 @@ onMounted(() => {
   document.addEventListener("focusin", handleFocusIn, true);
 });
 onUnmounted(() => {
+  window.clearInterval(titleFlashTimer);
+  document.title = defaultDocumentTitle;
+  officeChannel?.removeEventListener("message", notifyFromOtherTab);
+  officeChannel?.close();
+  document.removeEventListener("visibilitychange", clearOfficeTitleNotice);
   socket.value?.close();
   window.clearTimeout(reconnectTimer);
   window.clearInterval(snapshotTimer);
