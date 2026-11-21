@@ -28,6 +28,7 @@ function limitedString(value, maxLength = MAX_FIELD_LENGTH) {
 function sanitizeContext(input = {}) {
   const rawItems = Array.isArray(input.items) ? input.items : [];
   const items = rawItems.slice(0, MAX_CONTEXT_ITEMS).map((item) => ({
+    id: limitedString(item?.id, 100),
     title: limitedString(item?.title),
     description: limitedString(item?.description),
     sourceHost: limitedString(item?.sourceHost, 120),

@@ -102,12 +102,29 @@ async function validateFolder(userId, folderId, space = "star") {
   return id;
 }
 
+async function validateFolders(userId, input, space = "star") {
+  const raw = Array.isArray(input.folderIds)
+    ? input.folderIds
+    : Object.hasOwn(input, "folderId") && input.folderId !== null && input.folderId !== undefined
+      ? [input.folderId]
+      : [];
+  const ids = [...new Set(raw.filter((value) => value !== null && value !== undefined && value !== "").map((value) => parseId(value, "folderId")))];
+  for (const id of ids) {
+    if (!await folderModel.findById(userId, id, space)) throw new BookmarkError(404, "FOLDER_NOT_FOUND", "收藏夹不存在");
+  }
+  return ids;
+}
+
 async function list(userId, input = {}) {
-  if (input.folderId !== undefined && input.uncategorized === "true") {
+  if ((input.folderId !== undefined || input.folderIds !== undefined) && input.uncategorized === "true") {
     throw new BookmarkError(400, "INVALID_INPUT", "folderId 与 uncategorized 不能同时使用");
   }
   const space = parseSpace(input.space);
-  const folderId = input.folderId === undefined ? null : await validateFolder(userId, input.folderId, space);
+  const folderIds = Array.isArray(input.folderIds)
+    ? [...new Set(input.folderIds.map(String))]
+    : input.folderIds ? [...new Set(String(input.folderIds).split(",").map((id) => id.trim()).filter(Boolean))] : [];
+  for (const id of folderIds) await validateFolder(userId, id, space);
+  const folderId = folderIds[0] || null;
   const page = input.page === undefined ? 1 : Number(input.page);
   const pageSize = input.pageSize === undefined ? 20 : Number(input.pageSize);
   if (!Number.isInteger(page) || page < 1 || !Number.isInteger(pageSize) || pageSize < 1 || pageSize > 100) {
@@ -128,6 +145,7 @@ async function list(userId, input = {}) {
     page,
     pageSize
   };
+  if (folderIds.length) filters.folderIds = folderIds;
   if (itemType) filters.itemType = itemType;
   if (input.excludeCompleted === "true") filters.excludeCompleted = true;
   if (platform) filters.platform = platform;
@@ -145,7 +163,8 @@ async function create(userId, input = {}) {
   const space = parseSpace(input.space);
   const sourceUrl = typeof input.sourceUrl === "string" ? input.sourceUrl.trim() : input.sourceUrl;
   const normalized = optionalNormalizedUrl(sourceUrl);
-  const folderId = await validateFolder(userId, input.folderId, space);
+  const folderIds = await validateFolders(userId, input, space);
+  const folderId = folderIds[0] || null;
   const duplicate = normalized.normalizedUrl
     ? await itemModel.findDuplicate(userId, normalized.normalizedUrl, space)
     : null;
@@ -156,6 +175,7 @@ async function create(userId, input = {}) {
     space,
     itemType: input.itemType === "inspiration" ? "inspiration" : "link",
     folderId,
+    folderIds,
     title: input.itemType === "inspiration" ? optionalText(input.title, "title") : requiredTitle(input.title),
     description: optionalText(input.description, "description"),
     images: imageUrls(Object.hasOwn(input, "images") ? input.images : input.coverUrl) ?? [],
@@ -179,13 +199,15 @@ async function update(userId, idValue, input = {}) {
   if (duplicate && duplicate.id !== id) {
     throw new BookmarkError(409, "DUPLICATE_BOOKMARK", "该链接已收藏", { duplicate });
   }
-  const folderId = Object.hasOwn(input, "folderId")
-    ? await validateFolder(userId, input.folderId, space)
-    : current.folderId;
+  const folderIds = Object.hasOwn(input, "folderIds") || Object.hasOwn(input, "folderId")
+    ? await validateFolders(userId, input, space)
+    : (current.folderIds || (current.folderId ? [current.folderId] : []));
+  const folderId = folderIds[0] || null;
   const item = await itemModel.update(userId, id, {
     space,
     metadata: Object.hasOwn(input, "metadata") ? input.metadata : (current.metadata || {}),
     folderId,
+    folderIds,
     title: Object.hasOwn(input, "title")
       ? current.itemType === "inspiration"
         ? optionalText(input.title, "title")

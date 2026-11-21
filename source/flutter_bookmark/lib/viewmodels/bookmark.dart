@@ -82,6 +82,7 @@ class BookmarkItem {
     required this.id,
     required this.sourceUrl,
     this.folderId,
+    this.folderIds = const [],
     this.title,
     this.description,
     this.sourceHost,
@@ -97,6 +98,8 @@ class BookmarkItem {
     folderId: json['folderId'] == null && json['folder_id'] == null
         ? null
         : '${json['folderId'] ?? json['folder_id']}',
+    folderIds:
+        (json['folderIds'] as List?)?.whereType<String>().toList() ?? const [],
     title: json['title'] as String?,
     description: json['description'] as String?,
     sourceHost: json['sourceHost'] as String? ?? json['source_host'] as String?,
@@ -113,6 +116,7 @@ class BookmarkItem {
   final String id;
   final String sourceUrl;
   final String? folderId;
+  final List<String> folderIds;
   final String? title;
   final String? description;
   final String? sourceHost;
@@ -156,6 +160,7 @@ class BookmarkDraft {
     this.title = '',
     this.description = '',
     this.folderId,
+    this.folderIds = const [],
     this.images = const [],
     @Deprecated('Use images') this.coverUrl = '',
     this.fetchMetadataOnOpen = false,
@@ -165,6 +170,7 @@ class BookmarkDraft {
   final String title;
   final String description;
   final String? folderId;
+  final List<String> folderIds;
   final List<String> images;
   final String coverUrl;
   final bool fetchMetadataOnOpen;

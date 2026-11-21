@@ -36,4 +36,13 @@ class MemoryPreferencesStore implements PreferencesStore {
   @override
   Future<void> saveRecommendation(String value) async =>
       savedRecommendations = [value, ...savedRecommendations];
+  List<String> savedRecommendationIds = [];
+  @override
+  Future<List<String>> recommendationItemIds() async => savedRecommendationIds;
+  @override
+  Future<void> saveRecommendationItemId(String value) async =>
+      savedRecommendationIds = [
+        value,
+        ...savedRecommendationIds.where((id) => id != value),
+      ];
 }

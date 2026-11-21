@@ -41,7 +41,9 @@ export function removeBookmarkFolderShare(id, userId, space = "star") {
 export function getBookmarkItems(filters = {}, space = "star") {
   const query = new URLSearchParams();
   Object.entries(filters).forEach(([key, value]) => {
-    if (value !== undefined && value !== null && value !== "") query.set(key, value);
+    if (Array.isArray(value)) {
+      if (value.length) query.set(key, value.join(","));
+    } else if (value !== undefined && value !== null && value !== "") query.set(key, value);
   });
   query.set("space", filters.space || space);
   return request(`${baseUrl}/items?${query.toString()}`);

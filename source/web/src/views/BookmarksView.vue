@@ -71,8 +71,8 @@ const randomItem = ref(null);
 const aiChatVisible = ref(false);
 
 const folderForm = reactive({ id: null, name: "", parentId: null, position: 0 });
-const itemForm = reactive({ id: null, sourceUrl: "", title: "", description: "", coverUrl: "", folderId: null });
-const bulkFolderId = ref(null);
+const itemForm = reactive({ id: null, sourceUrl: "", title: "", description: "", coverUrl: "", folderIds: [] });
+const bulkFolderIds = ref([]);
 const draggingItemId = ref(null);
 
 watch(
@@ -133,7 +133,7 @@ const aiDirectoryContext = computed(() => ({
     description: item.description,
     sourceHost: itemHost(item),
     sourceUrl: item.sourceUrl,
-    folderPath: folderPath(item.folderId)
+    folderPath: folderPaths(item)
   }))
 }));
 const selectedItems = computed(() => items.value.filter((item) => selectedIds.value.includes(String(item.id))));
@@ -205,6 +205,11 @@ function folderPath(folderId) {
     current = current.parentId ? folderMap.value.get(String(current.parentId)) : null;
   }
   return names.join(" / ") || "未知目录";
+}
+
+function folderPaths(item) {
+  const ids = item.folderIds?.length ? item.folderIds : (item.folderId ? [item.folderId] : []);
+  return ids.length ? ids.map((id) => folderPath(id)).join("、") : "未分类";
 }
 
 function flattenOptions(nodes = folderTree.value, depth = 0) {
@@ -389,7 +394,7 @@ async function saveFolder() {
     folderDialogVisible.value = false;
     ElMessage.success(folderDialogMode.value === "create" ? "目录已创建" : "目录已更新");
     await loadFolders();
-    if (createdFolder?.folder?.id && itemDialogVisible.value) itemForm.folderId = createdFolder.folder.id;
+    if (createdFolder?.folder?.id && itemDialogVisible.value) itemForm.folderIds = [...itemForm.folderIds, createdFolder.folder.id];
   } catch (error) {
     ElMessage.error(error.message);
   } finally {
@@ -398,7 +403,7 @@ async function saveFolder() {
 }
 
 function openCreateFolderForItem() {
-  openCreateFolder(itemForm.folderId || null);
+  openCreateFolder(itemForm.folderIds[0] || null);
 }
 
 async function dropItemOnFolder(folderId) {
@@ -406,7 +411,7 @@ async function dropItemOnFolder(folderId) {
   const itemId = draggingItemId.value;
   draggingItemId.value = null;
   try {
-    await updateBookmarkItem(itemId, { folderId }, currentSpace.value);
+    await updateBookmarkItem(itemId, { folderIds: folderId ? [folderId] : [] }, currentSpace.value);
     ElMessage.success(folderId ? "收藏已移动" : "收藏已移入未分类");
     await Promise.all([loadFolders(), loadItems()]);
   } catch (error) {
@@ -457,7 +462,7 @@ function openCreateItem() {
     title: "",
     description: "",
     coverUrl: "",
-    folderId: activeFolderId.value === undefined ? null : activeFolderId.value
+    folderIds: activeFolderId.value === undefined || activeFolderId.value === null ? [] : [activeFolderId.value]
   });
   previewCoverFailed.value = false;
   itemDialogVisible.value = true;
@@ -471,7 +476,7 @@ function openEditItem(item) {
     title: item.title || "",
     description: item.description || "",
     coverUrl: item.coverUrl || "",
-    folderId: item.folderId
+    folderIds: item.folderIds?.length ? [...item.folderIds] : (item.folderId ? [item.folderId] : [])
   });
   previewCoverFailed.value = false;
   itemDialogVisible.value = true;
@@ -505,7 +510,7 @@ async function submitItem(allowDuplicate = false) {
     title: itemForm.title.trim() || null,
     description: itemForm.description.trim() || null,
     coverUrl: itemForm.coverUrl.trim() || null,
-    folderId: itemForm.folderId || null
+    folderIds: [...itemForm.folderIds]
   };
   saving.value = true;
   try {
@@ -555,14 +560,14 @@ async function removeItems(targetItems = selectedItems.value) {
 
 function openMoveItems(targetItems = selectedItems.value) {
   selectedIds.value = targetItems.map((item) => String(item.id));
-  bulkFolderId.value = null;
+  bulkFolderIds.value = [];
   moveItemsVisible.value = true;
 }
 
 async function moveItems() {
   saving.value = true;
   const results = await Promise.allSettled(
-    selectedItems.value.map((item) => updateBookmarkItem(item.id, { folderId: bulkFolderId.value || null }, currentSpace.value))
+    selectedItems.value.map((item) => updateBookmarkItem(item.id, { folderIds: [...bulkFolderIds.value] }, currentSpace.value))
   );
   const failed = results.filter((result) => result.status === "rejected");
   if (failed.length) ElMessage.error(`${failed.length} 条收藏移动失败`);
@@ -787,7 +792,7 @@ onMounted(async () => {
             <div class="bookmark-body">
               <div class="bookmark-meta">
                 <span class="host-chip">{{ itemHost(item) }}</span>
-                <span>{{ folderPath(item.folderId) }}</span>
+                <span>{{ folderPaths(item) }}</span>
                 <time :datetime="item.updatedAt">{{ formatDate(item.updatedAt) }}</time>
               </div>
               <a :href="item.sourceUrl" target="_blank" rel="noopener noreferrer">{{ item.title || "未命名收藏" }}</a>
@@ -881,8 +886,7 @@ onMounted(async () => {
         <el-alert title="图片上传接口已预留，当前版本暂不上传图片。" type="info" :closable="false" />
         <el-form-item label="收藏目录">
           <div class="folder-select-row">
-            <el-select v-model="itemForm.folderId" class="full-width" clearable placeholder="未分类">
-              <el-option label="未分类" :value="null" />
+            <el-select v-model="itemForm.folderIds" class="full-width" multiple collapse-tags collapse-tags-tooltip placeholder="未分类">
               <el-option v-for="folder in folderOptions" :key="folder.id" :label="folder.label" :value="folder.id" />
             </el-select>
             <el-button :icon="FolderAdd" title="新建目录并选择" aria-label="新建目录并选择" @click="openCreateFolderForItem" />
@@ -896,9 +900,8 @@ onMounted(async () => {
     </el-dialog>
 
     <el-dialog v-model="moveItemsVisible" title="移动收藏" width="min(440px, 92vw)">
-      <p class="muted">将 {{ selectedIds.length }} 条收藏移动到：</p>
-      <el-select v-model="bulkFolderId" class="full-width" clearable placeholder="未分类">
-        <el-option label="未分类" :value="null" />
+        <p class="muted">将 {{ selectedIds.length }} 条收藏关联到：</p>
+      <el-select v-model="bulkFolderIds" class="full-width" multiple collapse-tags collapse-tags-tooltip placeholder="未分类">
         <el-option v-for="folder in folderOptions" :key="folder.id" :label="folder.label" :value="folder.id" />
       </el-select>
       <template #footer>
@@ -943,7 +946,7 @@ onMounted(async () => {
           <p v-if="randomItem.description" class="random-dish-desc">{{ randomItem.description }}</p>
           <div class="random-dish-meta">
             <span class="host-chip">{{ itemHost(randomItem) }}</span>
-            <span v-if="randomItem.folderId" class="folder-chip">📁 {{ folderPath(randomItem.folderId) }}</span>
+            <span v-if="randomItem.folderIds?.length || randomItem.folderId" class="folder-chip">📁 {{ folderPaths(randomItem) }}</span>
           </div>
         </div>
       </div>

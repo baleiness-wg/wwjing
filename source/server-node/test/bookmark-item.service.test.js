@@ -180,3 +180,24 @@ test("create and update validate and expose coverUrl values", async () => {
     itemModel.create = originalCreate;
   }
 });
+
+test("create accepts multiple folder associations", async () => {
+  const originalDuplicate = itemModel.findDuplicate;
+  const originalCreate = itemModel.create;
+  const originalFindFolder = folderModel.findById;
+  itemModel.findDuplicate = async () => null;
+  itemModel.create = async (userId, values) => ({ id: itemId, userId, ...values });
+  folderModel.findById = async () => ({ id: folderId });
+  try {
+    const item = await itemService.create("7", {
+      sourceUrl: "https://example.com/multi",
+      title: "多目录测试",
+      folderIds: [folderId, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]
+    });
+    assert.deepEqual(item.folderIds, [folderId, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]);
+  } finally {
+    itemModel.findDuplicate = originalDuplicate;
+    itemModel.create = originalCreate;
+    folderModel.findById = originalFindFolder;
+  }
+});

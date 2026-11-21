@@ -105,7 +105,10 @@ async function hasContents(userId, id, space = "star", client = pool) {
     `SELECT EXISTS (
         SELECT 1 FROM bookmark_folders WHERE user_id = $1 AND parent_id = $2 AND space = $3
        UNION ALL
-        SELECT 1 FROM bookmark_items WHERE user_id = $1 AND folder_id = $2 AND space = $3
+         SELECT 1 FROM bookmark_items WHERE user_id = $1 AND folder_id = $2 AND space = $3
+        UNION ALL
+         SELECT 1 FROM bookmark_item_folders links JOIN bookmark_items items ON items.id = links.item_id
+          WHERE items.user_id = $1 AND links.folder_id = $2 AND items.space = $3
      ) AS "hasContents"`,
     [userId, id, space]
   );

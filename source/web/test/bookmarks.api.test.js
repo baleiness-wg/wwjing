@@ -39,6 +39,13 @@ test("收藏查询序列化筛选和分页参数并携带登录令牌", async ()
   assert.equal(request.options.headers.get("Authorization"), "Bearer test-token");
 });
 
+test("收藏查询支持多个目录筛选", async () => {
+  await getBookmarkItems({ folderIds: ["a", "b"] });
+  const request = requests.shift();
+  const url = new URL(request.url, "https://example.test");
+  assert.equal(url.searchParams.get("folderIds"), "a,b");
+});
+
 test("收藏和目录写请求符合服务端 JSON 契约", async () => {
   await createBookmarkItem({
     sourceUrl: "https://example.com",

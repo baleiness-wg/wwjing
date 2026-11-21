@@ -255,6 +255,7 @@ class ApiClient {
             ? null
             : draft.description.trim(),
         'folderId': draft.folderId,
+        'folderIds': draft.folderIds,
         'space': space,
         'images': draft.images,
         'allowDuplicate': allowDuplicate,

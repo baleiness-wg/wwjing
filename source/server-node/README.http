@@ -124,7 +124,7 @@ Authorization: Bearer {{TOKEN}}
 Content-Type: application/json
 
 {
-  "folderId": "{{CHILD_FOLDER_ID}}",
+  "folderIds": ["{{ROOT_FOLDER_ID}}", "{{CHILD_FOLDER_ID}}"],
   "sourceUrl": "https://example.com/article/?utm_source=demo#section",
   "title": "示例文章",
   "description": "仅响应返回描述；服务端日志不会记录正文",

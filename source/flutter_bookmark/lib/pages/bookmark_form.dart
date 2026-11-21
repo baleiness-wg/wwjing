@@ -25,6 +25,7 @@ class _BookmarkFormState extends State<BookmarkForm> {
   late final TextEditingController _description;
   late final TextEditingController _imageUrl;
   String? _folderId;
+  Set<String> _folderIds = {};
   List<String> _images = const [];
   bool _recognizing = false;
   Future<BookmarkMetadata?>? _metadataFuture;
@@ -38,8 +39,11 @@ class _BookmarkFormState extends State<BookmarkForm> {
     _url = TextEditingController(text: draft.sourceUrl);
     _title = TextEditingController(text: draft.title);
     _description = TextEditingController(text: draft.description);
-    _imageUrl = TextEditingController(text: draft.images.isEmpty ? '' : draft.images.first);
+    _imageUrl = TextEditingController(
+      text: draft.images.isEmpty ? '' : draft.images.first,
+    );
     _folderId = draft.folderId;
+    _folderIds = draft.folderIds.toSet();
     _images = draft.images;
     if (draft.fetchMetadataOnOpen && draft.sourceUrl.trim().isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -142,12 +146,17 @@ class _BookmarkFormState extends State<BookmarkForm> {
       }
       if (metadata?.coverUrl?.trim().isNotEmpty == true) {
         _imageUrl.text = metadata!.coverUrl!.trim();
-        _images = [_imageUrl.text, ..._images.where((value) => value != _imageUrl.text)];
+        _images = [
+          _imageUrl.text,
+          ..._images.where((value) => value != _imageUrl.text),
+        ];
       }
-      if (_title.text.trim().isEmpty && metadata?.title?.trim().isNotEmpty == true) {
+      if (_title.text.trim().isEmpty &&
+          metadata?.title?.trim().isNotEmpty == true) {
         _title.text = metadata!.title!.trim();
       }
-      if (_description.text.trim().isEmpty && metadata?.description?.trim().isNotEmpty == true) {
+      if (_description.text.trim().isEmpty &&
+          metadata?.description?.trim().isNotEmpty == true) {
         _description.text = metadata!.description!.trim();
       }
     });
@@ -168,7 +177,9 @@ class _BookmarkFormState extends State<BookmarkForm> {
       title: _title.text.trim(),
       description: _description.text.trim(),
       folderId: _folderId,
-      images: _imageUrl.text.trim().isEmpty ? const [] : [_imageUrl.text.trim()],
+      images: _imageUrl.text.trim().isEmpty
+          ? const []
+          : [_imageUrl.text.trim()],
     );
     final saved = await state.saveDraft(
       value,
@@ -216,26 +227,25 @@ class _BookmarkFormState extends State<BookmarkForm> {
         final overwritten = await state.overwriteItem(duplicate.id, value);
         if (overwritten && mounted) state.closeDraft();
       } else if (action == 'duplicate') {
-        await state.saveDraft(
-          value,
-          allowDuplicate: true,
-        );
+        await state.saveDraft(value, allowDuplicate: true);
       }
     }
   }
 
   Future<void> _chooseFolder(List<FolderNode> nodes) async {
     final state = context.read<AppState>();
-    final selected = await showFolderPicker(
+    final selected = await showMultiFolderPicker(
       context: context,
       state: state,
       title: '选择收藏夹',
-      selectedFolderId: _folderId,
+      selectedFolderIds: _folderIds,
       rootLabel: '未分类',
-      allowCreate: true,
     );
     if (!mounted || selected == null) return;
-    setState(() => _folderId = selected.isEmpty ? null : selected);
+    setState(() {
+      _folderIds = selected.toSet();
+      _folderId = selected.isEmpty ? null : selected.first;
+    });
   }
 
   @override
@@ -292,8 +302,10 @@ class _BookmarkFormState extends State<BookmarkForm> {
                 onChanged: _onUrlChanged,
                 validator: (value) {
                   final uri = Uri.tryParse(value?.trim() ?? '');
-                  return value == null || value.trim().isEmpty ||
-                          (uri != null && uri.hasAuthority &&
+                  return value == null ||
+                          value.trim().isEmpty ||
+                          (uri != null &&
+                              uri.hasAuthority &&
                               (uri.scheme == 'http' || uri.scheme == 'https'))
                       ? null
                       : '请输入有效的 HTTP/HTTPS 链接';
@@ -329,7 +341,9 @@ class _BookmarkFormState extends State<BookmarkForm> {
                       ),
                       keyboardType: TextInputType.url,
                       onChanged: (value) => setState(() {
-                        _images = value.trim().isEmpty ? const [] : [value.trim()];
+                        _images = value.trim().isEmpty
+                            ? const []
+                            : [value.trim()];
                       }),
                     ),
                   ),
@@ -358,12 +372,7 @@ class _BookmarkFormState extends State<BookmarkForm> {
                   leading: const Icon(Icons.folder_outlined),
                   title: const Text('收藏夹'),
                   subtitle: Text(
-                    _folderId == null
-                        ? '未分类'
-                        : folderNodes
-                              .firstWhere((node) => node.folder.id == _folderId)
-                              .folder
-                              .name,
+                    _folderIds.isEmpty ? '未分类' : '已选择 ${_folderIds.length} 个目录',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),

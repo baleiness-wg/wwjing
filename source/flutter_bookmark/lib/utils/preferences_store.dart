@@ -9,6 +9,8 @@ abstract interface class PreferencesStore {
   Future<void> setSelectedRandomFolderIds(List<String>? folderIds);
   Future<List<String>> recommendations();
   Future<void> saveRecommendation(String value);
+  Future<List<String>> recommendationItemIds();
+  Future<void> saveRecommendationItemId(String value);
 }
 
 class SharedPreferencesStore implements PreferencesStore {
@@ -16,6 +18,7 @@ class SharedPreferencesStore implements PreferencesStore {
   static const _clipboardKey = 'handled_clipboard_url';
   static const _randomFoldersKey = 'selected_random_folder_ids';
   static const _recommendationsKey = 'home_recommendations';
+  static const _recommendationItemIdsKey = 'home_recommendation_item_ids';
 
   Future<SharedPreferences> get _prefs => SharedPreferences.getInstance();
 
@@ -71,5 +74,19 @@ class SharedPreferencesStore implements PreferencesStore {
       ...(prefs.getStringList(_recommendationsKey) ?? const <String>[]),
     ].take(20).toList();
     await prefs.setStringList(_recommendationsKey, values);
+  }
+
+  @override
+  Future<List<String>> recommendationItemIds() async =>
+      (await _prefs).getStringList(_recommendationItemIdsKey) ?? const [];
+
+  @override
+  Future<void> saveRecommendationItemId(String value) async {
+    final prefs = await _prefs;
+    final values = <String>[
+      value,
+      ...(prefs.getStringList(_recommendationItemIdsKey) ?? const <String>[]),
+    ].toSet().take(20).toList();
+    await prefs.setStringList(_recommendationItemIdsKey, values);
   }
 }

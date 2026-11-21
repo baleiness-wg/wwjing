@@ -230,6 +230,7 @@ class AppState extends ChangeNotifier {
             title: item.title ?? '',
             description: item.description ?? '',
             folderId: item.folderId,
+            folderIds: item.folderIds,
             images: item.images,
           );
     notifyListeners();
@@ -332,13 +333,17 @@ class AppState extends ChangeNotifier {
               ? null
               : value.description.trim(),
           'folderId': value.folderId,
+          'folderIds': value.folderIds,
           'images': value.images,
         });
       }
-      if (value.folderId != null) {
-        await preferences.rememberFolder(value.folderId!);
-        recentFolderIds = await preferences.recentFolders();
+      for (final folderId
+          in value.folderIds.isEmpty
+              ? (value.folderId == null ? const <String>[] : [value.folderId!])
+              : value.folderIds) {
+        await preferences.rememberFolder(folderId);
       }
+      recentFolderIds = await preferences.recentFolders();
       draft = null;
       editingItemId = null;
       saved = true;
@@ -397,6 +402,7 @@ class AppState extends ChangeNotifier {
             ? null
             : value.description.trim(),
         'folderId': value.folderId,
+        'folderIds': value.folderIds,
         'images': value.images,
       });
       updated = true;

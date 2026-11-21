@@ -25,6 +25,121 @@ Future<String?> showFolderPicker({
   );
 }
 
+Future<List<String>?> showMultiFolderPicker({
+  required BuildContext context,
+  required AppState state,
+  required String title,
+  Set<String> selectedFolderIds = const {},
+  String rootLabel = '未分类',
+}) {
+  return showDialog<List<String>>(
+    context: context,
+    builder: (_) => MultiFolderPickerDialog(
+      state: state,
+      title: title,
+      selectedFolderIds: selectedFolderIds,
+      rootLabel: rootLabel,
+    ),
+  );
+}
+
+class MultiFolderPickerDialog extends StatefulWidget {
+  const MultiFolderPickerDialog({
+    super.key,
+    required this.state,
+    required this.title,
+    required this.selectedFolderIds,
+    required this.rootLabel,
+  });
+  final AppState state;
+  final String title;
+  final Set<String> selectedFolderIds;
+  final String rootLabel;
+  @override
+  State<MultiFolderPickerDialog> createState() =>
+      _MultiFolderPickerDialogState();
+}
+
+class _MultiFolderPickerDialogState extends State<MultiFolderPickerDialog> {
+  late final Set<String> _selected = {...widget.selectedFolderIds};
+  final Set<String> _collapsed = {};
+
+  Iterable<FolderNode> _nodes() sync* {
+    void visit(FolderNode node) {
+      _result.add(node);
+      if (!_collapsed.contains(node.folder.id)) {
+        for (final child in node.children) {
+          visit(child);
+        }
+      }
+    }
+
+    _result.clear();
+    for (final root in widget.state.folderTree) {
+      visit(root);
+    }
+    yield* _result;
+  }
+
+  final _result = <FolderNode>[];
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: Text(widget.title),
+    content: SizedBox(
+      height: MediaQuery.sizeOf(context).height * .6,
+      width: MediaQuery.sizeOf(context).width - 72,
+      child: ListView(
+        children: [
+          ListTile(title: Text(widget.rootLabel)),
+          for (final node in _nodes())
+            Padding(
+              padding: EdgeInsets.only(left: (node.depth - 1) * 16.0),
+              child: CheckboxListTile(
+                dense: true,
+                value: _selected.contains(node.folder.id),
+                title: Text(node.folder.name),
+                secondary: node.children.isEmpty
+                    ? null
+                    : IconButton(
+                        icon: Icon(
+                          _collapsed.contains(node.folder.id)
+                              ? Icons.chevron_right
+                              : Icons.expand_more,
+                        ),
+                        onPressed: () => setState(() {
+                          if (_collapsed.contains(node.folder.id)) {
+                            _collapsed.remove(node.folder.id);
+                          } else {
+                            _collapsed.add(node.folder.id);
+                          }
+                        }),
+                      ),
+                onChanged: (value) => setState(() {
+                  if (value == true) {
+                    _selected.add(node.folder.id);
+                  } else {
+                    _selected.remove(node.folder.id);
+                  }
+                }),
+              ),
+            ),
+        ],
+      ),
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: const Text('取消'),
+      ),
+      FilledButton(
+        onPressed: () => Navigator.pop(context, _selected.toList()),
+        child: const Text('选择'),
+      ),
+    ],
+  );
+}
+
 Future<String?> showFolderNameDialog(
   BuildContext context, {
   String title = '新增目录',
