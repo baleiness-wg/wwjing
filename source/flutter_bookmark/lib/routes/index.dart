@@ -65,7 +65,6 @@ class _BookmarkAppState extends State<BookmarkApp> with WidgetsBindingObserver {
   String? _clipboardCandidate;
   String? _clipboardText;
   int _selectedTab = 0;
-  final GlobalKey<ScaffoldState> _homeScaffoldKey = GlobalKey<ScaffoldState>();
 
   @override
   void initState() {
@@ -185,20 +184,8 @@ class _BookmarkAppState extends State<BookmarkApp> with WidgetsBindingObserver {
               body: IndexedStack(
                 index: _selectedTab,
                 children: [
-                  HomePage(
-                    appConfig: widget.appConfig,
-                    scaffoldKey: _homeScaffoldKey,
-                  ),
-                  MyPage(
-                    appConfig: widget.appConfig,
-                    onOpenFolders: () {
-                      widget.state.selectView(BookmarkView.all);
-                      setState(() => _selectedTab = 0);
-                      WidgetsBinding.instance.addPostFrameCallback((_) {
-                        _homeScaffoldKey.currentState?.openDrawer();
-                      });
-                    },
-                  ),
+                  HomePage(appConfig: widget.appConfig),
+                  MyPage(appConfig: widget.appConfig),
                 ],
               ),
               bottomNavigationBar: Column(

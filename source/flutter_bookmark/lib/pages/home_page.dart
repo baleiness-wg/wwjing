@@ -9,18 +9,16 @@ import '../constants/app_config.dart';
 import '../stores/bookmark_state.dart';
 import '../viewmodels/bookmark.dart';
 import '../utils/link_launcher.dart';
-import 'folder_navigation.dart';
+import 'inspiration_library_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({
     super.key,
     required this.appConfig,
-    this.scaffoldKey,
     this.linkLauncher = const LinkLauncher(),
   });
 
   final AppConfig appConfig;
-  final GlobalKey<ScaffoldState>? scaffoldKey;
   final LinkLauncher linkLauncher;
 
   @override
@@ -317,9 +315,7 @@ class _HomePageState extends State<HomePage> {
     final state = context.watch<AppState>();
     return LayoutBuilder(
       builder: (context, constraints) {
-        final wide = constraints.maxWidth >= 760;
         final scaffold = Scaffold(
-          key: widget.scaffoldKey,
           appBar: AppBar(
             leadingWidth: _editMode ? 72 : null,
             leading: _editMode
@@ -403,14 +399,6 @@ class _HomePageState extends State<HomePage> {
                 ),
             ],
           ),
-          drawer: wide
-              ? null
-              : Drawer(
-                  child: FolderNavigation(
-                    closeAfterSelection: true,
-                    appConfig: widget.appConfig,
-                  ),
-                ),
           body: Stack(
             children: [
               Column(
@@ -482,6 +470,24 @@ class _HomePageState extends State<HomePage> {
                         ),
                       ),
                     ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(10, 4, 10, 2),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: OutlinedButton.icon(
+                        icon: const Icon(Icons.lightbulb_outline, size: 18),
+                        label: const Text('灵感库'),
+                        onPressed: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => InspirationLibraryPage(
+                              appConfig: widget.appConfig,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
                   if (state.error != null)
                     MaterialBanner(
                       content: Text(state.error!),
@@ -622,20 +628,7 @@ class _HomePageState extends State<HomePage> {
             ],
           ),
         );
-        final content = wide
-            ? Row(
-                children: [
-                  SizedBox(
-                    width: 300,
-                    child: Material(
-                      child: FolderNavigation(appConfig: widget.appConfig),
-                    ),
-                  ),
-                  const VerticalDivider(width: 1),
-                  Expanded(child: scaffold),
-                ],
-              )
-            : scaffold;
+        final content = scaffold;
         return PopScope(
           canPop: !_editMode && state.view != BookmarkView.folder,
           onPopInvokedWithResult: (didPop, _) {
