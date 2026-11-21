@@ -137,16 +137,12 @@ class ApiClient {
   }
 
   Future<List<InspirationEntry>> getInspirations() async {
-    final data = await _request(
-      'GET',
-      '/bookmarks/inspirations',
-      query: {'space': space},
-    ) as Map<String, dynamic>;
-    return (data['entries'] as List? ?? const [])
-        .map(
-          (value) => InspirationEntry.fromJson(value as Map<String, dynamic>),
-        )
-        .toList();
+    final result = await getItems(
+      itemType: 'inspiration',
+      excludeCompleted: true,
+      pageSize: 100,
+    );
+    return result.items.map(InspirationEntry.fromBookmarkItem).toList();
   }
 
   Future<InspirationEntry> createInspiration({
@@ -156,15 +152,19 @@ class ApiClient {
   }) async {
     final data = await _request(
       'POST',
-      '/bookmarks/inspirations',
+      '/bookmarks/items',
       body: {
+        'itemType': 'inspiration',
         'content': content,
+        'description': content,
         'title': title,
         'folderId': folderId,
         'space': space,
       },
     ) as Map<String, dynamic>;
-    return InspirationEntry.fromJson(data['entry'] as Map<String, dynamic>);
+    return InspirationEntry.fromBookmarkItem(
+      BookmarkItem.fromJson(data['item'] as Map<String, dynamic>),
+    );
   }
 
   Future<InspirationEntry> updateInspiration(
@@ -175,19 +175,29 @@ class ApiClient {
   }) async {
     final data = await _request(
       'PATCH',
-      '/bookmarks/inspirations/$id',
+      '/bookmarks/items/$id',
       body: {
+        'itemType': 'inspiration',
         'content': content,
+        'description': content,
         'title': title,
         'folderId': folderId,
         'space': space,
       },
     ) as Map<String, dynamic>;
-    return InspirationEntry.fromJson(data['entry'] as Map<String, dynamic>);
+    return InspirationEntry.fromBookmarkItem(
+      BookmarkItem.fromJson(data['item'] as Map<String, dynamic>),
+    );
   }
 
   Future<void> deleteInspiration(String id) async {
-    await _request('DELETE', '/bookmarks/inspirations/$id?space=$space');
+    await deleteItem(id);
+  }
+
+  Future<void> completeInspiration(String id) async {
+    await updateItem(id, {
+      'metadata': {'completed': true},
+    });
   }
 
   Future<({List<BookmarkItem> items, int page, int totalPages})> getItems({
@@ -196,6 +206,8 @@ class ApiClient {
     bool uncategorized = false,
     String query = '',
     String? platform,
+    String? itemType,
+    bool excludeCompleted = false,
     int page = 1,
     int pageSize = 20,
   }) async {
@@ -209,6 +221,8 @@ class ApiClient {
     if (uncategorized) params['uncategorized'] = 'true';
     if (query.trim().isNotEmpty) params['query'] = query.trim();
     if (platform != null && platform != 'all') params['platform'] = platform;
+    if (itemType != null) params['itemType'] = itemType;
+    if (excludeCompleted) params['excludeCompleted'] = 'true';
     final data = await _request('GET', '/bookmarks/items', query: params);
     final map = data is Map<String, dynamic>
         ? data

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../constants/app_config.dart';
+import '../components/folder_picker_dialog.dart';
 import '../stores/bookmark_state.dart';
 import '../viewmodels/bookmark.dart';
 
@@ -40,12 +41,14 @@ class _InspirationLibraryPageState extends State<InspirationLibraryPage> {
 
   Future<void> _edit([InspirationEntry? entry]) async {
     final state = context.read<AppState>();
+    final selectedFolder = entry?.folderId;
     final result = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
       builder: (_) => _InspirationEditorSheet(
         entry: entry,
         folders: state.folders,
+        selectedFolderId: selectedFolder,
         onSave: (title, content, folderId) async {
           if (entry == null) {
             await state.api.createInspiration(
@@ -92,6 +95,11 @@ class _InspirationLibraryPageState extends State<InspirationLibraryPage> {
     }
   }
 
+  Future<void> _complete(InspirationEntry entry) async {
+    await context.read<AppState>().api.completeInspiration(entry.id);
+    if (mounted) _load();
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = context.read<AppState>();
@@ -125,11 +133,24 @@ class _InspirationLibraryPageState extends State<InspirationLibraryPage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            entry.title?.isNotEmpty == true
-                                ? entry.title!
-                                : '未命名灵感',
-                            style: Theme.of(context).textTheme.titleMedium,
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  entry.title?.isNotEmpty == true
+                                      ? entry.title!
+                                      : '未命名灵感',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .titleMedium,
+                                ),
+                              ),
+                              IconButton(
+                                tooltip: '标记为已落实',
+                                onPressed: () => _complete(entry),
+                                icon: const Icon(Icons.check_circle_outline),
+                              ),
+                            ],
                           ),
                           const SizedBox(height: 8),
                           Text(
@@ -162,11 +183,13 @@ class _InspirationEditorSheet extends StatefulWidget {
   const _InspirationEditorSheet({
     required this.entry,
     required this.folders,
+    required this.selectedFolderId,
     required this.onSave,
   });
 
   final InspirationEntry? entry;
   final List<BookmarkFolder> folders;
+  final String? selectedFolderId;
   final Future<void> Function(String title, String content, String? folderId)
   onSave;
 
@@ -186,7 +209,7 @@ class _InspirationEditorSheetState extends State<_InspirationEditorSheet> {
     super.initState();
     _title = TextEditingController(text: widget.entry?.title ?? '');
     _content = TextEditingController(text: widget.entry?.content ?? '');
-    _folderId = widget.entry?.folderId;
+    _folderId = widget.selectedFolderId;
   }
 
   @override
@@ -239,19 +262,21 @@ class _InspirationEditorSheetState extends State<_InspirationEditorSheet> {
           ),
         ),
         const SizedBox(height: 8),
-        DropdownButtonFormField<String?>(
-          initialValue: _folderId,
-          decoration: const InputDecoration(labelText: '关联收藏夹目录（可选）'),
-          items: [
-            const DropdownMenuItem<String?>(value: null, child: Text('不关联目录')),
-            ...widget.folders.map(
-              (folder) => DropdownMenuItem<String?>(
-                value: folder.id,
-                child: Text(folder.name),
-              ),
-            ),
-          ],
-          onChanged: (value) => setState(() => _folderId = value),
+        OutlinedButton.icon(
+          icon: const Icon(Icons.folder_outlined),
+          label: Text(_folderId == null ? '选择关联目录' : '已选择收藏夹目录'),
+          onPressed: () async {
+            final selected = await showFolderPicker(
+              context: context,
+              state: context.read<AppState>(),
+              title: '关联收藏夹目录',
+              selectedFolderId: _folderId,
+              rootLabel: '不关联目录',
+            );
+            if (selected != null) {
+              setState(() => _folderId = selected.isEmpty ? null : selected);
+            }
+          },
         ),
         const SizedBox(height: 12),
         FilledButton(

@@ -28,6 +28,9 @@ bookmark-management 模块为同一账号提供跨 Android 与 Web 的私人链�
 - Flutter 登录后的主界面底部 SHALL 显示“首页”和“我的”两个底部导航入口；首页保留现有收藏功能，我页面用于承载个人工具入口。
 - “我的”页面 SHALL 提供“灵感库”入口；灵感库支持记录标题和正文，并可关联当前收藏空间中的一个收藏夹目录。
 - 灵感库条目 SHALL 支持新增、编辑和删除，正文不能为空；关联目录删除后，灵感条目仍保留但自动变为未关联目录。
+- 灵感库条目 SHALL 与链接收藏共用收藏条目和收藏夹目录；关联目录后，灵感在该目录内容列表中与链接一并显示。
+- 灵感库右上角 SHALL 为每条灵感提供“已落实”勾选操作；勾选后灵感保留在关联目录中，但不再出现在灵感库待落实列表。
+- 灵感库关联目录 SHALL 复用新增链接的递归目录选择器，支持展开、收起和选择任意子目录。
 - Android 与 Web 修改同一服务端数据，任一客户端刷新后均显示最新目录和收藏内容。
 - 用户可通过收藏条目的明确按钮打开原始链接；Android 对配置为直达首页的平台域名直接启动对应 App，其他已配置平台尝试用原链接唤起对应 App，未安装或唤起失败时回退到系统可处理该链接的外部应用或浏览器，Web 在新标签页打开。
 - 每条收藏可保存封面 URL；Android 在接收分享或剪贴板链接时尝试识别公开页面标题、描述和封面，Web 与 Android 均允许重新识别或手动修改封面。
@@ -234,14 +237,15 @@ bookmark-management 模块为同一账号提供跨 Android 与 Web 的私人链�
 
 ### 灵感库条目
 
-- **接口路径**：`/api/bookmarks/inspirations`
-- **请求方式**：GET、POST；单条更新使用 PATCH `/api/bookmarks/inspirations/:id`，删除使用 DELETE `/api/bookmarks/inspirations/:id`。
-- **请求参数**：`space` 为 `star` 或 `kitchen`；创建和更新支持可选 `title`、可选 `folderId` 和必填 `content`。
-- **返回参数**：灵感条目包含 `id`、`title`、`content`、`folderId`、`createdAt` 和 `updatedAt`；关联目录删除后 `folderId` 返回 `null`。
+- **接口路径**：`/api/bookmarks/items`
+- **请求方式**：GET、POST；单条更新使用 PATCH `/api/bookmarks/items/:id`，删除使用 DELETE `/api/bookmarks/items/:id`。
+- **请求参数**：灵感使用 `itemType: "inspiration"`，`space` 为 `star` 或 `kitchen`；创建和更新支持可选 `title`、可选 `folderId` 和必填 `description`。查询灵感时使用 `itemType=inspiration&excludeCompleted=true`。
+- **返回参数**：灵感条目使用收藏条目结构，包含 `itemType`、`id`、`title`、`description`、`folderId`、`metadata`、`createdAt` 和 `updatedAt`；关联目录删除后 `folderId` 返回 `null`。
 
 ```json
 {
-  "content": "想到一个新的菜谱分类方式",
+  "itemType": "inspiration",
+  "description": "想到一个新的菜谱分类方式",
   "title": "菜谱灵感",
   "folderId": "folder-id",
   "space": "kitchen"

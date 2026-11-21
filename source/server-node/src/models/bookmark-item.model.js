@@ -43,6 +43,13 @@ async function list(userId, filters) {
     ) SELECT id FROM visible_folders
   ))`];
   const parameters = [userId, filters.space || "star"];
+  if (filters.itemType) {
+    parameters.push(filters.itemType);
+    conditions.push(`item.item_type = $${parameters.length}`);
+  }
+  if (filters.excludeCompleted) {
+    conditions.push("COALESCE((item.metadata->>'completed')::boolean, false) = false");
+  }
   if (filters.folderId) {
     parameters.push(filters.folderId);
     if (filters.includeDescendants) {
@@ -100,11 +107,11 @@ async function list(userId, filters) {
 async function create(userId, values) {
   const result = await pool.query(
      `INSERT INTO bookmark_items
-          (id, user_id, space, folder_id, title, description, images, source_url, normalized_url, source_host)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+           (id, user_id, space, folder_id, item_type, title, description, images, source_url, normalized_url, source_host, metadata)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
      RETURNING ${selectFields}`,
-    [randomId(), userId, values.space, values.folderId, values.title, values.description, JSON.stringify(values.images || []), values.sourceUrl,
-      values.normalizedUrl, values.sourceHost]
+    [randomId(), userId, values.space, values.folderId, values.itemType || "link", values.title, values.description, JSON.stringify(values.images || []), values.sourceUrl,
+      values.normalizedUrl, values.sourceHost, JSON.stringify(values.metadata || {})]
   );
   return result.rows[0];
 }
@@ -112,11 +119,12 @@ async function create(userId, values) {
 async function update(userId, id, values) {
   const result = await pool.query(
       `UPDATE bookmark_items SET folder_id = $4, title = $5, description = $6,
-        images = $7, source_url = $8, normalized_url = $9, source_host = $10, updated_at = NOW()
+        images = $7, source_url = $8, normalized_url = $9, source_host = $10,
+        metadata = $11, updated_at = NOW()
       WHERE id = $2 AND space = $3 AND (user_id = $1 OR folder_id IN (WITH RECURSIVE shared AS (SELECT folder_id AS id FROM bookmark_folder_shares WHERE user_id = $1 AND space = $3 UNION ALL SELECT child.id FROM bookmark_folders child JOIN shared ON child.parent_id = shared.id WHERE child.space = $3) SELECT id FROM shared))
      RETURNING ${selectFields}`,
     [userId, id, values.space, values.folderId, values.title, values.description, JSON.stringify(values.images || []), values.sourceUrl,
-      values.normalizedUrl, values.sourceHost]
+      values.normalizedUrl, values.sourceHost, JSON.stringify(values.metadata || {})]
   );
   return result.rows[0] || null;
 }

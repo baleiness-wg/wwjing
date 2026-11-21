@@ -31,6 +31,7 @@ class _HomePageState extends State<HomePage> {
   final _search = TextEditingController();
   bool _editMode = false;
   bool _randomBusy = false;
+  bool _showPlatformFilters = false;
   final Set<String> _selectedItemIds = {};
 
   @override
@@ -422,6 +423,20 @@ class _HomePageState extends State<HomePage> {
                       leading: const Icon(Icons.search),
                       trailing: [
                         IconButton(
+                          tooltip: _showPlatformFilters ? '收起平台筛选' : '展开平台筛选',
+                          onPressed: () => setState(
+                            () => _showPlatformFilters = !_showPlatformFilters,
+                          ),
+                          icon: Icon(
+                            _showPlatformFilters
+                                ? Icons.tune
+                                : Icons.tune_outlined,
+                            color: state.platform == 'all'
+                                ? null
+                                : Theme.of(context).colorScheme.primary,
+                          ),
+                        ),
+                        IconButton(
                           onPressed: () => state.search(_search.text),
                           icon: const Icon(Icons.arrow_forward),
                         ),
@@ -429,43 +444,44 @@ class _HomePageState extends State<HomePage> {
                       onSubmitted: state.search,
                     ),
                   ),
-                  SizedBox(
-                    height: 48,
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      padding: const EdgeInsets.fromLTRB(10, 3, 10, 5),
-                      child: Row(
-                        children: [
-                          for (final platform in const [
-                            ('all', '全部'),
-                            ('xiaohongshu', '小红书'),
-                            ('douyin', '抖音'),
-                            ('bilibili', 'bilibili'),
-                          ])
-                            Padding(
-                              padding: const EdgeInsets.only(right: 7),
-                              child: FilterChip(
-                                showCheckmark: false,
-                                avatar: Icon(
-                                  platform.$1 == 'all'
-                                      ? Icons.apps_outlined
-                                      : platform.$1 == 'xiaohongshu'
-                                      ? Icons.auto_awesome_outlined
-                                      : platform.$1 == 'douyin'
-                                      ? Icons.music_note_outlined
-                                      : Icons.play_circle_outline,
-                                  size: 16,
+                  if (_showPlatformFilters)
+                    SizedBox(
+                      height: 48,
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        padding: const EdgeInsets.fromLTRB(10, 3, 10, 5),
+                        child: Row(
+                          children: [
+                            for (final platform in const [
+                              ('all', '全部'),
+                              ('xiaohongshu', '小红书'),
+                              ('douyin', '抖音'),
+                              ('bilibili', 'bilibili'),
+                            ])
+                              Padding(
+                                padding: const EdgeInsets.only(right: 7),
+                                child: FilterChip(
+                                  showCheckmark: false,
+                                  avatar: Icon(
+                                    platform.$1 == 'all'
+                                        ? Icons.apps_outlined
+                                        : platform.$1 == 'xiaohongshu'
+                                        ? Icons.auto_awesome_outlined
+                                        : platform.$1 == 'douyin'
+                                        ? Icons.music_note_outlined
+                                        : Icons.play_circle_outline,
+                                    size: 16,
+                                  ),
+                                  label: Text(platform.$2),
+                                  selected: state.platform == platform.$1,
+                                  onSelected: (_) =>
+                                      state.selectPlatform(platform.$1),
                                 ),
-                                label: Text(platform.$2),
-                                selected: state.platform == platform.$1,
-                                onSelected: (_) =>
-                                    state.selectPlatform(platform.$1),
                               ),
-                            ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
-                  ),
                   if (state.error != null)
                     MaterialBanner(
                       content: Text(state.error!),

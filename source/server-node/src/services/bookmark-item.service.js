@@ -114,6 +114,7 @@ async function list(userId, input = {}) {
     throw new BookmarkError(400, "INVALID_INPUT", "page 和 pageSize 必须是有效的分页参数");
   }
   const query = typeof input.query === "string" ? input.query.trim() : "";
+  const itemType = input.itemType === "inspiration" ? "inspiration" : undefined;
   const platform = typeof input.platform === "string" ? input.platform.trim() : "";
   if (platform && !["all", "xiaohongshu", "douyin", "bilibili"].includes(platform)) {
     throw new BookmarkError(400, "INVALID_INPUT", "platform 不是有效的平台筛选值");
@@ -127,6 +128,8 @@ async function list(userId, input = {}) {
     page,
     pageSize
   };
+  if (itemType) filters.itemType = itemType;
+  if (input.excludeCompleted === "true") filters.excludeCompleted = true;
   if (platform) filters.platform = platform;
   const result = await itemModel.list(userId, filters);
   return { ...result, page, pageSize };
@@ -151,12 +154,14 @@ async function create(userId, input = {}) {
   }
   const item = await itemModel.create(userId, {
     space,
+    itemType: input.itemType === "inspiration" ? "inspiration" : "link",
     folderId,
-    title: requiredTitle(input.title),
+    title: input.itemType === "inspiration" ? optionalText(input.title, "title") : requiredTitle(input.title),
     description: optionalText(input.description, "description"),
     images: imageUrls(Object.hasOwn(input, "images") ? input.images : input.coverUrl) ?? [],
     coverUrl: imageUrls(Object.hasOwn(input, "images") ? input.images : input.coverUrl)?.[0] || null,
     sourceUrl,
+    metadata: input.itemType === "inspiration" ? { completed: false } : {},
     ...normalized
   });
   return item;
@@ -179,8 +184,13 @@ async function update(userId, idValue, input = {}) {
     : current.folderId;
   const item = await itemModel.update(userId, id, {
     space,
+    metadata: Object.hasOwn(input, "metadata") ? input.metadata : (current.metadata || {}),
     folderId,
-    title: Object.hasOwn(input, "title") ? requiredTitle(input.title) : current.title,
+    title: Object.hasOwn(input, "title")
+      ? current.itemType === "inspiration"
+        ? optionalText(input.title, "title")
+        : requiredTitle(input.title)
+      : current.title,
     description: Object.hasOwn(input, "description")
       ? optionalText(input.description, "description") : current.description,
     images: Object.hasOwn(input, "images")

@@ -309,6 +309,7 @@ async function loadSnapshotForCurrentRoom() {
   user.value = snapshot.user;
   topics.value = snapshot.topics;
   cellLocks.value = snapshot.locks || {};
+  if (editingCell.value) cellLocks.value[editingCell.value] = currentDisplayName.value;
   columnWidths.value = snapshot.columnWidths || columnWidths.value;
   selectTopic(snapshot.topics[0]);
 }
@@ -358,7 +359,7 @@ function connect() {
       } else if (message.type === "topic:created") {
         topics.value.push(message.topic);
         selectTopic(message.topic);
-        notifyOffice({ user: message.user || "其他用户" }, `新建了话题“${message.topic.name}”`);
+      if (message.user !== currentDisplayName.value) notifyOffice({ user: message.user }, `新建了话题“${message.topic.name}”`);
     } else if (message.type === "cell:draft") {
       const topic = topics.value.find((item) => item.id === message.topicId);
       if (!topic || editingCell.value === `${message.topicId}:${message.row}:${message.column}`) return;

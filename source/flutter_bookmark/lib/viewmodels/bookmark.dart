@@ -85,6 +85,8 @@ class BookmarkItem {
     this.title,
     this.description,
     this.sourceHost,
+    this.itemType = 'link',
+    this.metadata = const {},
     this.images = const [],
   });
 
@@ -98,6 +100,11 @@ class BookmarkItem {
     title: json['title'] as String?,
     description: json['description'] as String?,
     sourceHost: json['sourceHost'] as String? ?? json['source_host'] as String?,
+    itemType:
+        json['itemType'] as String? ?? json['item_type'] as String? ?? 'link',
+    metadata: json['metadata'] is Map
+        ? Map<String, dynamic>.from(json['metadata'] as Map)
+        : const {},
     images:
         (json['images'] as List?)?.whereType<String>().toList() ??
         _legacyImages(json),
@@ -109,6 +116,8 @@ class BookmarkItem {
   final String? title;
   final String? description;
   final String? sourceHost;
+  final String itemType;
+  final Map<String, dynamic> metadata;
   final List<String> images;
 
   String? get coverUrl => images.isEmpty ? null : images.first;
@@ -169,7 +178,17 @@ class InspirationEntry {
     this.folderId,
     this.createdAt,
     this.updatedAt,
+    this.completed = false,
   });
+
+  factory InspirationEntry.fromBookmarkItem(BookmarkItem item) =>
+      InspirationEntry(
+        id: item.id,
+        title: item.title,
+        content: item.description ?? '',
+        folderId: item.folderId,
+        completed: item.metadata['completed'] == true,
+      );
 
   factory InspirationEntry.fromJson(Map<String, dynamic> json) =>
       InspirationEntry(
@@ -189,6 +208,7 @@ class InspirationEntry {
   final String? folderId;
   final String? createdAt;
   final String? updatedAt;
+  final bool completed;
 }
 
 class DuplicateBookmarkInfo {

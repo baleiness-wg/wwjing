@@ -76,7 +76,7 @@ function attachOfficeWebSocket(server) {
           messages: []
         };
         room.topics.push(topic);
-        broadcast(room, { type: "topic:created", topic });
+        broadcast(room, { type: "topic:created", topic, user: user.name }, client);
       } else if (message.type === "cell:update") {
         const topic = room.topics.find((item) => item.id === message.topicId);
         if (!topic || !Number.isInteger(message.row) || !Number.isInteger(message.column)) return;
@@ -103,7 +103,7 @@ function attachOfficeWebSocket(server) {
            delete topic.cellEditedAt[authorKey];
          }
           const update = { ...message, type: "cell:updated", value: topic.cells[message.row][message.column], user: user.name, editedAt: topic.cellEditedAt?.[authorKey] || null, revision: room.revision };
-         broadcast(room, update);
+          broadcast(room, update, client);
          client.send(JSON.stringify({ type: "cell:update:ack", requestId: message.requestId, revision: room.revision }));
        } else if (message.type === "cell:draft") {
          const key = `${message.topicId}:${message.row}:${message.column}`;
