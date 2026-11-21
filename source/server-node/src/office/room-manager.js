@@ -78,7 +78,6 @@ function getRoom(roomId = "main") {
 }
 
 function listRooms() {
-  if (!rooms.has("main")) rooms.set("main", createRoom());
   return [...rooms.values()].map((room) => ({ id: room.id, name: room.name, online: room.clients.size, protected: Boolean(room.password) }));
 }
 

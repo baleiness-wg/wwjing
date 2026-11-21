@@ -6,7 +6,7 @@ import { changePassword } from "../api/auth";
 const columns = ref([]);
 const topics = ref([]);
 const rooms = ref([]);
-const activeRoomId = ref(localStorage.getItem("office_active_room") || "main");
+const activeRoomId = ref(localStorage.getItem("office_active_room") || "");
 const pendingRoomId = ref("");
 const roomListCollapsed = ref(true);
 const roomPassword = ref(localStorage.getItem(`office_room_password:${activeRoomId.value}`) || "");
@@ -283,6 +283,7 @@ function selectTopic(topic) {
 }
 
 async function loadSnapshotForCurrentRoom() {
+  if (!activeRoomId.value) return;
   const sequence = ++snapshotSequence;
   const roomId = activeRoomId.value;
   const response = await fetch("/api/office/snapshot", {
@@ -318,6 +319,7 @@ async function loadSnapshotForCurrentRoom() {
 }
 
 function connect() {
+  if (!activeRoomId.value) return;
   if (socket.value?.readyState === WebSocket.OPEN || socket.value?.readyState === WebSocket.CONNECTING) return;
   const token = "";
   const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
@@ -600,7 +602,7 @@ function enterRoom(room) {
   pendingRoomId.value = room.id;
   localStorage.setItem("office_active_room", room.id);
   if (room.id !== "main") roomPassword.value = localStorage.getItem(`office_room_password:${room.id}`) || "";
-  if (room.id === "main") { activeRoomId.value = room.id; roomPassword.value = ""; snapshotSequence += 1; topics.value = []; activeTopicId.value = ""; columns.value = []; socket.value?.close(); window.setTimeout(() => { connect(); loadSnapshotForCurrentRoom(); }, 100); return; }
+  if (!room.id) return;
   roomDialogMode.value = "enter";
   roomDialogVisible.value = true;
 }
@@ -672,7 +674,7 @@ async function submitPassword() {
   }
 }
 
-onMounted(() => { loadRooms(); connect(); loadSnapshotForCurrentRoom(); });
+onMounted(() => { loadRooms(); });
 onMounted(() => officeChannel?.addEventListener("message", notifyFromOtherTab));
 onMounted(() => document.addEventListener("visibilitychange", clearOfficeTitleNotice));
 onMounted(requestOfficeNotifications);
@@ -707,7 +709,7 @@ onUnmounted(() => {
     <section class="workbench-shell">
       <aside v-if="!roomListCollapsed" class="office-room-list"><div class="office-room-head"><strong>聊天房间</strong><span><button type="button" title="新建房间" @click="roomDialogMode = 'create'; roomName = ''; roomPassword = ''; roomDialogVisible = true">＋</button><button type="button" class="room-collapse-button" title="收起房间列表" aria-label="收起房间列表" @click="roomListCollapsed = true">‹</button></span></div><div v-for="room in rooms" :key="room.id" class="office-room-row"><button type="button" class="office-room-item" :class="{ 'is-active': room.id === activeRoomId }" @click="room.id === activeRoomId ? null : enterRoom(room)">{{ room.name }}<small>{{ room.protected ? '🔒' : '' }} {{ room.online || 0 }}</small></button><el-dropdown v-if="room.id !== 'main'" trigger="click"><button type="button" class="office-room-more">⋯</button><template #dropdown><el-dropdown-menu><el-dropdown-item @click="changeRoomPassword(room)">修改密码</el-dropdown-item><el-dropdown-item divided @click="deleteRoom(room)">删除房间</el-dropdown-item></el-dropdown-menu></template></el-dropdown></div></aside>
       <button v-else type="button" class="office-room-expand" title="展开房间列表" @click="roomListCollapsed = false">＋</button>
-      <div class="sheet-panel">
+      <div v-if="!activeRoomId" class="office-empty-room"><h2>请创建房间</h2><p>创建一个聊天房间后开始协作编辑。</p><button type="button" @click="roomDialogMode = 'create'; roomName = ''; roomPassword = ''; roomDialogVisible = true">＋ 创建房间</button></div><div v-else class="sheet-panel">
          <div class="sheet-toolbar"><div class="sheet-tab"><span class="sheet-tab-icon">▦</span> 工作表</div><div class="sheet-actions"><button type="button" @click="addRow">＋ 行</button><span class="sheet-save-state">{{ saveState }}</span></div></div>
         <div class="formula-bar"><span class="name-box">{{ selectedCell }}</span><span class="formula-symbol">fx</span><input value="点击单元格编辑内容" readonly aria-label="公式栏提示"></div>
         <div class="sheet-scroll"><table class="workbench-sheet"><colgroup><col class="col-row-number"><col v-for="(_, index) in sheetColumns" :key="index" :style="{ width: `${columnWidths[index]}px` }"></colgroup><thead><tr class="column-letters" :style="{ height: `${rowHeights.letters || 26}px` }"><th class="row-number"></th><th v-for="(_, index) in sheetColumns" :key="index">{{ String.fromCharCode(65 + index) }}<span class="column-resize-handle" @mousedown="beginResize(index, $event)"></span><span class="row-resize-handle" @mousedown="beginRowResize(0, $event)"></span></th></tr><tr class="sheet-title-row" :style="{ height: `${rowHeights.title || 30}px` }"><th class="row-number">1</th><th :colspan="sheetColumns.length" class="sheet-title-cell"><span v-if="fixedCellAuthor(0, 0)" class="cell-author">{{ fixedCellAuthor(0, 0) }}：</span><input :value="title" aria-label="表格标题" @input="updateTitle($event.target.value)"><span class="row-resize-handle" @mousedown="beginRowResize(1, $event)"></span></th></tr><tr class="sheet-header" :style="{ height: `${rowHeights.header || 28}px` }"><th class="row-number">2</th><th v-for="(_, index) in sheetColumns" :key="index"><span v-if="index < 7 && fixedCellAuthor(1, index)" class="cell-author">{{ fixedCellAuthor(1, index) }}：</span><input v-if="index < 7" :value="columns[index]" :aria-label="`第 ${index + 1} 列标题`" @input="updateHeader(index, $event.target.value)"></th></tr></thead><tbody><tr v-for="(row, rowIndex) in rows" :key="rowIndex" :style="{ height: `${rowHeights[rowIndex + 2] || 28}px` }"><td class="row-number">{{ rowIndex + 3 }}</td><td v-for="(_, cellIndex) in sheetColumns" :key="cellIndex" :class="{ 'is-selected': selectedCell === `${String.fromCharCode(65 + cellIndex)}${rowIndex + 3}` }" @click="selectedCell = `${String.fromCharCode(65 + cellIndex)}${rowIndex + 3}`"><span v-if="cellAuthor(rowIndex, cellIndex)" class="cell-author">{{ cellAuthor(rowIndex, cellIndex) }}：</span><input :value="row[cellIndex] || ''" :aria-label="`${sheetColumns[cellIndex]} 第 ${rowIndex + 3} 行`" @input="updateCell(rowIndex, cellIndex, $event.target.value)"><span class="row-resize-handle" @mousedown="beginRowResize(rowIndex + 2, $event)"></span></td></tr></tbody></table></div>

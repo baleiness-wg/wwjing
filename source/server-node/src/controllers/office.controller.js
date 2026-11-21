@@ -4,8 +4,8 @@ function snapshot(req, res) {
   res.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
   res.set("Pragma", "no-cache");
   res.set("Expires", "0");
-  const roomId = req.headers["x-office-room"] || "main";
-  const room = roomId === "main" ? getRoom("main") : require("../office/room-manager").verifyRoom(roomId, req.headers["x-office-password"] || "");
+  const roomId = req.headers["x-office-room"];
+  const room = roomId ? require("../office/room-manager").verifyRoom(roomId, req.headers["x-office-password"] || "") : null;
   if (!room) return res.status(403).json({ message: "房间密码错误" });
   res.json({
     user: { id: String(req.auth.sub), name: req.auth.username || "用户" },
@@ -20,7 +20,7 @@ module.exports = { snapshot };
 
 function updateCell(req, res) {
   const { topicId, row, column, value } = req.body || {};
-  const roomId = req.headers["x-office-room"] || "main";
+  const roomId = req.headers["x-office-room"];
   const room = roomId === "main" ? getRoom("main") : require("../office/room-manager").verifyRoom(roomId, req.headers["x-office-password"] || "");
   if (!room) return res.status(403).json({ message: "房间密码错误" });
   const topic = room.topics.find((item) => item.id === topicId);
@@ -54,7 +54,7 @@ function updateLock(req, res) {
   const { topicId, row, column, locked } = req.body || {};
   const roomId = req.headers["x-office-room"] || "main";
   const rooms = require("../office/room-manager");
-  const room = roomId === "main" ? rooms.getRoom("main") : rooms.verifyRoom(roomId, req.headers["x-office-password"] || "");
+  const room = roomId ? rooms.verifyRoom(roomId, req.headers["x-office-password"] || "") : null;
   if (!room) return res.status(403).json({ message: "房间密码错误" });
   const key = `${topicId}:${row}:${column}`;
   const user = decodeOfficeHeader(req.headers["x-office-display-name"], req.auth.username || "用户");

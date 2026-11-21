@@ -19,8 +19,8 @@ function attachOfficeWebSocket(server) {
   });
   wss.on("connection", (client, request) => {
     const url = new URL(request.url, "http://localhost");
-    const roomId = url.searchParams.get("roomId") || "main";
-     const room = roomId === "main" ? getRoom("main") : verifyRoom(roomId, url.searchParams.get("password") || "");
+    const roomId = url.searchParams.get("roomId");
+    const room = roomId ? verifyRoom(roomId, url.searchParams.get("password") || "") : null;
     if (!room) {
       client.close(4003, "房间密码错误");
       return;
