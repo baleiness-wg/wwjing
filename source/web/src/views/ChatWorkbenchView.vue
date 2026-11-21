@@ -328,6 +328,8 @@ function connect() {
   socket.value.onerror = () => { connectionText.value = "已加载"; };
   socket.value.onclose = (event) => {
     if (pendingRoomId.value && event.code === 4003) {
+      localStorage.removeItem(`office_room_password:${pendingRoomId.value}`);
+      roomPassword.value = "";
       roomDialogVisible.value = true;
       ElMessage.error("房间密码错误，无法进入");
       pendingRoomId.value = "";
@@ -603,6 +605,17 @@ function enterRoom(room) {
   localStorage.setItem("office_active_room", room.id);
   if (room.id !== "main") roomPassword.value = localStorage.getItem(`office_room_password:${room.id}`) || "";
   if (!room.id) return;
+  if (roomPassword.value) {
+    roomDialogVisible.value = false;
+    activeRoomId.value = room.id;
+    snapshotSequence += 1;
+    topics.value = [];
+    activeTopicId.value = "";
+    columns.value = [];
+    socket.value?.close();
+    window.setTimeout(() => { connect(); loadSnapshotForCurrentRoom(); }, 100);
+    return;
+  }
   roomDialogMode.value = "enter";
   roomDialogVisible.value = true;
 }
