@@ -197,7 +197,7 @@ class _BookmarkFormState extends State<BookmarkForm> {
         builder: (context) => AlertDialog(
           title: const Text('链接已收藏'),
           content: Text(
-            '已有收藏：${duplicate.title?.isNotEmpty == true ? duplicate.title : _url.text.trim()}\n所在位置：${duplicate.folderName ?? '未分类'}',
+            '已有收藏：${duplicate.title?.isNotEmpty == true ? duplicate.title : _url.text.trim()}\n所在位置：${duplicate.folderName ?? '灵感'}',
           ),
           actions: [
             TextButton(
@@ -236,23 +236,18 @@ class _BookmarkFormState extends State<BookmarkForm> {
 
   Future<void> _chooseFolder(List<FolderNode> nodes) async {
     final state = context.read<AppState>();
-    final selected = await showFolderPicker(
+    final selected = await showMultiFolderPicker(
       context: context,
       state: state,
       title: '选择收藏夹',
-      selectedFolderId: null,
-      rootLabel: '未分类',
+      selectedFolderIds: _folderIds,
+      rootLabel: '灵感',
       allowCreate: true,
     );
     if (!mounted || selected == null) return;
     setState(() {
-      if (selected.isEmpty) {
-        _folderIds.clear();
-        _folderId = null;
-      } else {
-        _folderIds.add(selected);
-        _folderId ??= selected;
-      }
+      _folderIds = selected.toSet();
+      _folderId = selected.isEmpty ? null : selected.first;
     });
   }
 
@@ -380,7 +375,7 @@ class _BookmarkFormState extends State<BookmarkForm> {
                   leading: const Icon(Icons.folder_outlined),
                   title: const Text('收藏夹'),
                   subtitle: _folderIds.isEmpty
-                      ? const Text('未分类')
+                      ? const Text('灵感')
                       : Wrap(
                           spacing: 4,
                           runSpacing: 2,

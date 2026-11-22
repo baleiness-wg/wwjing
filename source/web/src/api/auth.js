@@ -20,3 +20,14 @@ export function changePassword(payload) {
     body: JSON.stringify(payload)
   });
 }
+
+export function getProfile() {
+  return request("/api/auth/user-profile");
+}
+
+export function updateProfile(payload) {
+  return request("/api/auth/user-profile", {
+    method: "PATCH",
+    body: JSON.stringify(payload)
+  });
+}

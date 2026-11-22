@@ -200,7 +200,7 @@ class _FolderNavigationState extends State<FolderNavigation> {
             dense: true,
             visualDensity: const VisualDensity(vertical: -2),
             selected: state.view == BookmarkView.uncategorized,
-            leading: const Icon(Icons.inbox_outlined),
+            leading: const Icon(Icons.lightbulb_outline),
             title: const Text('灵感'),
             onTap: () => _select(context, BookmarkView.uncategorized),
           ),

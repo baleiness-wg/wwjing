@@ -294,11 +294,14 @@ class _BookmarkAppState extends State<BookmarkApp> with WidgetsBindingObserver {
                           onPanEnd: (_) => state.preferences.setAiButtonOffset(
                             _aiButtonOffset,
                           ),
-                          child: FloatingActionButton(
+                          child: IconButton(
                             key: const Key('root-ai-chat-button'),
                             tooltip: '和 AI 讨论收藏',
                             onPressed: () => _showRootAiChat(context, state),
-                            child: const Icon(Icons.auto_awesome),
+                            icon: const Text(
+                              '🐋',
+                              style: TextStyle(fontSize: 36),
+                            ),
                           ),
                         ),
                       ),

@@ -44,7 +44,7 @@ class _HomePageState extends State<HomePage> {
       state: state,
       title: '移动到',
       selectedFolderId: item.folderId,
-      rootLabel: '未分类',
+      rootLabel: '灵感',
     );
     if (folderId != null && context.mounted) {
       await state.moveItem(item.id, folderId.isEmpty ? null : folderId);
@@ -57,7 +57,7 @@ class _HomePageState extends State<HomePage> {
       context: context,
       state: state,
       title: '批量移动到',
-      rootLabel: '未分类',
+      rootLabel: '灵感',
     );
     if (folderId == null || !context.mounted) return;
     await state.moveItems(_selectedItemIds, folderId.isEmpty ? null : folderId);
@@ -271,7 +271,7 @@ class _HomePageState extends State<HomePage> {
               children: [
                 Text(switch (state.view) {
                   BookmarkView.all => '全部收藏',
-                  BookmarkView.uncategorized => '未分类',
+                  BookmarkView.uncategorized => '灵感',
                   BookmarkView.folder =>
                     state.folders
                             .where(

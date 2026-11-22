@@ -8,7 +8,8 @@ Future<String?> showFolderPicker({
   required AppState state,
   required String title,
   String? selectedFolderId,
-  String rootLabel = '未分类',
+  Set<String> selectedFolderIds = const {},
+  String rootLabel = '灵感',
   Set<String> excludedFolderIds = const {},
   bool allowCreate = false,
 }) {
@@ -18,6 +19,7 @@ Future<String?> showFolderPicker({
       state: state,
       title: title,
       selectedFolderId: selectedFolderId,
+      selectedFolderIds: selectedFolderIds,
       rootLabel: rootLabel,
       excludedFolderIds: excludedFolderIds,
       allowCreate: allowCreate,
@@ -30,7 +32,7 @@ Future<List<String>?> showMultiFolderPicker({
   required AppState state,
   required String title,
   Set<String> selectedFolderIds = const {},
-  String rootLabel = '未分类',
+  String rootLabel = '灵感',
   bool allowCreate = false,
 }) {
   return showDialog<List<String>>(
@@ -67,6 +69,21 @@ class MultiFolderPickerDialog extends StatefulWidget {
 class _MultiFolderPickerDialogState extends State<MultiFolderPickerDialog> {
   late final Set<String> _selected = {...widget.selectedFolderIds};
   final Set<String> _collapsed = {};
+  bool _initialized = false;
+
+  void _initializeExpandedParents() {
+    if (_initialized) return;
+    _initialized = true;
+    _collapsed.addAll(widget.state.folders.map((folder) => folder.id));
+    final byId = {for (final folder in widget.state.folders) folder.id: folder};
+    for (final selectedId in _selected) {
+      var parentId = byId[selectedId]?.parentId;
+      while (parentId != null) {
+        _collapsed.remove(parentId);
+        parentId = byId[parentId]?.parentId;
+      }
+    }
+  }
 
   Iterable<FolderNode> _nodes() sync* {
     void visit(FolderNode node) {
@@ -95,78 +112,92 @@ class _MultiFolderPickerDialogState extends State<MultiFolderPickerDialog> {
   }
 
   @override
-  Widget build(BuildContext context) => AlertDialog(
-    title: Row(
-      children: [
-        Expanded(child: Text(widget.title)),
-        if (widget.allowCreate)
-          IconButton(
-            tooltip: '新增收藏夹',
-            icon: const Icon(Icons.create_new_folder_outlined),
-            onPressed: widget.state.busy ? null : _createFolder,
-          ),
-      ],
-    ),
-    content: SizedBox(
-      height: MediaQuery.sizeOf(context).height * .6,
-      width: MediaQuery.sizeOf(context).width - 72,
-      child: ListView(
+  Widget build(BuildContext context) {
+    _initializeExpandedParents();
+    return AlertDialog(
+      title: Row(
         children: [
-          ListTile(
-            dense: true,
-            visualDensity: const VisualDensity(vertical: -3),
-            title: Text(widget.rootLabel),
-          ),
-          for (final node in _nodes())
-            Padding(
-              padding: EdgeInsets.only(left: (node.depth - 1) * 16.0),
-              child: CheckboxListTile(
-                dense: true,
-                visualDensity: const VisualDensity(vertical: -3),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 4),
-                controlAffinity: ListTileControlAffinity.leading,
-                minVerticalPadding: 0,
-                value: _selected.contains(node.folder.id),
-                title: Text(node.folder.name),
-                secondary: node.children.isEmpty
-                    ? null
-                    : IconButton(
-                        icon: Icon(
-                          _collapsed.contains(node.folder.id)
-                              ? Icons.chevron_right
-                              : Icons.expand_more,
-                        ),
-                        onPressed: () => setState(() {
-                          if (_collapsed.contains(node.folder.id)) {
-                            _collapsed.remove(node.folder.id);
-                          } else {
-                            _collapsed.add(node.folder.id);
-                          }
-                        }),
-                      ),
-                onChanged: (value) => setState(() {
-                  if (value == true) {
-                    _selected.add(node.folder.id);
-                  } else {
-                    _selected.remove(node.folder.id);
-                  }
-                }),
-              ),
+          Expanded(child: Text(widget.title)),
+          if (widget.allowCreate)
+            IconButton(
+              tooltip: '新增收藏夹',
+              icon: const Icon(Icons.create_new_folder_outlined),
+              onPressed: widget.state.busy ? null : _createFolder,
             ),
         ],
       ),
-    ),
-    actions: [
-      TextButton(
-        onPressed: () => Navigator.pop(context),
-        child: const Text('取消'),
+      content: SizedBox(
+        height: MediaQuery.sizeOf(context).height * .6,
+        width: MediaQuery.sizeOf(context).width - 72,
+        child: ListView(
+          children: [
+            ListTile(
+              dense: true,
+              visualDensity: const VisualDensity(vertical: -3),
+              minTileHeight: 38,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+              selected: _selected.isEmpty,
+              selectedTileColor: Theme.of(context).colorScheme.primary
+                  .withValues(alpha: 0.12),
+              selectedColor: Theme.of(context).colorScheme.primary,
+              leading: const Icon(Icons.lightbulb_outline, size: 20),
+              title: Text(widget.rootLabel),
+              onTap: () => setState(_selected.clear),
+            ),
+            for (final node in _nodes())
+              Padding(
+                padding: EdgeInsets.only(left: (node.depth - 1) * 16.0),
+                child: ListTile(
+                  dense: true,
+                  visualDensity: const VisualDensity(vertical: -3),
+                  minTileHeight: 38,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+                  selected: _selected.contains(node.folder.id),
+                  selectedTileColor: Theme.of(context).colorScheme.primary
+                      .withValues(alpha: 0.12),
+                  selectedColor: Theme.of(context).colorScheme.primary,
+                  leading: const Icon(Icons.folder_outlined, size: 20),
+                  title: Text(node.folder.name),
+                  trailing: node.children.isEmpty
+                      ? null
+                      : IconButton(
+                          icon: Icon(
+                            _collapsed.contains(node.folder.id)
+                                ? Icons.chevron_right
+                                : Icons.expand_more,
+                          ),
+                          onPressed: () => setState(() {
+                            if (_collapsed.contains(node.folder.id)) {
+                              _collapsed.remove(node.folder.id);
+                            } else {
+                              _collapsed.add(node.folder.id);
+                            }
+                          }),
+                        ),
+                  onTap: () => setState(() {
+                    // 灵感代表未关联目录；选择真实目录后退出灵感状态。
+                    _selected.remove('');
+                    if (!_selected.add(node.folder.id)) {
+                      _selected.remove(node.folder.id);
+                    }
+                  }),
+                ),
+              ),
+          ],
+        ),
       ),
-      FilledButton(
-        onPressed: () => Navigator.pop(context, _selected.toList()),
-        child: const Text('选择'),
-      ),
-    ],
-  );
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('取消'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, _selected.toList()),
+          child: const Text('选择'),
+        ),
+      ],
+    );
+  }
 }
 
 Future<String?> showFolderNameDialog(
@@ -236,7 +267,8 @@ class FolderPickerDialog extends StatefulWidget {
     required this.state,
     required this.title,
     this.selectedFolderId,
-    this.rootLabel = '未分类',
+    this.selectedFolderIds = const {},
+    this.rootLabel = '灵感',
     this.excludedFolderIds = const {},
     this.allowCreate = false,
   });
@@ -244,6 +276,7 @@ class FolderPickerDialog extends StatefulWidget {
   final AppState state;
   final String title;
   final String? selectedFolderId;
+  final Set<String> selectedFolderIds;
   final String rootLabel;
   final Set<String> excludedFolderIds;
   final bool allowCreate;
@@ -254,10 +287,30 @@ class FolderPickerDialog extends StatefulWidget {
 
 class _FolderPickerDialogState extends State<FolderPickerDialog> {
   late String selectedFolderId = widget.selectedFolderId ?? '';
+  late final Set<String> selectedFolderIds = {
+    ...widget.selectedFolderIds,
+    if (widget.selectedFolderId != null && widget.selectedFolderId!.isNotEmpty)
+      widget.selectedFolderId!,
+  };
   final newFolderController = TextEditingController();
   final newFolderFocusNode = FocusNode();
   bool creatingFolder = false;
   final Set<String> collapsedFolderIds = {};
+  bool _collapseStateInitialized = false;
+
+  void _initializeCollapseState() {
+    if (_collapseStateInitialized) return;
+    _collapseStateInitialized = true;
+    collapsedFolderIds.addAll(widget.state.folders.map((folder) => folder.id));
+    var parentId = selectedFolderId.isEmpty ? null : selectedFolderId;
+    final byId = {for (final folder in widget.state.folders) folder.id: folder};
+    while (parentId != null) {
+      final parent = byId[parentId];
+      if (parent == null) break;
+      collapsedFolderIds.remove(parent.id);
+      parentId = parent.parentId;
+    }
+  }
 
   void _createFolder() {
     setState(() {
@@ -348,7 +401,7 @@ class _FolderPickerDialogState extends State<FolderPickerDialog> {
     required String label,
     required IconData icon,
   }) {
-    final selected = selectedFolderId == value;
+    final selected = selectedFolderIds.contains(value);
     return ListTile(
       key: key,
       dense: true,
@@ -357,13 +410,18 @@ class _FolderPickerDialogState extends State<FolderPickerDialog> {
       selectedTileColor: Theme.of(context).colorScheme.primary
           .withValues(alpha: 0.08),
       visualDensity: const VisualDensity(vertical: -4),
-      minTileHeight: 40,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+      minTileHeight: 38,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 4),
       leading: Icon(icon, size: 20),
       title: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
       onTap: () {
         setState(() {
           selectedFolderId = value;
+          if (value.isEmpty) {
+            selectedFolderIds.clear();
+          } else {
+            selectedFolderIds.add(value);
+          }
           creatingFolder = false;
           newFolderController.clear();
         });
@@ -397,11 +455,7 @@ class _FolderPickerDialogState extends State<FolderPickerDialog> {
 
   @override
   Widget build(BuildContext context) {
-    if (collapsedFolderIds.isEmpty) {
-      collapsedFolderIds.addAll(
-        widget.state.folders.map((folder) => folder.id),
-      );
-    }
+    _initializeCollapseState();
     final nodes = _visibleNodes(widget.state.folderTree)
         .where((node) => !widget.excludedFolderIds.contains(node.folder.id))
         .toList();
@@ -441,7 +495,7 @@ class _FolderPickerDialogState extends State<FolderPickerDialog> {
                   child: ListTile(
                     key: Key('folder-option-${node.folder.id}'),
                     dense: true,
-                    selected: selectedFolderId == node.folder.id,
+                    selected: selectedFolderIds.contains(node.folder.id),
                     selectedTileColor: Theme.of(context).colorScheme.primary
                         .withValues(alpha: 0.08),
                     contentPadding: const EdgeInsets.symmetric(horizontal: 4),

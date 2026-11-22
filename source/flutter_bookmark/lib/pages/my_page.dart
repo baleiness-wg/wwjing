@@ -16,16 +16,13 @@ class MyPage extends StatelessWidget {
 
   Future<void> _editProfile(BuildContext context) async {
     final state = context.read<AppState>();
-    final controller = TextEditingController(text: state.profileDescription);
-    try {
-      await Navigator.push<bool>(
-        context,
-        MaterialPageRoute(builder: (_) => _ProfilePage(controller: controller)),
-      );
-      // AppState 在接口成功后负责更新并通知页面。
-    } finally {
-      controller.dispose();
-    }
+    await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) =>
+            _ProfilePage(initialDescription: state.profileDescription),
+      ),
+    );
   }
 
   Future<void> _changePassword(BuildContext context) async {
@@ -37,25 +34,30 @@ class MyPage extends StatelessWidget {
         context: context,
         builder: (dialogContext) => AlertDialog(
           title: const Text('修改密码'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: current,
-                obscureText: true,
-                decoration: const InputDecoration(labelText: '当前密码'),
-              ),
-              TextField(
-                controller: next,
-                obscureText: true,
-                decoration: const InputDecoration(labelText: '新密码'),
-              ),
-              TextField(
-                controller: confirm,
-                obscureText: true,
-                decoration: const InputDecoration(labelText: '确认新密码'),
-              ),
-            ],
+          content: SizedBox(
+            width: 360,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: current,
+                  obscureText: true,
+                  decoration: const InputDecoration(labelText: '当前密码'),
+                ),
+                const SizedBox(height: 14),
+                TextField(
+                  controller: next,
+                  obscureText: true,
+                  decoration: const InputDecoration(labelText: '新密码'),
+                ),
+                const SizedBox(height: 14),
+                TextField(
+                  controller: confirm,
+                  obscureText: true,
+                  decoration: const InputDecoration(labelText: '确认新密码'),
+                ),
+              ],
+            ),
           ),
           actions: [
             TextButton(
@@ -167,15 +169,28 @@ class MyPage extends StatelessWidget {
 }
 
 class _ProfilePage extends StatefulWidget {
-  const _ProfilePage({required this.controller});
-  final TextEditingController controller;
+  const _ProfilePage({required this.initialDescription});
+  final String initialDescription;
   @override
   State<_ProfilePage> createState() => _ProfilePageState();
 }
 
 class _ProfilePageState extends State<_ProfilePage> {
+  late final TextEditingController _controller;
   bool _saving = false;
   String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.initialDescription);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -187,7 +202,7 @@ class _ProfilePageState extends State<_ProfilePage> {
         children: [
           Expanded(
             child: TextField(
-              controller: widget.controller,
+              controller: _controller,
               expands: true,
               maxLines: null,
               minLines: null,
@@ -211,7 +226,7 @@ class _ProfilePageState extends State<_ProfilePage> {
                     });
                     try {
                       await context.read<AppState>().updateProfileDescription(
-                        widget.controller.text,
+                        _controller.text,
                       );
                       if (context.mounted) Navigator.pop(context, true);
                     } catch (error) {

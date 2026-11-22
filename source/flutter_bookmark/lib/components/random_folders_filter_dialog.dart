@@ -84,7 +84,8 @@ class _RandomFoldersFilterDialogState
   }
 
   void _scheduleScrollToSelection() {
-    if (!mounted || _selectedId == 'all' || _selectedId == 'uncategorized') return;
+    if (!mounted || _selectedId == 'all' || _selectedId == 'uncategorized')
+      return;
     _scrollTimer?.cancel();
     if (_scrollAttempts >= 12) return;
     _scrollAttempts += 1;
@@ -135,7 +136,7 @@ class _RandomFoldersFilterDialogState
               ),
               _buildOption(
                 id: 'uncategorized',
-                title: '未分类',
+                title: '灵感',
                 icon: Icons.inbox_outlined,
               ),
               for (final node in nodes) _buildFolderOption(node),

@@ -15,7 +15,7 @@ import {
   User
 } from "@element-plus/icons-vue";
 import { ElMessage } from "element-plus";
-import { changePassword } from "../api/auth";
+import { changePassword, getProfile, updateProfile } from "../api/auth";
 
 const router = useRouter();
 const route = useRoute();
@@ -26,6 +26,9 @@ const user = JSON.parse(localStorage.getItem("wwjing_user") || "null");
 const passwordDialogVisible = ref(false);
 const passwordLoading = ref(false);
 const passwordForm = reactive({ currentPassword: "", newPassword: "", confirmPassword: "" });
+const profileDialogVisible = ref(false);
+const profileLoading = ref(false);
+const profileDescription = ref("");
 const bookmarkLocation = ref("");
 
 const navigationItems = [
@@ -72,7 +75,34 @@ function logout() {
 
 function handleUserCommand(command) {
   if (command === "change-password") openPasswordDialog();
+  if (command === "profile") openProfileDialog();
   if (command === "logout") logout();
+}
+
+async function openProfileDialog() {
+  profileLoading.value = true;
+  try {
+    const result = await getProfile();
+    profileDescription.value = result?.user?.profileDescription || "";
+    profileDialogVisible.value = true;
+  } catch (error) {
+    ElMessage.error(error.message);
+  } finally {
+    profileLoading.value = false;
+  }
+}
+
+async function submitProfile() {
+  profileLoading.value = true;
+  try {
+    await updateProfile({ description: profileDescription.value });
+    ElMessage.success("个人信息已保存");
+    profileDialogVisible.value = false;
+  } catch (error) {
+    ElMessage.error(error.message);
+  } finally {
+    profileLoading.value = false;
+  }
 }
 
 function updateBookmarkLocation(event) {
@@ -195,6 +225,7 @@ async function submitPassword() {
             </el-button>
             <template #dropdown>
               <el-dropdown-menu>
+                <el-dropdown-item command="profile" :icon="User">个人信息</el-dropdown-item>
                 <el-dropdown-item command="change-password" :icon="User">修改密码</el-dropdown-item>
                 <el-dropdown-item command="logout" :icon="SwitchButton">退出登录</el-dropdown-item>
               </el-dropdown-menu>
@@ -215,6 +246,20 @@ async function submitPassword() {
     <template #footer>
       <el-button @click="passwordDialogVisible = false">取消</el-button>
       <el-button type="primary" :loading="passwordLoading" @click="submitPassword">确认修改</el-button>
+    </template>
+  </el-dialog>
+  <el-dialog v-model="profileDialogVisible" title="个人信息" width="min(92vw, 680px)">
+    <el-input
+      v-model="profileDescription"
+      type="textarea"
+      :rows="12"
+      maxlength="4000"
+      show-word-limit
+      placeholder="告诉 AI 你的兴趣、习惯、目标和偏好"
+    />
+    <template #footer>
+      <el-button @click="profileDialogVisible = false">取消</el-button>
+      <el-button type="primary" :loading="profileLoading" @click="submitProfile">保存</el-button>
     </template>
   </el-dialog>
   </el-container>
