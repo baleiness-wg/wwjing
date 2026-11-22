@@ -580,7 +580,17 @@ function addTopic() {
 
 async function loadRooms() {
   const response = await fetch("/api/office/rooms", { headers: { Authorization: "", "X-Office-Guest": encodeURIComponent(guestName.value) } });
-  if (response.ok) rooms.value = (await response.json()).rooms || [];
+  if (response.ok) {
+    rooms.value = (await response.json()).rooms || [];
+    const savedRoomId = localStorage.getItem("office_active_room");
+    const savedRoom = rooms.value.find((room) => room.id === savedRoomId);
+    if (savedRoom) {
+      enterRoom(savedRoom);
+    } else if (savedRoomId) {
+      localStorage.removeItem("office_active_room");
+      activeRoomId.value = "";
+    }
+  }
 }
 
 async function changeRoomPassword(room) {
@@ -618,6 +628,7 @@ function enterRoom(room) {
     window.setTimeout(() => { connect(); loadSnapshotForCurrentRoom(); }, 100);
     return;
   }
+  // 没有缓存密码时，保持当前房间待输入状态；刷新不会回到房间列表。
   roomDialogMode.value = "enter";
   roomDialogVisible.value = true;
 }
@@ -631,6 +642,8 @@ async function createRoom() {
   roomDialogVisible.value = false;
   pendingRoomId.value = room.id;
   activeRoomId.value = room.id;
+  localStorage.setItem("office_active_room", room.id);
+  localStorage.setItem(`office_room_password:${room.id}`, roomPassword.value);
   snapshotSequence += 1;
   topics.value = [];
   activeTopicId.value = "";
