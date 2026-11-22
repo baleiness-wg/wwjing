@@ -100,10 +100,14 @@ async function list(userId, filters) {
         AND pin.pinned = true
     )`;
   } else if (!filters.uncategorized) {
-    pinnedExpression = `EXISTS (
+    pinnedExpression = `(
+      COALESCE((item.metadata->>'pinned')::boolean, false) OR EXISTS (
       SELECT 1 FROM bookmark_item_folders pin
       WHERE pin.item_id = item.id AND pin.pinned = true
+      )
     )`;
+  } else {
+    pinnedExpression = "COALESCE((item.metadata->>'pinned')::boolean, false)";
   }
   const itemSelect = `${selectFields}, ${pinnedExpression} AS "pinned"`;
   const pinOrder = pinnedExpression === "false" ? "" : `${pinnedExpression} DESC,`;
@@ -161,9 +165,10 @@ async function remove(userId, id, space = "star") {
 async function pin(userId, itemId, folderId, pinned, space) {
   if (!folderId) {
     await pool.query(
-      `UPDATE bookmark_item_folders link SET pinned = $3
-       FROM bookmark_items item
-       WHERE link.item_id = $2 AND item.id = link.item_id AND item.user_id = $1 AND item.space = $4`,
+      `UPDATE bookmark_items SET metadata = jsonb_set(
+        COALESCE(metadata, '{}'::jsonb), '{pinned}', to_jsonb($3::boolean), true
+      )
+       WHERE id = $2 AND user_id = $1 AND space = $4`,
       [userId, itemId, pinned, space]
     );
     await pool.query("UPDATE bookmark_items SET updated_at = NOW() WHERE id = $1 AND user_id = $2 AND space = $3", [itemId, userId, space]);
