@@ -1,6 +1,7 @@
 const itemModel = require("../models/bookmark-item.model");
 const folderModel = require("../models/bookmark-folder.model");
 const BookmarkError = require("./bookmark-errors");
+const { objectKey } = require("./oss.service");
 
 const trackingParameters = new Set([
   "fbclid", "gclid", "dclid", "msclkid", "igshid", "mc_cid", "mc_eid"
@@ -91,6 +92,18 @@ function imageUrls(value) {
     throw new BookmarkError(400, "INVALID_INPUT", "images 必须是 URL 数组");
   }
   return value.map((entry, index) => optionalUrl(entry, `images[${index}]`)).filter(Boolean);
+}
+
+function imageValues(value) {
+  if (value === undefined) return undefined;
+  if (value === null) return [];
+  if (!Array.isArray(value)) throw new BookmarkError(400, "INVALID_INPUT", "images 必须是 URL 数组");
+  return value.map((entry) => {
+    const text = optionalText(entry, "images");
+    if (!text) return null;
+    if (text.startsWith("users/")) return text;
+    return objectKey(text);
+  }).filter(Boolean);
 }
 
 async function validateFolder(userId, folderId, space = "star") {
@@ -218,7 +231,7 @@ async function update(userId, idValue, input = {}) {
     description: Object.hasOwn(input, "description")
       ? optionalText(input.description, "description") : current.description,
     images: Object.hasOwn(input, "images")
-      ? imageUrls(input.images)
+      ? imageValues(input.images)
       : (Object.hasOwn(input, "coverUrl") ? imageUrls([input.coverUrl]) : (current.images || [])),
     coverUrl: Object.hasOwn(input, "images")
       ? imageUrls(input.images)?.[0] || null
