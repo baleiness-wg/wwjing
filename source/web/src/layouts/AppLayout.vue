@@ -44,7 +44,7 @@ const navigationItems = [
   }
 ];
 
-const isToolsActive = computed(() => route.path.startsWith("/tools"));
+const isToolsActive = computed(() => route.path === "/tools");
 
 watch(
   () => route.path,
