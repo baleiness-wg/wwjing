@@ -18,11 +18,11 @@ class MyPage extends StatelessWidget {
     final state = context.read<AppState>();
     final controller = TextEditingController(text: state.profileDescription);
     try {
-      final saved = await Navigator.push<bool>(
+      await Navigator.push<bool>(
         context,
         MaterialPageRoute(builder: (_) => _ProfilePage(controller: controller)),
       );
-      if (saved == true) state.profileDescription = controller.text.trim();
+      // AppState 在接口成功后负责更新并通知页面。
     } finally {
       controller.dispose();
     }
@@ -142,52 +142,93 @@ class MyPage extends StatelessWidget {
         ),
       ),
       appBar: AppBar(title: const Text('我的')),
-      body: const SizedBox.expand(),
-      floatingActionButton: Padding(
-        padding: const EdgeInsets.only(bottom: 72),
-        child: FloatingActionButton.extended(
-          onPressed: () => _editProfile(context),
-          icon: const Icon(Icons.person_outline),
-          label: const Text('个人信息'),
-        ),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.person_outline),
+              title: const Text('个人信息'),
+              subtitle: Text(
+                context.read<AppState>().profileDescription.isEmpty
+                    ? '填写个人描述，让 AI 更了解你'
+                    : context.read<AppState>().profileDescription,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => _editProfile(context),
+            ),
+          ),
+        ],
       ),
     );
   }
 }
 
-class _ProfilePage extends StatelessWidget {
+class _ProfilePage extends StatefulWidget {
   const _ProfilePage({required this.controller});
   final TextEditingController controller;
+  @override
+  State<_ProfilePage> createState() => _ProfilePageState();
+}
+
+class _ProfilePageState extends State<_ProfilePage> {
+  bool _saving = false;
+  String? _error;
+
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: const Text('个人信息')),
     body: Padding(
       padding: const EdgeInsets.all(20),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          TextField(
-            controller: controller,
-            expands: true,
-            maxLines: null,
-            minLines: null,
-            textAlignVertical: TextAlignVertical.top,
-            decoration: const InputDecoration(
-              labelText: '个人描述',
-              hintText: '告诉 AI 你的兴趣、习惯、目标和偏好',
-              alignLabelWithHint: true,
-              border: OutlineInputBorder(),
+          Expanded(
+            child: TextField(
+              controller: widget.controller,
+              expands: true,
+              maxLines: null,
+              minLines: null,
+              textAlignVertical: TextAlignVertical.top,
+              decoration: const InputDecoration(
+                labelText: '个人描述',
+                hintText: '告诉 AI 你的兴趣、习惯、目标和偏好',
+                alignLabelWithHint: true,
+                border: OutlineInputBorder(),
+              ),
             ),
           ),
           const SizedBox(height: 16),
           FilledButton(
-            onPressed: () async {
-              await context.read<AppState>().api.updateProfileDescription(
-                controller.text.trim(),
-              );
-              if (context.mounted) Navigator.pop(context, true);
-            },
-            child: const Text('保存'),
+            onPressed: _saving
+                ? null
+                : () async {
+                    setState(() {
+                      _saving = true;
+                      _error = null;
+                    });
+                    try {
+                      await context.read<AppState>().updateProfileDescription(
+                        widget.controller.text,
+                      );
+                      if (context.mounted) Navigator.pop(context, true);
+                    } catch (error) {
+                      if (mounted) setState(() => _error = '保存失败：$error');
+                    } finally {
+                      if (mounted) setState(() => _saving = false);
+                    }
+                  },
+            child: Text(_saving ? '保存中...' : '保存'),
           ),
+          if (_error != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              _error!,
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+          ],
         ],
       ),
     ),

@@ -115,6 +115,12 @@ class AppState extends ChangeNotifier {
 
   Future<void> handleUnauthorized() => logout(expired: true);
 
+  Future<void> updateProfileDescription(String value) async {
+    await api.updateProfileDescription(value.trim());
+    profileDescription = value.trim();
+    notifyListeners();
+  }
+
   Future<void> refresh({bool resetPage = true, bool clearItems = true}) async {
     if (!authenticated) return;
     if (resetPage || clearItems) _viewRequestId++;
