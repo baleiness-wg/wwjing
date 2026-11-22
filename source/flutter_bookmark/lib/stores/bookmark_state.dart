@@ -42,6 +42,7 @@ class AppState extends ChangeNotifier {
   int totalPages = 1;
   bool loadingMore = false;
   String? lastSavedItemId;
+  String profileDescription = '';
   int _viewRequestId = 0;
   int _activeOperations = 0;
 
@@ -54,6 +55,12 @@ class AppState extends ChangeNotifier {
     initialized = true;
     notifyListeners();
     if (authenticated) await refresh();
+    if (authenticated) {
+      try {
+        profileDescription = await api.getProfileDescription();
+      } catch (_) {}
+      notifyListeners();
+    }
   }
 
   Future<void> login(String username, String password) async {

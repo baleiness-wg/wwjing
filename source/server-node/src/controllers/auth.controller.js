@@ -31,4 +31,15 @@ async function changePassword(req, res, next) {
   }
 }
 
-module.exports = { register, login, changePassword };
+async function profile(req, res, next) {
+  try { res.json({ user: await require("../models/users.model").findById(req.auth.sub) }); } catch (error) { next(error); }
+}
+
+async function updateProfile(req, res, next) {
+  try {
+    const description = typeof req.body.description === "string" ? req.body.description.trim().slice(0, 4000) : "";
+    res.json({ user: await require("../models/users.model").updateProfileDescription(req.auth.sub, description) });
+  } catch (error) { next(error); }
+}
+
+module.exports = { register, login, changePassword, profile, updateProfile };

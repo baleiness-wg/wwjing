@@ -104,6 +104,7 @@ class _HomeLandingPageState extends State<HomeLandingPage> {
       final result = await state.api.chatWithDirectory(
         context: {
           'space': widget.appConfig.space,
+          'profileDescription': state.profileDescription,
           'directoryName': '全部收藏',
           'directoryPath': '全部收藏',
           'loadedItemCount': allItems.length,
@@ -193,70 +194,60 @@ class _HomeLandingPageState extends State<HomeLandingPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Recommend'),
-        actions: [
-          IconButton(
-            tooltip: '刷新推荐',
-            onPressed: _busy ? null : _refreshRecommendation,
-            icon: _busy
-                ? const SizedBox.square(
-                    dimension: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.refresh),
-          ),
-        ],
-      ),
+      appBar: AppBar(title: const Text('Recommend')),
       body: _recommendationItemIds.isEmpty
           ? Center(child: Text(_status))
-          : ListView.separated(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
-              itemCount: _recommendationItemIds.length,
-              separatorBuilder: (_, _) => const SizedBox(height: 12),
-              itemBuilder: (context, index) {
-                final item = _allItems
-                    .where((item) => item.id == _recommendationItemIds[index])
-                    .firstOrNull;
-                if (item == null) return const SizedBox.shrink();
-                return Card(
-                  clipBehavior: Clip.antiAlias,
-                  elevation: 2,
-                  margin: EdgeInsets.zero,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    side: BorderSide(
-                      color: Theme.of(context).colorScheme.primary
-                          .withValues(alpha: 0.28),
-                      width: 1.2,
+          : RefreshIndicator(
+              onRefresh: _refreshRecommendation,
+              child: ListView.separated(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
+                itemCount: _recommendationItemIds.length,
+                separatorBuilder: (_, _) => const SizedBox(height: 12),
+                itemBuilder: (context, index) {
+                  final item = _allItems
+                      .where((item) => item.id == _recommendationItemIds[index])
+                      .firstOrNull;
+                  if (item == null) return const SizedBox.shrink();
+                  return Card(
+                    clipBehavior: Clip.antiAlias,
+                    elevation: 2,
+                    margin: EdgeInsets.zero,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      side: BorderSide(
+                        color: Theme.of(context).colorScheme.primary
+                            .withValues(alpha: 0.28),
+                        width: 1.2,
+                      ),
                     ),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-                        child: MarkdownMessage(
-                          content: _recommendationText(index),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+                          child: MarkdownMessage(
+                            content: _recommendationText(index),
+                          ),
                         ),
-                      ),
-                      const Divider(height: 1),
-                      BookmarkItemCard(
-                        item: item,
-                        compact: true,
-                        embedded: true,
-                        onTap: () =>
-                            _linkLauncher.open(context, item.sourceUrl),
-                        onAction: (action) {
-                          if (action == 'edit') {
-                            context.read<AppState>().openDraft(item);
-                          }
-                        },
-                      ),
-                    ],
-                  ),
-                );
-              },
+                        const Divider(height: 1),
+                        BookmarkItemCard(
+                          item: item,
+                          compact: true,
+                          embedded: true,
+                          onTap: () =>
+                              _linkLauncher.open(context, item.sourceUrl),
+                          onAction: (action) {
+                            if (action == 'edit') {
+                              context.read<AppState>().openDraft(item);
+                            }
+                          },
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
             ),
     );
   }

@@ -14,6 +14,20 @@ class MyPage extends StatelessWidget {
   final AppConfig appConfig;
   final VoidCallback onOpenFolders;
 
+  Future<void> _editProfile(BuildContext context) async {
+    final state = context.read<AppState>();
+    final controller = TextEditingController(text: state.profileDescription);
+    try {
+      final saved = await Navigator.push<bool>(
+        context,
+        MaterialPageRoute(builder: (_) => _ProfilePage(controller: controller)),
+      );
+      if (saved == true) state.profileDescription = controller.text.trim();
+    } finally {
+      controller.dispose();
+    }
+  }
+
   Future<void> _changePassword(BuildContext context) async {
     final current = TextEditingController();
     final next = TextEditingController();
@@ -84,50 +98,98 @@ class MyPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final state = context.read<AppState>();
     return Scaffold(
       drawer: Drawer(
         child: SafeArea(
-          child: ListView(
-            padding: EdgeInsets.zero,
+          child: Column(
             children: [
-              const DrawerHeader(
-                child: Align(
-                  alignment: Alignment.bottomLeft,
-                  child: Text('我的设置', style: TextStyle(fontSize: 20)),
+              const Expanded(child: SizedBox()),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: PopupMenuButton<String>(
+                  tooltip: '设置',
+                  icon: const Icon(Icons.settings_outlined),
+                  padding: const EdgeInsets.all(16),
+                  onSelected: (action) async {
+                    if (action == 'password') {
+                      Navigator.pop(context);
+                      await _changePassword(context);
+                    }
+                    if (action == 'logout') {
+                      await context.read<AppState>().logout();
+                    }
+                  },
+                  itemBuilder: (_) => const [
+                    PopupMenuItem(
+                      value: 'password',
+                      child: ListTile(
+                        leading: Icon(Icons.lock_outline),
+                        title: Text('修改密码'),
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: 'logout',
+                      child: ListTile(
+                        leading: Icon(Icons.logout),
+                        title: Text('退出登录'),
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-              ListTile(
-                leading: const Icon(Icons.lock_outline),
-                title: const Text('修改密码'),
-                onTap: () async {
-                  Navigator.pop(context);
-                  await _changePassword(context);
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.logout),
-                title: const Text('退出登录'),
-                onTap: () => context.read<AppState>().logout(),
               ),
             ],
           ),
         ),
       ),
       appBar: AppBar(title: const Text('我的')),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.folder_outlined),
-              title: const Text('收藏夹目录'),
-              subtitle: Text('${state.folders.length} 个目录'),
-              onTap: onOpenFolders,
-            ),
-          ),
-        ],
+      body: const SizedBox.expand(),
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.only(bottom: 72),
+        child: FloatingActionButton.extended(
+          onPressed: () => _editProfile(context),
+          icon: const Icon(Icons.person_outline),
+          label: const Text('个人信息'),
+        ),
       ),
     );
   }
+}
+
+class _ProfilePage extends StatelessWidget {
+  const _ProfilePage({required this.controller});
+  final TextEditingController controller;
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('个人信息')),
+    body: Padding(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        children: [
+          TextField(
+            controller: controller,
+            expands: true,
+            maxLines: null,
+            minLines: null,
+            textAlignVertical: TextAlignVertical.top,
+            decoration: const InputDecoration(
+              labelText: '个人描述',
+              hintText: '告诉 AI 你的兴趣、习惯、目标和偏好',
+              alignLabelWithHint: true,
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 16),
+          FilledButton(
+            onPressed: () async {
+              await context.read<AppState>().api.updateProfileDescription(
+                controller.text.trim(),
+              );
+              if (context.mounted) Navigator.pop(context, true);
+            },
+            child: const Text('保存'),
+          ),
+        ],
+      ),
+    ),
+  );
 }

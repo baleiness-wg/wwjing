@@ -67,6 +67,20 @@ class ApiClient {
     );
   }
 
+  Future<String> getProfileDescription() async {
+    final data = await _request('GET', '/auth/profile') as Map<String, dynamic>;
+    final user = data['user'] as Map<String, dynamic>?;
+    return user?['profileDescription'] as String? ?? '';
+  }
+
+  Future<void> updateProfileDescription(String description) async {
+    await _request(
+      'PATCH',
+      '/auth/profile',
+      body: {'description': description},
+    );
+  }
+
   Future<List<BookmarkFolder>> getFolders() async {
     final data = await _request(
       'GET',

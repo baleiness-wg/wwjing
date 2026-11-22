@@ -31,6 +31,7 @@ Future<List<String>?> showMultiFolderPicker({
   required String title,
   Set<String> selectedFolderIds = const {},
   String rootLabel = '未分类',
+  bool allowCreate = false,
 }) {
   return showDialog<List<String>>(
     context: context,
@@ -39,6 +40,7 @@ Future<List<String>?> showMultiFolderPicker({
       title: title,
       selectedFolderIds: selectedFolderIds,
       rootLabel: rootLabel,
+      allowCreate: allowCreate,
     ),
   );
 }
@@ -50,11 +52,13 @@ class MultiFolderPickerDialog extends StatefulWidget {
     required this.title,
     required this.selectedFolderIds,
     required this.rootLabel,
+    this.allowCreate = false,
   });
   final AppState state;
   final String title;
   final Set<String> selectedFolderIds;
   final String rootLabel;
+  final bool allowCreate;
   @override
   State<MultiFolderPickerDialog> createState() =>
       _MultiFolderPickerDialogState();
@@ -83,20 +87,45 @@ class _MultiFolderPickerDialogState extends State<MultiFolderPickerDialog> {
 
   final _result = <FolderNode>[];
 
+  Future<void> _createFolder() async {
+    final name = await showFolderNameDialog(context, title: '新增收藏夹');
+    if (name?.trim().isEmpty != false || !mounted) return;
+    final folder = await widget.state.createFolder(name!.trim(), null);
+    if (folder != null && mounted) setState(() => _selected.add(folder.id));
+  }
+
   @override
   Widget build(BuildContext context) => AlertDialog(
-    title: Text(widget.title),
+    title: Row(
+      children: [
+        Expanded(child: Text(widget.title)),
+        if (widget.allowCreate)
+          IconButton(
+            tooltip: '新增收藏夹',
+            icon: const Icon(Icons.create_new_folder_outlined),
+            onPressed: widget.state.busy ? null : _createFolder,
+          ),
+      ],
+    ),
     content: SizedBox(
       height: MediaQuery.sizeOf(context).height * .6,
       width: MediaQuery.sizeOf(context).width - 72,
       child: ListView(
         children: [
-          ListTile(title: Text(widget.rootLabel)),
+          ListTile(
+            dense: true,
+            visualDensity: const VisualDensity(vertical: -3),
+            title: Text(widget.rootLabel),
+          ),
           for (final node in _nodes())
             Padding(
               padding: EdgeInsets.only(left: (node.depth - 1) * 16.0),
               child: CheckboxListTile(
                 dense: true,
+                visualDensity: const VisualDensity(vertical: -3),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+                controlAffinity: ListTileControlAffinity.leading,
+                minVerticalPadding: 0,
                 value: _selected.contains(node.folder.id),
                 title: Text(node.folder.name),
                 secondary: node.children.isEmpty

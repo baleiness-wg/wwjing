@@ -1,4 +1,5 @@
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/material.dart';
 
 abstract interface class PreferencesStore {
   Future<List<String>> recentFolders();
@@ -11,6 +12,8 @@ abstract interface class PreferencesStore {
   Future<void> saveRecommendation(String value);
   Future<List<String>> recommendationItemIds();
   Future<void> saveRecommendationItemId(String value);
+  Future<Offset?> aiButtonOffset();
+  Future<void> setAiButtonOffset(Offset offset);
 }
 
 class SharedPreferencesStore implements PreferencesStore {
@@ -88,5 +91,20 @@ class SharedPreferencesStore implements PreferencesStore {
       ...(prefs.getStringList(_recommendationItemIdsKey) ?? const <String>[]),
     ].take(10).toList();
     await prefs.setStringList(_recommendationItemIdsKey, values);
+  }
+
+  @override
+  Future<Offset?> aiButtonOffset() async {
+    final prefs = await _prefs;
+    final x = prefs.getDouble('ai_button_x');
+    final y = prefs.getDouble('ai_button_y');
+    return x == null || y == null ? null : Offset(x, y);
+  }
+
+  @override
+  Future<void> setAiButtonOffset(Offset offset) async {
+    final prefs = await _prefs;
+    await prefs.setDouble('ai_button_x', offset.dx);
+    await prefs.setDouble('ai_button_y', offset.dy);
   }
 }

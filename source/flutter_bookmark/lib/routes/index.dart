@@ -69,6 +69,7 @@ class _BookmarkAppState extends State<BookmarkApp> with WidgetsBindingObserver {
   String? _clipboardText;
   int _selectedTab = 0;
   DateTime? _lastHomeBack;
+  Offset _aiButtonOffset = const Offset(20, 120);
 
   @override
   void initState() {
@@ -76,6 +77,9 @@ class _BookmarkAppState extends State<BookmarkApp> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     _shareService = widget.shareService ?? ShareService();
     _shareService.listen(_onIncomingShare);
+    widget.state.preferences.aiButtonOffset().then((offset) {
+      if (mounted && offset != null) setState(() => _aiButtonOffset = offset);
+    });
     widget.state.initialize().then((_) async {
       try {
         final initial = await _shareService.initialText();
@@ -208,6 +212,7 @@ class _BookmarkAppState extends State<BookmarkApp> with WidgetsBindingObserver {
         api: state.api,
         directoryContext: {
           'space': widget.appConfig.space,
+          'profileDescription': state.profileDescription,
           'directoryId': directoryId,
           'directoryName': directoryName,
           'directoryPath': directoryName,
@@ -267,11 +272,38 @@ class _BookmarkAppState extends State<BookmarkApp> with WidgetsBindingObserver {
               },
               child: Scaffold(
                 body: body,
-                floatingActionButton: FloatingActionButton(
-                  key: const Key('root-ai-chat-button'),
-                  tooltip: '和 AI 讨论收藏',
-                  onPressed: () => _showRootAiChat(context, state),
-                  child: const Icon(Icons.auto_awesome),
+                floatingActionButton: LayoutBuilder(
+                  builder: (context, constraints) => Stack(
+                    children: [
+                      Positioned(
+                        right: _aiButtonOffset.dx,
+                        bottom: _aiButtonOffset.dy,
+                        child: GestureDetector(
+                          onPanUpdate: (details) => setState(() {
+                            _aiButtonOffset = Offset(
+                              (_aiButtonOffset.dx - details.delta.dx).clamp(
+                                8.0,
+                                constraints.maxWidth - 64,
+                              ),
+                              (_aiButtonOffset.dy - details.delta.dy).clamp(
+                                8.0,
+                                constraints.maxHeight - 64,
+                              ),
+                            );
+                          }),
+                          onPanEnd: (_) => state.preferences.setAiButtonOffset(
+                            _aiButtonOffset,
+                          ),
+                          child: FloatingActionButton(
+                            key: const Key('root-ai-chat-button'),
+                            tooltip: '和 AI 讨论收藏',
+                            onPressed: () => _showRootAiChat(context, state),
+                            child: const Icon(Icons.auto_awesome),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
                 bottomNavigationBar: Column(
                   mainAxisSize: MainAxisSize.min,

@@ -127,79 +127,6 @@ class _FolderNavigationState extends State<FolderNavigation> {
     }
   }
 
-  Future<void> _changePassword(BuildContext context) async {
-    final current = TextEditingController();
-    final next = TextEditingController();
-    final confirm = TextEditingController();
-    try {
-      final values = await showDialog<List<String>>(
-        context: context,
-        builder: (dialogContext) => AlertDialog(
-          title: const Text('修改密码'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: current,
-                obscureText: true,
-                decoration: const InputDecoration(labelText: '当前密码'),
-              ),
-              TextField(
-                controller: next,
-                obscureText: true,
-                decoration: const InputDecoration(labelText: '新密码'),
-              ),
-              TextField(
-                controller: confirm,
-                obscureText: true,
-                decoration: const InputDecoration(labelText: '确认新密码'),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('取消'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(dialogContext, [
-                current.text,
-                next.text,
-                confirm.text,
-              ]),
-              child: const Text('确认修改'),
-            ),
-          ],
-        ),
-      );
-      if (values == null || !context.mounted) return;
-      if (values.any((value) => value.isEmpty)) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text('请填写完整密码信息')));
-        return;
-      }
-      if (values[1] != values[2]) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text('两次输入的新密码不一致')));
-        return;
-      }
-      final state = context.read<AppState>();
-      final changed = await state.changePassword(
-        values[0],
-        values[1],
-        values[2],
-      );
-      if (changed && context.mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text('密码修改成功，请重新登录')));
-      }
-    } finally {
-      current.dispose();
-      next.dispose();
-      confirm.dispose();
-    }
-  }
-
   List<FolderNode> _visibleNodes(List<FolderNode> roots) {
     final result = <FolderNode>[];
     void visit(FolderNode node) {
@@ -443,23 +370,6 @@ class _FolderNavigationState extends State<FolderNavigation> {
                   ),
                 );
               },
-            ),
-          ),
-          ListTile(
-            leading: PopupMenuButton<String>(
-              tooltip: '设置选项',
-              icon: const Icon(Icons.settings_outlined),
-              position: PopupMenuPosition.under,
-              // The settings icon is on the left edge, so open to its right.
-              offset: const Offset(48, 8),
-              onSelected: (action) async {
-                if (action == 'password') await _changePassword(context);
-                if (action == 'logout') await state.logout();
-              },
-              itemBuilder: (_) => const [
-                PopupMenuItem(value: 'password', child: Text('修改密码')),
-                PopupMenuItem(value: 'logout', child: Text('退出登录')),
-              ],
             ),
           ),
         ],

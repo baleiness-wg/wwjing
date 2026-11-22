@@ -60,6 +60,7 @@ class _BookmarkFormState extends State<BookmarkForm> {
       _description.text = draft.description;
       _imageUrl.text = draft.images.isEmpty ? '' : draft.images.first;
       _folderId = draft.folderId;
+      _folderIds = draft.folderIds.toSet();
       _images = draft.images;
     });
     if (draft.fetchMetadataOnOpen && draft.sourceUrl.trim().isNotEmpty) {
@@ -177,6 +178,7 @@ class _BookmarkFormState extends State<BookmarkForm> {
       title: _title.text.trim(),
       description: _description.text.trim(),
       folderId: _folderId,
+      folderIds: _folderIds.toList(),
       images: _imageUrl.text.trim().isEmpty
           ? const []
           : [_imageUrl.text.trim()],
@@ -234,17 +236,23 @@ class _BookmarkFormState extends State<BookmarkForm> {
 
   Future<void> _chooseFolder(List<FolderNode> nodes) async {
     final state = context.read<AppState>();
-    final selected = await showMultiFolderPicker(
+    final selected = await showFolderPicker(
       context: context,
       state: state,
       title: '选择收藏夹',
-      selectedFolderIds: _folderIds,
+      selectedFolderId: null,
       rootLabel: '未分类',
+      allowCreate: true,
     );
     if (!mounted || selected == null) return;
     setState(() {
-      _folderIds = selected.toSet();
-      _folderId = selected.isEmpty ? null : selected.first;
+      if (selected.isEmpty) {
+        _folderIds.clear();
+        _folderId = null;
+      } else {
+        _folderIds.add(selected);
+        _folderId ??= selected;
+      }
     });
   }
 
@@ -371,11 +379,31 @@ class _BookmarkFormState extends State<BookmarkForm> {
                 child: ListTile(
                   leading: const Icon(Icons.folder_outlined),
                   title: const Text('收藏夹'),
-                  subtitle: Text(
-                    _folderIds.isEmpty ? '未分类' : '已选择 ${_folderIds.length} 个目录',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
+                  subtitle: _folderIds.isEmpty
+                      ? const Text('未分类')
+                      : Wrap(
+                          spacing: 4,
+                          runSpacing: 2,
+                          children: [
+                            for (final id in _folderIds)
+                              InputChip(
+                                label: Text(
+                                  folderNodes
+                                          .where((node) => node.folder.id == id)
+                                          .firstOrNull
+                                          ?.folder
+                                          .name ??
+                                      id,
+                                ),
+                                onDeleted: () => setState(() {
+                                  _folderIds.remove(id);
+                                  if (_folderId == id) {
+                                    _folderId = _folderIds.firstOrNull;
+                                  }
+                                }),
+                              ),
+                          ],
+                        ),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => _chooseFolder(folderNodes),
                 ),

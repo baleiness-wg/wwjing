@@ -12,8 +12,16 @@ async function findByUsername(username) {
 
 async function findById(id) {
   const result = await pool.query(
-    "SELECT id, username, password_hash AS \"passwordHash\" FROM users WHERE id = $1",
+    "SELECT id, username, password_hash AS \"passwordHash\", profile_description AS \"profileDescription\" FROM users WHERE id = $1",
     [id]
+  );
+  return result.rows[0] || null;
+}
+
+async function updateProfileDescription(id, description) {
+  const result = await pool.query(
+    "UPDATE users SET profile_description = $1, updated_at = NOW() WHERE id = $2 RETURNING id, username, profile_description AS \"profileDescription\"",
+    [description, id]
   );
   return result.rows[0] || null;
 }
@@ -36,4 +44,4 @@ async function updatePassword(id, passwordHash) {
   );
 }
 
-module.exports = { findByUsername, findById, create, updatePassword };
+module.exports = { findByUsername, findById, create, updatePassword, updateProfileDescription };

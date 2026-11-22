@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:wwjing_bookmark/utils/preferences_store.dart';
 import 'package:wwjing_bookmark/utils/token_store.dart';
 
@@ -42,4 +43,9 @@ class MemoryPreferencesStore implements PreferencesStore {
   @override
   Future<void> saveRecommendationItemId(String value) async =>
       savedRecommendationIds = [value, ...savedRecommendationIds];
+  Offset? savedAiOffset;
+  @override
+  Future<Offset?> aiButtonOffset() async => savedAiOffset;
+  @override
+  Future<void> setAiButtonOffset(Offset offset) async => savedAiOffset = offset;
 }
