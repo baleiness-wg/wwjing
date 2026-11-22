@@ -171,6 +171,14 @@ async function pin(userId, itemId, folderId, pinned, space) {
        WHERE id = $2 AND user_id = $1 AND space = $4`,
       [userId, itemId, pinned, space]
     );
+    // 全部收藏/灵感视图没有单一目录上下文：同步清理或设置该收藏的所有目录置顶状态。
+    await pool.query(
+      `UPDATE bookmark_item_folders link SET pinned = $3
+       FROM bookmark_items item
+       WHERE link.item_id = $2 AND item.id = link.item_id
+         AND item.user_id = $1 AND item.space = $4`,
+      [userId, itemId, pinned, space]
+    );
     await pool.query("UPDATE bookmark_items SET updated_at = NOW() WHERE id = $1 AND user_id = $2 AND space = $3", [itemId, userId, space]);
     return true;
   }
