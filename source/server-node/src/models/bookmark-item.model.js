@@ -106,7 +106,7 @@ async function list(userId, filters) {
     )`;
   }
   const itemSelect = `${selectFields}, ${pinnedExpression} AS "pinned"`;
-  const pinOrder = `${pinnedExpression} DESC,`;
+  const pinOrder = pinnedExpression === "false" ? "" : `${pinnedExpression} DESC,`;
   const result = await pool.query(`SELECT ${itemSelect}, COUNT(*) OVER()::int AS "totalCount" FROM bookmark_items item WHERE ${conditions.join(" AND ")} ORDER BY ${pinOrder} item.updated_at DESC, item.id DESC LIMIT $${limitIndex} OFFSET $${offsetIndex}`, parameters);
   return { items: result.rows.map(({ totalCount, ...item }) => ({ ...item, images: signImages(item.images || []) })), total: result.rows[0]?.totalCount || 0 };
 }
