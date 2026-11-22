@@ -144,7 +144,12 @@ function openWhale(event) {
 }
 try {
   const saved = JSON.parse(localStorage.getItem("wwjing_whale_position") || "null");
-  if (saved) Object.assign(whalePosition, saved);
+  if (saved) {
+    Object.assign(whalePosition, saved);
+    if (typeof saved.top !== "number" && typeof saved.bottom === "number") {
+      whalePosition.top = Math.max(8, window.innerHeight - saved.bottom - 72);
+    }
+  }
 } catch { /* ignore invalid saved position */ }
 
 function openPasswordDialog() {

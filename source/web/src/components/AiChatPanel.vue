@@ -113,17 +113,6 @@ watch(() => contextKey(props.context), () => {
 
 <template>
   <div class="ai-chat-entry">
-    <el-button
-      v-if="!modelValue"
-      class="ai-chat-fab"
-      type="primary"
-      circle
-      :icon="ChatDotRound"
-      aria-label="打开 AI Chat"
-      title="和 AI 讨论当前目录"
-      @click="emit('update:modelValue', true)"
-    />
-
     <section v-if="modelValue" class="ai-chat-panel" aria-label="AI Chat 对话面板">
       <header class="ai-chat-header">
         <div>
