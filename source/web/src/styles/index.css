@@ -358,7 +358,7 @@ h3 { margin-bottom: 10px; color: #263d40; font-size: 17px; }
 .bookmark-actions-popper { margin-top: 4px !important; }
 .folder-node:hover .el-button, .folder-node:focus-within .el-button { opacity: 1; }
 .bookmark-list-panel { width: 100%; min-width: 0; box-sizing: border-box; padding: 0; overflow-y: auto; height: 100%; }
-.list-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 18px 24px; border-bottom: 1px solid #e2e9e4; background: #fff; }
+.list-toolbar { position: sticky; top: 0; z-index: 8; display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 18px 24px; border-bottom: 1px solid #e2e9e4; background: #fff; box-shadow: 0 3px 10px rgb(22 46 37 / 7%); }
 .list-toolbar h2 { font-size: 28px; }
 .list-path { max-width: 480px; margin-bottom: 5px; overflow: hidden; color: #7d8d88; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
 .bookmark-search { width: min(560px, 60%); }
