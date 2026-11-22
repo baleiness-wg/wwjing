@@ -30,9 +30,10 @@ const profileDialogVisible = ref(false);
 const profileLoading = ref(false);
 const profileDescription = ref("");
 const bookmarkLocation = ref("");
-const whalePosition = reactive({ right: 24, bottom: 88 });
+const whalePosition = reactive({ right: 24, top: 140 });
 const draggingWhale = ref(false);
 let whaleStart = null;
+let whaleMoved = false;
 
 const navigationItems = [
   {
@@ -117,14 +118,16 @@ onBeforeUnmount(() => window.removeEventListener("wwjing:bookmark-location", upd
 
 function beginWhaleDrag(event) {
   draggingWhale.value = true;
-  whaleStart = { x: event.clientX, y: event.clientY, right: whalePosition.right, bottom: whalePosition.bottom };
+  whaleMoved = false;
+  whaleStart = { x: event.clientX, y: event.clientY, right: whalePosition.right, top: whalePosition.top };
   window.addEventListener("pointermove", moveWhale);
   window.addEventListener("pointerup", endWhaleDrag, { once: true });
 }
 function moveWhale(event) {
   if (!whaleStart) return;
+  if (Math.abs(event.clientX - whaleStart.x) + Math.abs(event.clientY - whaleStart.y) > 4) whaleMoved = true;
   whalePosition.right = Math.max(8, whaleStart.right + whaleStart.x - event.clientX);
-  whalePosition.bottom = Math.max(72, whaleStart.bottom + event.clientY - whaleStart.y);
+  whalePosition.top = Math.max(8, whaleStart.top + event.clientY - whaleStart.y);
 }
 function endWhaleDrag() {
   draggingWhale.value = false;
@@ -132,7 +135,13 @@ function endWhaleDrag() {
   window.removeEventListener("pointermove", moveWhale);
   localStorage.setItem("wwjing_whale_position", JSON.stringify(whalePosition));
 }
-function openWhale() { window.dispatchEvent(new CustomEvent("wwjing:open-ai-chat")); }
+function openWhale(event) {
+  if (whaleMoved) {
+    event.preventDefault();
+    return;
+  }
+  window.dispatchEvent(new CustomEvent("wwjing:open-ai-chat"));
+}
 try {
   const saved = JSON.parse(localStorage.getItem("wwjing_whale_position") || "null");
   if (saved) Object.assign(whalePosition, saved);
@@ -263,7 +272,7 @@ async function submitPassword() {
         <router-view />
       </el-main>
     </el-container>
-    <button class="global-whale-button" :class="{ 'is-dragging': draggingWhale }" :style="{ right: `${whalePosition.right}px`, bottom: `${whalePosition.bottom}px` }" title="和 AI 讨论收藏" @pointerdown="beginWhaleDrag" @click="openWhale">🐋</button>
+      <button class="global-whale-button" :class="{ 'is-dragging': draggingWhale }" :style="{ right: `${whalePosition.right}px`, top: `${whalePosition.top}px` }" title="和 AI 讨论收藏" @pointerdown="beginWhaleDrag" @click="openWhale">🐋</button>
      <el-dialog v-model="passwordDialogVisible" title="修改密码" width="min(92vw, 420px)">
     <el-form label-position="top" @submit.prevent="submitPassword">
       <el-form-item label="当前密码"><el-input v-model="passwordForm.currentPassword" type="password" show-password /></el-form-item>
@@ -294,6 +303,6 @@ async function submitPassword() {
 </template>
 
 <style scoped>
-.global-whale-button { position: fixed; z-index: 20; width: 54px; height: 54px; border: 0; border-radius: 50%; background: transparent; font-size: 38px; line-height: 1; cursor: grab; user-select: none; touch-action: none; filter: drop-shadow(0 3px 8px rgb(15 23 42 / 18%)); }
+.global-whale-button { position: fixed; z-index: 20; width: 72px; height: 72px; border: 0; border-radius: 50%; background: transparent; font-size: 52px; line-height: 1; cursor: grab; user-select: none; touch-action: none; filter: drop-shadow(0 3px 8px rgb(15 23 42 / 18%)); }
 .global-whale-button.is-dragging { cursor: grabbing; }
 </style>
