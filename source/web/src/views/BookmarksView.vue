@@ -943,6 +943,9 @@ watch(activeTitle, (title) => window.dispatchEvent(new CustomEvent("wwjing:bookm
             </el-select>
             <el-button :icon="FolderAdd" title="新建目录并选择" aria-label="新建目录并选择" @click="openCreateFolderForItem" />
           </div>
+          <div v-if="!itemImages.length && itemForm.coverUrl" class="item-image-strip">
+            <div class="item-image-thumb"><img :src="itemForm.coverUrl" alt="收藏封面" /></div>
+          </div>
         </el-form-item>
       </el-form>
       <template #footer>

@@ -422,10 +422,31 @@ class _BookmarkFormState extends State<BookmarkForm> {
                   ),
                 ),
               const SizedBox(height: 8),
-              OutlinedButton.icon(
-                onPressed: _pickImages,
-                icon: const Icon(Icons.add_photo_alternate_outlined),
-                label: Text('追加图片（${_images.length}）'),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _recognizing
+                          ? null
+                          : () => _metadataFuture = _recognizeCover(),
+                      icon: _recognizing
+                          ? const SizedBox.square(
+                              dimension: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.auto_awesome_outlined),
+                      label: const Text('识别封面'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _pickImages,
+                      icon: const Icon(Icons.add_photo_alternate_outlined),
+                      label: Text('追加图片（${_images.length}）'),
+                    ),
+                  ),
+                ],
               ),
               Align(
                 alignment: Alignment.centerRight,
