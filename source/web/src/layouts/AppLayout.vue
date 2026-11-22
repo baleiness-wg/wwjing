@@ -39,8 +39,11 @@ const navigationItems = [
   {
     path: "/tools",
     label: "Tools",
-    icon: Folder,
-      children: [{ path: "/tools/bookmarks/star", label: "Bookmarks", icon: Star }]
+      icon: Folder,
+      children: [
+        { path: "/tools/bookmarks/star", label: "Bookmarks", icon: Star },
+        { path: "/transfer", label: "Transfer", icon: Switch }
+      ]
   }
 ];
 
@@ -256,7 +259,6 @@ async function submitPassword() {
           </el-breadcrumb>
         </div>
         <div class="header-actions">
-          <el-button text circle :icon="Switch" title="数据传输" aria-label="数据传输" @click="go('/transfer')" />
           <el-button text circle :icon="ChatDotRound" title="Office 协作" aria-label="Office 协作" @click="openOffice" />
           <el-dropdown @command="handleUserCommand">
             <el-button text class="user-button">
