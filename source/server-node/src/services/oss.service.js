@@ -32,8 +32,13 @@ async function upload(userId, itemId, file) {
   const normalizedExtension = extension === "jpeg" ? "jpg" : extension || "jpg";
   const contentType = allowedMime ? file.mimetype : `image/${normalizedExtension}`;
   const key = `users/${userId}/bookmarks/${itemId}/${crypto.randomUUID()}.${normalizedExtension}`;
-  const result = await client().put(key, file.buffer, { headers: { "Content-Type": contentType } });
-  return { key, url: result.url };
+  const ossClient = client();
+  await ossClient.put(key, file.buffer, { headers: { "Content-Type": contentType } });
+  const url = ossClient.signatureUrl(key, {
+    expires: config.oss.signedUrlExpires,
+    response: { "content-disposition": "inline" }
+  });
+  return { key, url, expiresIn: config.oss.signedUrlExpires };
 }
 
 module.exports = { upload };
