@@ -447,6 +447,9 @@ class _HomePageState extends State<HomePage> {
                                 return false;
                               },
                               child: ListView.separated(
+                                key: const PageStorageKey(
+                                  'star-bookmarks-list',
+                                ),
                                 padding: EdgeInsets.fromLTRB(
                                   6,
                                   6,
@@ -470,6 +473,7 @@ class _HomePageState extends State<HomePage> {
                                   final item = state.items[index];
                                   final card = BookmarkItemCard(
                                     item: item,
+                                    onImageError: state.refresh,
                                     selectionValue: _editMode
                                         ? _selectedItemIds.contains(item.id)
                                         : null,

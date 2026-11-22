@@ -8,6 +8,7 @@ const app = require("./src/app");
 const { attachOfficeWebSocket } = require("./src/office/office-ws");
 const config = require("./src/config");
 const logger = require("./src/logger");
+const { scheduleCoverRefresh } = require("./src/services/cover-refresh.service");
 
 const server = http.createServer(app);
 attachOfficeWebSocket(server);
@@ -17,4 +18,5 @@ server.listen(config.port, config.host, () => {
     port: config.port,
     address: `http://${config.host}:${config.port}`
   }, "server started");
+  scheduleCoverRefresh();
 });

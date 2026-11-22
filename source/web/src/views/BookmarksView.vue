@@ -545,6 +545,10 @@ async function detectMetadata() {
     if (!itemForm.description.trim() && metadata.description) itemForm.description = metadata.description;
     if (!itemForm.coverUrl.trim() && metadata.coverUrl) {
       itemForm.coverUrl = metadata.coverUrl;
+      itemImages.value = [
+        metadata.coverUrl,
+        ...itemImages.value.filter((image) => image !== metadata.coverUrl)
+      ];
       previewCoverFailed.value = false;
     }
     ElMessage.success("已获取网页信息");
@@ -955,7 +959,7 @@ watch(activeTitle, (title) => window.dispatchEvent(new CustomEvent("wwjing:bookm
         <el-form-item label="描述">
           <el-input v-model="itemForm.description" type="textarea" :rows="10" placeholder="记录为什么收藏这个链接" />
         </el-form-item>
-        <el-form-item label="图片">
+      <el-form-item label="图片">
           <input ref="imageInput" type="file" accept="image/jpeg,image/png,image/webp,image/gif" hidden @change="uploadItemImage" />
           <div v-if="itemImages.length || pendingImages.length || itemForm.coverUrl" class="item-image-strip">
             <button

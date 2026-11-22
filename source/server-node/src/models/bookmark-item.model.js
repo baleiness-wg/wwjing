@@ -136,4 +136,26 @@ async function pin(userId, itemId, folderId, pinned, space) {
   );
 }
 
-module.exports = { findById, findDuplicate, list, create, update, remove, pin };
+async function findItemsMissingImages(limit = 100) {
+  const result = await pool.query(
+    `SELECT id, user_id AS "userId", source_url AS "sourceUrl"
+     FROM bookmark_items
+     WHERE source_url IS NOT NULL
+       AND btrim(source_url) <> ''
+       AND (images IS NULL OR images = '[]'::jsonb)
+     ORDER BY updated_at ASC, id ASC
+     LIMIT $1`,
+    [limit]
+  );
+  return result.rows;
+}
+
+async function updateImages(id, images) {
+  await pool.query(
+    `UPDATE bookmark_items SET images = $2::jsonb, updated_at = NOW()
+     WHERE id = $1`,
+    [id, JSON.stringify(images)]
+  );
+}
+
+module.exports = { findById, findDuplicate, list, create, update, remove, pin, findItemsMissingImages, updateImages };

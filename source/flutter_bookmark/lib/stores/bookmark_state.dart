@@ -358,17 +358,25 @@ class AppState extends ChangeNotifier {
         await preferences.rememberFolder(folderId);
       }
       recentFolderIds = await preferences.recentFolders();
-      if (lastSavedItemId != null) {
-        for (final path in pendingImagePaths) {
-          await api.uploadItemImage(lastSavedItemId!, path);
-        }
-      }
       draft = null;
       editingItemId = null;
       saved = true;
       await refresh(resetPage: true);
     });
     final savedItemId = lastSavedItemId;
+    if (saved && savedItemId != null && pendingImagePaths.isNotEmpty) {
+      unawaited(() async {
+        try {
+          for (final path in pendingImagePaths) {
+            await api.uploadItemImage(savedItemId, path);
+          }
+          await refresh(resetPage: true);
+        } catch (_) {
+          metadataMessage = '图片上传失败，请稍后在编辑收藏中重试';
+          notifyListeners();
+        }
+      }());
+    }
     if (saved && savedItemId != null && metadataFuture != null) {
       unawaited(
         metadataFuture.then(

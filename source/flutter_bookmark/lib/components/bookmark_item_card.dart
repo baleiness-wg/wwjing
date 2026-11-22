@@ -14,6 +14,7 @@ class BookmarkItemCard extends StatelessWidget {
     this.onAction,
     this.compact = false,
     this.embedded = false,
+    this.onImageError,
   });
 
   final BookmarkItem item;
@@ -23,6 +24,7 @@ class BookmarkItemCard extends StatelessWidget {
   final ValueChanged<String>? onAction;
   final bool compact;
   final bool embedded;
+  final VoidCallback? onImageError;
 
   String _displayTitle(String value) {
     final runes = value.runes.toList();
@@ -39,6 +41,7 @@ class BookmarkItemCard extends StatelessWidget {
       coverUrl: item.images.isNotEmpty ? item.images.first : item.coverUrl,
       width: compact ? 44 : 58,
       height: compact ? 44 : 58,
+      onImageError: onImageError,
     );
     final title = Text(
       _displayTitle(item.title?.isNotEmpty == true ? item.title! : '未命名收藏'),

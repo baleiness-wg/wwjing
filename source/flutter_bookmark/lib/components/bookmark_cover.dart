@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../utils/cover_url_cleaner.dart';
 
 class BookmarkCover extends StatelessWidget {
@@ -9,6 +10,7 @@ class BookmarkCover extends StatelessWidget {
     this.coverUrl,
     this.width = 72,
     this.height = 72,
+    this.onImageError,
   });
 
   final String sourceUrl;
@@ -16,6 +18,7 @@ class BookmarkCover extends StatelessWidget {
   final String? coverUrl;
   final double width;
   final double height;
+  final VoidCallback? onImageError;
 
   @override
   Widget build(BuildContext context) {
@@ -50,22 +53,27 @@ class BookmarkCover extends StatelessWidget {
         (imageUri.scheme != 'http' && imageUri.scheme != 'https')) {
       return placeholder;
     }
-    final isBili = imageUri.host.toLowerCase().contains('hdslb.com') ||
+    final isBili =
+        imageUri.host.toLowerCase().contains('hdslb.com') ||
         imageUri.host.toLowerCase().contains('bilibili.com');
     return ClipRRect(
       borderRadius: BorderRadius.circular(10),
       child: Image.network(
         imageUri.toString(),
         headers: {
-          'User-Agent':
-              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
           if (isBili) 'Referer': 'https://www.bilibili.com/',
         },
         key: const Key('bookmark-cover-image'),
         width: width,
         height: height,
         fit: BoxFit.cover,
-        errorBuilder: (_, _, _) => placeholder,
+        errorBuilder: (_, _, _) {
+          WidgetsBinding.instance.addPostFrameCallback(
+            (_) => onImageError?.call(),
+          );
+          return placeholder;
+        },
       ),
     );
   }

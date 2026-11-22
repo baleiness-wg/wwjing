@@ -236,7 +236,6 @@ class _BookmarkFormState extends State<BookmarkForm> {
 
   Future<void> _save({bool allowDuplicate = false}) async {
     if (!_formKey.currentState!.validate()) return;
-    if (_metadataFuture != null) await _metadataFuture;
     if (_title.text.trim().isEmpty) {
       ScaffoldMessenger.of(context)
           .showSnackBar(const SnackBar(content: Text('请输入标题')));
@@ -258,7 +257,8 @@ class _BookmarkFormState extends State<BookmarkForm> {
     final saved = await state.saveDraft(
       value,
       allowDuplicate: allowDuplicate,
-      metadataFuture: null,
+      // 先保存收藏，封面识别完成后再异步回写元数据。
+      metadataFuture: _metadataFuture,
       pendingImagePaths: _pendingImages.map((file) => file.path).toList(),
     );
     if (!mounted) return;
@@ -434,8 +434,22 @@ class _BookmarkFormState extends State<BookmarkForm> {
                     itemCount: _images.length + _pendingImages.length,
                     onReorder: (oldIndex, newIndex) => setState(() {
                       if (newIndex > oldIndex) newIndex -= 1;
-                      final image = _images.removeAt(oldIndex);
-                      _images.insert(newIndex, image);
+                      final entries = <({String path, bool pending})>[
+                        ..._images.map((path) => (path: path, pending: false)),
+                        ..._pendingImages.map(
+                          (file) => (path: file.path, pending: true),
+                        ),
+                      ];
+                      final entry = entries.removeAt(oldIndex);
+                      entries.insert(newIndex, entry);
+                      _images = [
+                        for (final item in entries)
+                          if (!item.pending) item.path,
+                      ];
+                      _pendingImages = [
+                        for (final item in entries)
+                          if (item.pending) XFile(item.path),
+                      ];
                       _imageUrl.text = _images.firstOrNull ?? '';
                     }),
                     itemBuilder: (_, index) {
@@ -464,6 +478,32 @@ class _BookmarkFormState extends State<BookmarkForm> {
                                       fit: BoxFit.cover,
                                     ),
                             ),
+                            if (index == 0)
+                              Positioned(
+                                left: 4,
+                                bottom: 4,
+                                child: DecoratedBox(
+                                  decoration: const BoxDecoration(
+                                    color: Colors.black54,
+                                    borderRadius: BorderRadius.all(
+                                      Radius.circular(4),
+                                    ),
+                                  ),
+                                  child: Padding(
+                                    padding: EdgeInsets.symmetric(
+                                      horizontal: 4,
+                                      vertical: 2,
+                                    ),
+                                    child: Text(
+                                      '封面',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 10,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
                             Positioned(
                               right: 0,
                               top: 0,
