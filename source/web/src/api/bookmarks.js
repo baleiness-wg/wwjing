@@ -93,6 +93,13 @@ export function pinBookmarkItem(id, folderId, pinned, space = "star") {
   });
 }
 
+export function uploadBookmarkImage(id, file, space = "star") {
+  const form = new FormData();
+  form.append("image", file);
+  form.append("space", space);
+  return request(`${baseUrl}/items/${id}/images`, { method: "POST", body: form });
+}
+
 export function deleteBookmarkItem(id, space = "star") {
   return request(`${baseUrl}/items/${id}?space=${encodeURIComponent(space)}`, { method: "DELETE" });
 }

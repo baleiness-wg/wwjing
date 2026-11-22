@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../components/folder_picker_dialog.dart';
 import '../components/bookmark_cover.dart';
@@ -10,6 +11,7 @@ import '../utils/link_launcher.dart';
 import '../utils/shared_link_parser.dart';
 import '../utils/bilibili_resolver.dart';
 import '../utils/douyin_resolver.dart';
+import '../api/api_client.dart';
 
 class BookmarkForm extends StatefulWidget {
   const BookmarkForm({super.key});
@@ -99,6 +101,33 @@ class _BookmarkFormState extends State<BookmarkForm> {
       }
     });
     _metadataFuture = _recognizeCover();
+  }
+
+  Future<void> _pickImages() async {
+    final files = await ImagePicker().pickMultiImage(imageQuality: 90);
+    if (files.isEmpty || !mounted) return;
+    if (context.read<AppState>().editingItemId == null) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('请先保存收藏，再上传图片')));
+      return;
+    }
+    try {
+      var images = [..._images];
+      for (final file in files) {
+        images = await context.read<AppState>().api.uploadItemImage(
+          context.read<AppState>().editingItemId!,
+          file.path,
+        );
+      }
+      setState(() {
+        _images = images;
+        _imageUrl.text = images.isEmpty ? '' : images.first;
+      });
+    } on ApiException catch (error) {
+      if (mounted)
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(error.message)));
+    }
   }
 
   void _onUrlChanged(String value) {
@@ -353,6 +382,11 @@ class _BookmarkFormState extends State<BookmarkForm> {
                 ],
               ),
               const SizedBox(height: 8),
+              OutlinedButton.icon(
+                onPressed: _pickImages,
+                icon: const Icon(Icons.add_photo_alternate_outlined),
+                label: Text('追加图片（${_images.length}）'),
+              ),
               Align(
                 alignment: Alignment.centerRight,
                 child: OutlinedButton.icon(

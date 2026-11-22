@@ -1,5 +1,9 @@
 const itemService = require("../services/bookmark-item.service");
 const logger = require("../logger");
+const multer = require("multer");
+const oss = require("../services/oss.service");
+const itemModel = require("../models/bookmark-item.model");
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
 async function list(req, res, next) {
   try {
@@ -54,13 +58,25 @@ async function pin(req, res, next) {
   } catch (error) { next(error); }
 }
 
-function uploadImages(req, res) {
-  res.status(501).json({
-    error: {
-      code: "IMAGE_UPLOAD_NOT_IMPLEMENTED",
-      message: "图片上传接口已预留，当前版本尚未启用文件存储"
-    }
-  });
-}
+const uploadImages = [upload.single("image"), async (req, res, next) => {
+  try {
+    const item = await itemService.get(req.auth.sub, req.params.id, req.body?.space || "star");
+    const uploaded = await oss.upload(req.auth.sub, item.id, req.file);
+    const images = [...(item.images || []), uploaded.url];
+    await itemModel.update(req.auth.sub, item.id, {
+      space: req.body?.space || "star",
+      folderId: item.folderId,
+      folderIds: item.folderIds || [],
+      title: item.title,
+      description: item.description,
+      images,
+      sourceUrl: item.sourceUrl,
+      normalizedUrl: item.normalizedUrl,
+      sourceHost: item.sourceHost,
+      metadata: item.metadata || {}
+    });
+    res.status(201).json({ image: uploaded.url, images });
+  } catch (error) { next(error); }
+}];
 
 module.exports = { list, create, get, update, remove, pin, uploadImages };

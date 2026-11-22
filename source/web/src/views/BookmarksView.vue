@@ -35,6 +35,7 @@ import {
   updateBookmarkFolder,
   updateBookmarkItem,
   pinBookmarkItem
+  ,uploadBookmarkImage
 } from "../api/bookmarks";
 import AiChatPanel from "../components/AiChatPanel.vue";
 
@@ -76,6 +77,8 @@ const folderMenuVisible = ref(false);
 
 const folderForm = reactive({ id: null, name: "", parentId: null, position: 0 });
 const itemForm = reactive({ id: null, sourceUrl: "", title: "", description: "", coverUrl: "", folderIds: [] });
+const imageInput = ref(null);
+const itemImages = ref([]);
 const bulkFolderIds = ref([]);
 const draggingItemId = ref(null);
 
@@ -498,8 +501,21 @@ function openEditItem(item) {
     coverUrl: item.coverUrl || "",
     folderIds: item.folderIds?.length ? [...item.folderIds] : (item.folderId ? [item.folderId] : [])
   });
+  itemImages.value = [...(item.images || [])];
   previewCoverFailed.value = false;
   itemDialogVisible.value = true;
+}
+
+async function uploadItemImage(event) {
+  const file = event.target.files?.[0];
+  event.target.value = "";
+  if (!file || !itemForm.id) return;
+  try {
+    const result = await uploadBookmarkImage(itemForm.id, file, currentSpace.value);
+    itemImages.value = result.images || [...itemImages.value, result.image];
+    itemForm.coverUrl = itemImages.value[0] || "";
+    ElMessage.success("图片已上传");
+  } catch (error) { ElMessage.error(error.message); }
 }
 
 async function detectMetadata() {
@@ -914,7 +930,11 @@ watch(activeTitle, (title) => window.dispatchEvent(new CustomEvent("wwjing:bookm
         <el-form-item label="描述">
           <el-input v-model="itemForm.description" type="textarea" :rows="10" placeholder="记录为什么收藏这个链接" />
         </el-form-item>
-        <el-alert title="图片上传接口已预留，当前版本暂不上传图片。" type="info" :closable="false" />
+        <el-form-item label="图片">
+          <input ref="imageInput" type="file" accept="image/jpeg,image/png,image/webp,image/gif" hidden @change="uploadItemImage" />
+          <el-button :disabled="itemDialogMode === 'create'" @click="imageInput?.click()">追加图片</el-button>
+          <span class="muted image-upload-hint">{{ itemDialogMode === 'create' ? '保存后可追加图片' : `已上传 ${itemImages.length} 张` }}</span>
+        </el-form-item>
         <el-form-item label="收藏目录">
           <div class="folder-select-row">
             <el-select v-model="itemForm.folderIds" class="full-width" multiple collapse-tags collapse-tags-tooltip placeholder="灵感">

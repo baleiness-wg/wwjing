@@ -341,6 +341,22 @@ class ApiClient {
     await _request('DELETE', '/bookmarks/items/$id?space=$space');
   }
 
+  Future<List<String>> uploadItemImage(String id, String path) async {
+    final token = await tokenStore.read();
+    final request = http.MultipartRequest(
+      'POST',
+      Uri.parse('$baseUrl/bookmarks/items/$id/images'),
+    )
+      ..headers['Authorization'] = token == null
+          ? ''
+          : (token.startsWith('Bearer ') ? token : 'Bearer $token')
+      ..fields['space'] = space
+      ..files.add(await http.MultipartFile.fromPath('image', path));
+    final response = await http.Response.fromStream(await _http.send(request));
+    final data = _decode(response) as Map<String, dynamic>;
+    return (data['images'] as List? ?? const []).whereType<String>().toList();
+  }
+
   Future<void> pinItem(String id, String folderId, bool pinned) async {
     await _request(
       'PATCH',
