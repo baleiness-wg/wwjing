@@ -14,6 +14,74 @@ class MyPage extends StatelessWidget {
   final AppConfig appConfig;
   final VoidCallback onOpenFolders;
 
+  Future<void> _changePassword(BuildContext context) async {
+    final current = TextEditingController();
+    final next = TextEditingController();
+    final confirm = TextEditingController();
+    try {
+      final values = await showDialog<List<String>>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('修改密码'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: current,
+                obscureText: true,
+                decoration: const InputDecoration(labelText: '当前密码'),
+              ),
+              TextField(
+                controller: next,
+                obscureText: true,
+                decoration: const InputDecoration(labelText: '新密码'),
+              ),
+              TextField(
+                controller: confirm,
+                obscureText: true,
+                decoration: const InputDecoration(labelText: '确认新密码'),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, [
+                current.text,
+                next.text,
+                confirm.text,
+              ]),
+              child: const Text('确认修改'),
+            ),
+          ],
+        ),
+      );
+      if (values == null || !context.mounted) return;
+      if (values.any((value) => value.isEmpty)) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('请填写完整密码信息')));
+        return;
+      }
+      if (values[1] != values[2]) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('两次输入的新密码不一致')));
+        return;
+      }
+      await context.read<AppState>().changePassword(
+        values[0],
+        values[1],
+        values[2],
+      );
+    } finally {
+      current.dispose();
+      next.dispose();
+      confirm.dispose();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = context.read<AppState>();
@@ -32,7 +100,10 @@ class MyPage extends StatelessWidget {
               ListTile(
                 leading: const Icon(Icons.lock_outline),
                 title: const Text('修改密码'),
-                onTap: () => Navigator.pop(context),
+                onTap: () async {
+                  Navigator.pop(context);
+                  await _changePassword(context);
+                },
               ),
               ListTile(
                 leading: const Icon(Icons.logout),

@@ -72,7 +72,7 @@ class SharedPreferencesStore implements PreferencesStore {
     final values = [
       value,
       ...(prefs.getStringList(_recommendationsKey) ?? const <String>[]),
-    ].take(20).toList();
+    ].take(10).toList();
     await prefs.setStringList(_recommendationsKey, values);
   }
 
@@ -86,7 +86,7 @@ class SharedPreferencesStore implements PreferencesStore {
     final values = <String>[
       value,
       ...(prefs.getStringList(_recommendationItemIdsKey) ?? const <String>[]),
-    ].toSet().take(20).toList();
+    ].take(10).toList();
     await prefs.setStringList(_recommendationItemIdsKey, values);
   }
 }

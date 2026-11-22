@@ -124,7 +124,7 @@ async function list(userId, input = {}) {
     ? [...new Set(input.folderIds.map(String))]
     : input.folderIds ? [...new Set(String(input.folderIds).split(",").map((id) => id.trim()).filter(Boolean))] : [];
   for (const id of folderIds) await validateFolder(userId, id, space);
-  const folderId = folderIds[0] || null;
+  const folderId = folderIds[0] || (input.folderId !== undefined ? await validateFolder(userId, input.folderId, space) : null);
   const page = input.page === undefined ? 1 : Number(input.page);
   const pageSize = input.pageSize === undefined ? 20 : Number(input.pageSize);
   if (!Number.isInteger(page) || page < 1 || !Number.isInteger(pageSize) || pageSize < 1 || pageSize > 100) {
@@ -133,7 +133,7 @@ async function list(userId, input = {}) {
   const query = typeof input.query === "string" ? input.query.trim() : "";
   const itemType = input.itemType === "inspiration" ? "inspiration" : undefined;
   const platform = typeof input.platform === "string" ? input.platform.trim() : "";
-  if (platform && !["all", "xiaohongshu", "douyin", "bilibili"].includes(platform)) {
+  if (platform && !["all", "xiaohongshu", "douyin", "bilibili", "note"].includes(platform)) {
     throw new BookmarkError(400, "INVALID_INPUT", "platform 不是有效的平台筛选值");
   }
   const filters = {
@@ -173,7 +173,9 @@ async function create(userId, input = {}) {
   }
   const item = await itemModel.create(userId, {
     space,
-    itemType: input.itemType === "inspiration" ? "inspiration" : "link",
+    itemType: input.itemType === "inspiration"
+      ? "inspiration"
+      : (!sourceUrl ? "note" : "link"),
     folderId,
     folderIds,
     title: input.itemType === "inspiration" ? optionalText(input.title, "title") : requiredTitle(input.title),

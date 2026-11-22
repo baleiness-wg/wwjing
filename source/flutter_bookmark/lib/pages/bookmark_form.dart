@@ -381,27 +381,47 @@ class _BookmarkFormState extends State<BookmarkForm> {
                 ),
               ),
               const SizedBox(height: 24),
-              FilledButton.icon(
-                onPressed: state.busy ? null : _save,
-                icon: state.busy
-                    ? const SizedBox.square(
-                        dimension: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.bookmark_add),
-                label: const Padding(
-                  padding: EdgeInsets.all(12),
-                  child: Text('保存'),
-                ),
-              ),
-              if (state.error != null) ...[
-                const SizedBox(height: 12),
-                Text(
-                  state.error!,
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
-                ),
-              ],
             ],
+          ),
+        ),
+        bottomNavigationBar: SafeArea(
+          top: false,
+          child: Material(
+            elevation: 3,
+            color: Theme.of(context).colorScheme.surface,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 10, 20, 12),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (state.error != null) ...[
+                    Text(
+                      state.error!,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                  ],
+                  FilledButton.icon(
+                    onPressed: state.busy ? null : _save,
+                    icon: state.busy
+                        ? const SizedBox.square(
+                            dimension: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.bookmark_add),
+                    label: const Padding(
+                      padding: EdgeInsets.all(12),
+                      child: Text('保存'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
       ),

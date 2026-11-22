@@ -1,5 +1,5 @@
 <script setup>
-import { computed, reactive, ref, watch } from "vue";
+import { computed, onMounted, onBeforeUnmount, reactive, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import {
   ArrowLeft,
@@ -26,6 +26,7 @@ const user = JSON.parse(localStorage.getItem("wwjing_user") || "null");
 const passwordDialogVisible = ref(false);
 const passwordLoading = ref(false);
 const passwordForm = reactive({ currentPassword: "", newPassword: "", confirmPassword: "" });
+const bookmarkLocation = ref("");
 
 const navigationItems = [
   {
@@ -73,6 +74,13 @@ function handleUserCommand(command) {
   if (command === "change-password") openPasswordDialog();
   if (command === "logout") logout();
 }
+
+function updateBookmarkLocation(event) {
+  bookmarkLocation.value = event.detail || "";
+}
+
+onMounted(() => window.addEventListener("wwjing:bookmark-location", updateBookmarkLocation));
+onBeforeUnmount(() => window.removeEventListener("wwjing:bookmark-location", updateBookmarkLocation));
 
 function openPasswordDialog() {
   Object.assign(passwordForm, { currentPassword: "", newPassword: "", confirmPassword: "" });
@@ -171,6 +179,11 @@ async function submitPassword() {
       <el-header class="app-header">
         <div class="header-brand">
           <el-button text circle class="menu-toggle" :icon="Menu" :aria-label="menuVisible ? '收起菜单' : '展开菜单'" :title="menuVisible ? '收起菜单' : '展开菜单'" @click="toggleMenu" />
+          <el-breadcrumb v-if="route.path.startsWith('/tools/bookmarks')" class="header-breadcrumb" separator="/">
+            <el-breadcrumb-item>Tools</el-breadcrumb-item>
+            <el-breadcrumb-item>Bookmarks</el-breadcrumb-item>
+            <el-breadcrumb-item v-if="bookmarkLocation" class="is-current">{{ bookmarkLocation }}</el-breadcrumb-item>
+          </el-breadcrumb>
         </div>
         <div class="header-actions">
           <el-button text circle :icon="Switch" title="数据传输" aria-label="数据传输" @click="go('/transfer')" />
@@ -189,7 +202,7 @@ async function submitPassword() {
           </el-dropdown>
         </div>
       </el-header>
-      <el-main class="app-main">
+       <el-main class="app-main" :class="{ 'bookmark-main': route.path.startsWith('/tools/bookmarks') }">
         <router-view />
       </el-main>
     </el-container>

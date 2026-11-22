@@ -180,7 +180,7 @@ class _BookmarkAppState extends State<BookmarkApp> with WidgetsBindingObserver {
         .showSnackBar(const SnackBar(content: Text('再按一次退出应用')));
   }
 
-  Future<void> _showRootAiChat(BuildContext context, AppState state) {
+  Future<void> _showRootAiChat(BuildContext context, AppState state) async {
     final inStar = _selectedTab == 1;
     final directoryId = inStar && state.view == BookmarkView.folder
         ? state.selectedFolderId
@@ -197,7 +197,9 @@ class _BookmarkAppState extends State<BookmarkApp> with WidgetsBindingObserver {
                   '收藏夹',
           }
         : '全部收藏';
-    return showModalBottomSheet<void>(
+    final allItems = await state.api.getAllItems();
+    if (!context.mounted) return;
+    await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
@@ -208,10 +210,11 @@ class _BookmarkAppState extends State<BookmarkApp> with WidgetsBindingObserver {
           'directoryId': directoryId,
           'directoryName': directoryName,
           'directoryPath': directoryName,
-          'loadedItemCount': state.items.length,
+          'loadedItemCount': allItems.length,
           'items': [
-            for (final item in state.items)
+            for (final item in (inStar ? state.items : allItems))
               {
+                'id': item.id,
                 'title': item.title,
                 'description': item.description,
                 'sourceUrl': item.sourceUrl,
@@ -219,6 +222,11 @@ class _BookmarkAppState extends State<BookmarkApp> with WidgetsBindingObserver {
           ],
         },
         linkLauncher: const LinkLauncher(),
+        items: allItems,
+        onEditItem: (item) => state.openDraft(item),
+        onItemAction: (item, action) {
+          if (action == 'delete') state.deleteItem(item.id);
+        },
       ),
     );
   }

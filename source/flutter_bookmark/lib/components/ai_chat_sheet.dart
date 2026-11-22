@@ -3,6 +3,8 @@ import 'package:flutter_markdown/flutter_markdown.dart';
 
 import '../api/api_client.dart';
 import '../utils/link_launcher.dart';
+import '../viewmodels/bookmark.dart';
+import 'bookmark_item_card.dart';
 
 class AiChatSheet extends StatefulWidget {
   const AiChatSheet({
@@ -10,11 +12,17 @@ class AiChatSheet extends StatefulWidget {
     required this.api,
     required this.directoryContext,
     this.linkLauncher = const LinkLauncher(),
+    this.items = const [],
+    this.onEditItem,
+    this.onItemAction,
   });
 
   final ApiClient api;
   final Map<String, Object?> directoryContext;
   final LinkLauncher linkLauncher;
+  final List<BookmarkItem> items;
+  final ValueChanged<BookmarkItem>? onEditItem;
+  final void Function(BookmarkItem item, String action)? onItemAction;
 
   @override
   State<AiChatSheet> createState() => _AiChatSheetState();
@@ -181,6 +189,47 @@ class _AiChatSheetState extends State<AiChatSheet> {
                             content: message.content,
                             onOpenLink: (url) =>
                                 widget.linkLauncher.open(context, url),
+                            mentionedItems: message.role == 'assistant'
+                                ? widget.items.where((item) {
+                                    final title = item.title?.trim();
+                                    final idMatch = message.content
+                                        .toLowerCase()
+                                        .contains(item.id.toLowerCase());
+                                    final urlMatch =
+                                        RegExp(
+                                          r'https?://[^\s<>()]+',
+                                          caseSensitive: false,
+                                        ).allMatches(message.content).any((
+                                          match,
+                                        ) {
+                                          final returned =
+                                              LinkLauncher.cleanAiUrl(
+                                                match.group(0)!,
+                                              );
+                                          final original =
+                                              LinkLauncher.cleanAiUrl(
+                                                item.sourceUrl,
+                                              );
+                                          return returned == original ||
+                                              returned.contains(original) ||
+                                              original.contains(returned);
+                                        });
+                                    final titleIsDomain =
+                                        title != null &&
+                                        RegExp(
+                                          r'^[a-z0-9.-]+\.[a-z]{2,}$',
+                                          caseSensitive: false,
+                                        ).hasMatch(title);
+                                    return idMatch ||
+                                        (title != null &&
+                                            !titleIsDomain &&
+                                            title.length >= 2 &&
+                                            message.content.contains(title)) ||
+                                        urlMatch;
+                                  }).toList()
+                                : const [],
+                            onEditItem: widget.onEditItem,
+                            onItemAction: widget.onItemAction,
                           );
                         },
                       ),
@@ -247,16 +296,35 @@ class _MessageBubble extends StatelessWidget {
     required this.role,
     required this.content,
     this.onOpenLink,
+    this.mentionedItems = const [],
+    this.onEditItem,
+    this.onItemAction,
   });
   final String role;
   final String content;
   final Future<bool> Function(String url)? onOpenLink;
+  final List<BookmarkItem> mentionedItems;
+  final ValueChanged<BookmarkItem>? onEditItem;
+  final void Function(BookmarkItem item, String action)? onItemAction;
 
   @override
   Widget build(BuildContext context) {
     final isUser = role == 'user';
     final isError = role == 'error';
     final colorScheme = Theme.of(context).colorScheme;
+    final messageWidget = mentionedItems.isEmpty || isUser || isError
+        ? MarkdownMessage(
+            content: this.content,
+            color: isUser ? colorScheme.onPrimary : null,
+            onOpenLink: onOpenLink,
+          )
+        : _MessageWithInlineItems(
+            content: this.content,
+            items: mentionedItems,
+            onOpenLink: onOpenLink,
+            onEditItem: onEditItem,
+            onItemAction: onItemAction,
+          );
     return Align(
       alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
@@ -264,30 +332,125 @@ class _MessageBubble extends StatelessWidget {
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 10),
         decoration: BoxDecoration(
-          color: isError
-              ? colorScheme.errorContainer
-              : isUser
+          color: isUser
               ? colorScheme.primary
               : colorScheme.surfaceContainerHighest,
+          border: isError
+              ? Border.all(color: colorScheme.error, width: 1)
+              : null,
           borderRadius: BorderRadius.circular(14),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            MarkdownMessage(
-              content: content,
-              color: isUser ? colorScheme.onPrimary : null,
-              onOpenLink: onOpenLink,
-            ),
-          ],
+          children: [messageWidget],
         ),
       ),
     );
   }
 }
 
+class _MessageWithInlineItems extends StatelessWidget {
+  const _MessageWithInlineItems({
+    required this.content,
+    required this.items,
+    this.onOpenLink,
+    this.onEditItem,
+    this.onItemAction,
+  });
+
+  final String content;
+  final List<BookmarkItem> items;
+  final Future<bool> Function(String url)? onOpenLink;
+  final ValueChanged<BookmarkItem>? onEditItem;
+  final void Function(BookmarkItem item, String action)? onItemAction;
+
+  @override
+  Widget build(BuildContext context) {
+    // 卡片已经承载了收藏链接，文字区只保留链接标题，避免显示 [标题](URL) 语法。
+    var remaining = content.replaceAllMapped(
+      RegExp(r'\[([^\]]+)\]\(https?://[^)\s]+\)'),
+      (match) => match.group(1)!,
+    );
+    final children = <Widget>[];
+    final pending = [...items];
+    while (pending.isNotEmpty) {
+      BookmarkItem? matched;
+      String? matchedText;
+      var matchIndex = -1;
+      for (final item in pending) {
+        final candidates = [
+          if (item.title?.trim().isNotEmpty == true &&
+              !RegExp(
+                r'^[a-z0-9.-]+\.[a-z]{2,}$',
+                caseSensitive: false,
+              ).hasMatch(item.title!.trim()))
+            item.title!.trim(),
+          if (item.sourceUrl.isNotEmpty) item.sourceUrl,
+        ];
+        for (final candidate in candidates) {
+          final index = remaining.indexOf(candidate);
+          if (index >= 0 && (matchIndex < 0 || index < matchIndex)) {
+            matchIndex = index;
+            matched = item;
+            matchedText = candidate;
+          }
+        }
+      }
+      if (matched == null || matchIndex < 0) break;
+      final matchedItem = matched;
+      final before = remaining.substring(0, matchIndex).trim();
+      if (before.isNotEmpty) {
+        children.add(MarkdownMessage(content: before, onOpenLink: onOpenLink));
+      }
+      children.add(const SizedBox(height: 6));
+      children.add(
+        Padding(
+          padding: const EdgeInsets.only(left: 14),
+          child: Card(
+            margin: EdgeInsets.zero,
+            clipBehavior: Clip.antiAlias,
+            child: BookmarkItemCard(
+              item: matchedItem,
+              compact: true,
+              embedded: true,
+              onTap: () => onOpenLink?.call(matchedItem.sourceUrl),
+              onAction: onEditItem == null && onItemAction == null
+                  ? null
+                  : (action) {
+                      onItemAction?.call(matchedItem, action);
+                      if (action == 'edit') onEditItem!(matchedItem);
+                    },
+            ),
+          ),
+        ),
+      );
+      remaining = remaining.substring(matchIndex + (matchedText?.length ?? 0));
+      // 标题后常见的“（https://...）”是同一收藏的链接，不应残留在卡片前面。
+      remaining = remaining.replaceFirst(
+        RegExp(r'^\s*[（(]\s*https?://[^）)\s]+\s*[）)]', caseSensitive: false),
+        '',
+      );
+      pending.remove(matchedItem);
+    }
+    if (remaining.trim().isNotEmpty) {
+      children.add(
+        MarkdownMessage(content: remaining.trim(), onOpenLink: onOpenLink),
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: children,
+    );
+  }
+}
+
 class MarkdownMessage extends StatelessWidget {
-  const MarkdownMessage({super.key, required this.content, this.color, this.onOpenLink});
+  const MarkdownMessage({
+    super.key,
+    required this.content,
+    this.color,
+    this.onOpenLink,
+  });
   final String content;
   final Color? color;
   final Future<bool> Function(String url)? onOpenLink;

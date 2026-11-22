@@ -394,6 +394,7 @@ class _HomePageState extends State<HomePage> {
                               ('xiaohongshu', '小红书'),
                               ('douyin', '抖音'),
                               ('bilibili', 'bilibili'),
+                              ('note', '笔记'),
                             ])
                               Padding(
                                 padding: const EdgeInsets.only(right: 7),
@@ -406,7 +407,9 @@ class _HomePageState extends State<HomePage> {
                                         ? Icons.auto_awesome_outlined
                                         : platform.$1 == 'douyin'
                                         ? Icons.music_note_outlined
-                                        : Icons.play_circle_outline,
+                                        : platform.$1 == 'bilibili'
+                                        ? Icons.play_circle_outline
+                                        : Icons.note_alt_outlined,
                                     size: 16,
                                   ),
                                   label: Text(platform.$2),

@@ -118,6 +118,7 @@ const activeTitle = computed(() => {
   if (activeFolder.value) return activeFolder.value.name;
   return "全部收藏";
 });
+const folderViewKey = computed(() => `${currentSpace.value}:${activeFolderId.value === undefined ? "all" : activeFolderId.value === null ? "uncategorized" : activeFolderId.value}`);
 const aiDirectoryContext = computed(() => ({
   space: currentSpace.value,
   directoryId: activeFolderId.value === undefined ? null : activeFolderId.value,
@@ -270,8 +271,10 @@ async function loadItems() {
   const requestedFolderId = activeFolderId.value;
   const requestedPage = page.value;
   const requestedQuery = query.value.trim();
+  const requestedFolderKey = requestedFolderId === undefined ? "all" : requestedFolderId === null ? "uncategorized" : String(requestedFolderId);
   loadingItems.value = true;
   selectedIds.value = [];
+  items.value = [];
   try {
     const filters = { page: requestedPage, pageSize, query: requestedQuery || undefined };
     if (requestedFolderId === null) filters.uncategorized = true;
@@ -282,7 +285,7 @@ async function loadItems() {
     const result = await getBookmarkItems(filters, requestedSpace);
     const isCurrentRequest = requestSequence === itemsRequestSequence
       && requestedSpace === currentSpace.value
-      && String(requestedFolderId) === String(activeFolderId.value)
+      && requestedFolderKey === (activeFolderId.value === undefined ? "all" : activeFolderId.value === null ? "uncategorized" : String(activeFolderId.value))
       && requestedPage === page.value
       && requestedQuery === query.value.trim();
     if (!isCurrentRequest) return;
@@ -303,7 +306,7 @@ function selectFolder(folderId) {
       ? "all"
       : String(folderId);
   page.value = 1;
-  loadItems();
+  void loadItems();
 }
 
 function searchItems() {
@@ -649,30 +652,16 @@ function formatDate(value) {
 }
 
 onMounted(async () => {
+  window.setTimeout(() => window.dispatchEvent(new CustomEvent("wwjing:bookmark-location", { detail: activeTitle.value })), 0);
   await loadFolders();
   await loadItems();
 });
+
+watch(activeTitle, (title) => window.dispatchEvent(new CustomEvent("wwjing:bookmark-location", { detail: title })));
 </script>
 
 <template>
   <div class="bookmarks-page">
-    <header class="bookmarks-heading">
-      <div>
-        <p class="eyebrow">工具 / 收藏夹 / {{ currentTitle }}</p>
-      </div>
-      <div style="display: flex; gap: 10px; align-items: center;">
-        <el-button
-          type="success"
-          plain
-          :icon="Dish"
-          @click="openRandomFilterDialog"
-        >
-           Today
-        </el-button>
-        <el-button type="primary" :icon="Plus" @click="openCreateItem">添加收藏</el-button>
-      </div>
-    </header>
-
     <div class="bookmarks-workspace">
       <aside v-loading="loadingFolders" class="folder-panel" aria-label="收藏目录">
         <div class="panel-title">
@@ -741,10 +730,13 @@ onMounted(async () => {
 
       <main class="bookmark-list-panel">
         <div class="list-toolbar">
-          <div>
-            <p class="list-path">{{ activeFolder ? folderPath(activeFolder.id) : activeTitle }}</p>
-            <h2>{{ activeTitle }}</h2>
-          </div>
+           <div class="list-toolbar-title">
+             <h2>{{ activeTitle }}</h2>
+             <div class="list-toolbar-actions">
+               <el-button type="success" plain :icon="Dish" @click="openRandomFilterDialog">Today</el-button>
+               <el-button type="primary" :icon="Plus" @click="openCreateItem">添加收藏</el-button>
+             </div>
+           </div>
           <el-input
             v-model="query"
             class="bookmark-search"
@@ -767,7 +759,7 @@ onMounted(async () => {
           </div>
         </div>
 
-        <div v-loading="loadingItems" class="bookmark-results" aria-live="polite">
+         <div :key="folderViewKey" v-loading="loadingItems" class="bookmark-results" aria-live="polite">
             <article
               v-for="item in items"
               :key="item.id"

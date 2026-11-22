@@ -141,6 +141,26 @@ test("list passes the selected platform to the data query", async () => {
   }
 });
 
+test("list passes a selected folder and descendant mode to the data query", async () => {
+  const originalList = itemModel.list;
+  const originalFindFolder = folderModel.findById;
+  let received;
+  itemModel.list = async (userId, filters) => {
+    received = { userId, ...filters };
+    return { items: [], total: 0 };
+  };
+  folderModel.findById = async () => ({ id: folderId });
+  try {
+    await itemService.list("22", { folderId, includeDescendants: "true", page: "1", pageSize: "20" });
+    assert.equal(received.folderId, folderId);
+    assert.equal(received.includeDescendants, true);
+    assert.equal(received.uncategorized, false);
+  } finally {
+    itemModel.list = originalList;
+    folderModel.findById = originalFindFolder;
+  }
+});
+
 test("create rejects another user's folder without creating an item", async () => {
   const originalFindFolder = folderModel.findById;
   const originalCreate = itemModel.create;

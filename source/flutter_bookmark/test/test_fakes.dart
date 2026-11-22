@@ -41,8 +41,5 @@ class MemoryPreferencesStore implements PreferencesStore {
   Future<List<String>> recommendationItemIds() async => savedRecommendationIds;
   @override
   Future<void> saveRecommendationItemId(String value) async =>
-      savedRecommendationIds = [
-        value,
-        ...savedRecommendationIds.where((id) => id != value),
-      ];
+      savedRecommendationIds = [value, ...savedRecommendationIds];
 }

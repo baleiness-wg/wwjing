@@ -65,9 +65,13 @@ async function list(userId, filters) {
   }
   if (filters.query) { parameters.push(`%${filters.query.replace(/[\\%_]/g, "\\$&" )}%`); conditions.push(`(COALESCE(item.title, '') ILIKE $${parameters.length} ESCAPE '\\' OR COALESCE(item.description, '') ILIKE $${parameters.length} ESCAPE '\\' OR item.source_url ILIKE $${parameters.length} ESCAPE '\\')`); }
   if (filters.platform && filters.platform !== "all") {
-    const domains = platformDomains[filters.platform].map((domain) => domain.replaceAll('.', '\\.'));
-    parameters.push(`(^|://)([^/]+\\.)?(${domains.join('|')})([/:]|$)`);
-    conditions.push(`(lower(coalesce(item.source_host, '')) ~ $${parameters.length} OR lower(coalesce(item.source_url, '')) ~ $${parameters.length})`);
+    if (filters.platform === "note") {
+      conditions.push("item.source_url IS NULL");
+    } else {
+      const domains = platformDomains[filters.platform].map((domain) => domain.replaceAll('.', '\\.'));
+      parameters.push(`(^|://)([^/]+\\.)?(${domains.join('|')})([/:]|$)`);
+      conditions.push(`(lower(coalesce(item.source_host, '')) ~ $${parameters.length} OR lower(coalesce(item.source_url, '')) ~ $${parameters.length})`);
+    }
   }
   parameters.push(filters.pageSize, (filters.page - 1) * filters.pageSize);
   const limitIndex = parameters.length - 1;

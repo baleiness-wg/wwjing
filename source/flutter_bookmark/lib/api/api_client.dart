@@ -241,6 +241,19 @@ class ApiClient {
     );
   }
 
+  Future<List<BookmarkItem>> getAllItems() async {
+    final all = <BookmarkItem>[];
+    var page = 1;
+    var totalPages = 1;
+    do {
+      final result = await getItems(page: page, pageSize: 100);
+      all.addAll(result.items);
+      totalPages = result.totalPages;
+      page++;
+    } while (page <= totalPages);
+    return all;
+  }
+
   Future<BookmarkItem> createItem(
     BookmarkDraft draft, {
     bool allowDuplicate = false,
