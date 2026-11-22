@@ -60,8 +60,10 @@ async function pin(req, res, next) {
 
 const uploadImages = [upload.single("image"), async (req, res, next) => {
   try {
+    (req.log || logger).info({ userId: req.auth.sub, itemId: req.params.id, hasFile: Boolean(req.file), fileSize: req.file?.size, mime: req.file?.mimetype }, "bookmark image upload started");
     const item = await itemService.get(req.auth.sub, req.params.id, req.body?.space || "star");
     const uploaded = await oss.upload(req.auth.sub, item.id, req.file);
+    (req.log || logger).info({ userId: req.auth.sub, itemId: item.id, objectKey: uploaded.key }, "bookmark image uploaded to oss");
     const images = [
       ...(item.images || []).map(oss.objectKey),
       uploaded.key
@@ -78,8 +80,13 @@ const uploadImages = [upload.single("image"), async (req, res, next) => {
       sourceHost: item.sourceHost,
       metadata: item.metadata || {}
     });
+    if (!updated) throw new Error("图片上传后收藏更新失败：找不到收藏条目");
+    (req.log || logger).info({ userId: req.auth.sub, itemId: item.id, imageCount: updated.images?.length || 0 }, "bookmark images saved");
     res.status(201).json({ image: uploaded.url, images: updated.images || [uploaded.url] });
-  } catch (error) { next(error); }
+  } catch (error) {
+    (req.log || logger).error({ userId: req.auth?.sub, itemId: req.params.id, code: error.code, message: error.message }, "bookmark image upload failed");
+    next(error);
+  }
 }];
 
 module.exports = { list, create, get, update, remove, pin, uploadImages };
