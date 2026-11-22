@@ -300,7 +300,7 @@ class _BookmarkAppState extends State<BookmarkApp> with WidgetsBindingObserver {
                             onPressed: () => _showRootAiChat(context, state),
                             icon: const Text(
                               '🐋',
-                              style: TextStyle(fontSize: 36),
+                              style: TextStyle(fontSize: 54),
                             ),
                           ),
                         ),

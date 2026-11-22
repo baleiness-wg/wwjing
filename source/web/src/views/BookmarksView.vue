@@ -1,5 +1,5 @@
 <script setup>
-import { computed, nextTick, onMounted, reactive, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import { ElMessage, ElMessageBox } from "element-plus";
 import {
@@ -652,11 +652,16 @@ function formatDate(value) {
   return value ? new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium" }).format(new Date(value)) : "";
 }
 
+function openGlobalAiChat() { aiChatVisible.value = true; }
+
 onMounted(async () => {
+  window.addEventListener("wwjing:open-ai-chat", openGlobalAiChat);
   window.setTimeout(() => window.dispatchEvent(new CustomEvent("wwjing:bookmark-location", { detail: activeTitle.value })), 0);
   await loadFolders();
   await loadItems();
 });
+
+onBeforeUnmount(() => window.removeEventListener("wwjing:open-ai-chat", openGlobalAiChat));
 
 watch(activeTitle, (title) => window.dispatchEvent(new CustomEvent("wwjing:bookmark-location", { detail: title })));
 </script>
