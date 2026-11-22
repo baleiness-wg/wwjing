@@ -311,6 +311,7 @@ function selectFolder(folderId) {
       : String(folderId);
   page.value = 1;
   void loadItems();
+  void loadAiItems();
 }
 
 function searchItems() {
@@ -655,7 +656,7 @@ function formatDate(value) {
   return value ? new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium" }).format(new Date(value)) : "";
 }
 
-function openGlobalAiChat() { aiChatVisible.value = true; }
+function openGlobalAiChat() { aiChatVisible.value = !aiChatVisible.value; }
 
 onMounted(async () => {
   window.addEventListener("wwjing:open-ai-chat", openGlobalAiChat);
