@@ -162,6 +162,18 @@ async function findItemsMissingImages(limit = 100) {
   return result.rows;
 }
 
+async function findItemsWithImages(limit = 100) {
+  const result = await pool.query(
+    `SELECT id, source_url AS "sourceUrl", images
+     FROM bookmark_items
+     WHERE source_url IS NOT NULL AND btrim(source_url) <> ''
+       AND jsonb_array_length(images) > 0
+     ORDER BY updated_at ASC, id ASC LIMIT $1`,
+    [limit]
+  );
+  return result.rows;
+}
+
 async function updateImages(id, images) {
   await pool.query(
     `UPDATE bookmark_items SET images = $2::jsonb, updated_at = NOW()
@@ -170,4 +182,4 @@ async function updateImages(id, images) {
   );
 }
 
-module.exports = { findById, findDuplicate, list, create, update, remove, pin, findItemsMissingImages, updateImages };
+module.exports = { findById, findDuplicate, list, create, update, remove, pin, findItemsMissingImages, findItemsWithImages, updateImages };

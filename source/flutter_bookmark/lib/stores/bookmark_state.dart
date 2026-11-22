@@ -234,7 +234,16 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  void openDraft([BookmarkItem? item]) {
+  Future<void> openDraft([BookmarkItem? item]) async {
+    if (item != null) {
+      try {
+        item = await api.getItem(item.id);
+      } on ApiException catch (exception) {
+        error = exception.message;
+        notifyListeners();
+        return;
+      }
+    }
     editingItemId = item?.id;
     draft = item == null
         ? BookmarkDraft(sourceUrl: '', folderId: selectedFolderId)
@@ -367,10 +376,20 @@ class AppState extends ChangeNotifier {
     if (saved && savedItemId != null && pendingImagePaths.isNotEmpty) {
       unawaited(() async {
         try {
-          for (final path in pendingImagePaths) {
-            await api.uploadItemImage(savedItemId, path);
+          final hadCover = value.images.isNotEmpty;
+          for (var index = 0; index < pendingImagePaths.length; index++) {
+            final images = await api.uploadItemImage(
+              savedItemId,
+              pendingImagePaths[index],
+            );
+            // 只有第一张追加图片成为封面时刷新列表，后续图片不打断当前 UI。
+            if (!hadCover && index == 0 && images.isNotEmpty) {
+              await refresh(resetPage: true);
+            }
           }
-          await refresh(resetPage: true);
+        } on ApiException catch (exception) {
+          metadataMessage = '图片上传失败：${exception.message}';
+          notifyListeners();
         } catch (_) {
           metadataMessage = '图片上传失败，请稍后在编辑收藏中重试';
           notifyListeners();

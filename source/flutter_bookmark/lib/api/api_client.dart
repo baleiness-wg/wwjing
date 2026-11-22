@@ -339,6 +339,15 @@ class ApiClient {
     );
   }
 
+  Future<BookmarkItem> getItem(String id) async {
+    final data = await _request(
+      'GET',
+      '/bookmarks/items/$id',
+      query: {'space': space},
+    ) as Map<String, dynamic>;
+    return BookmarkItem.fromJson(data['item'] as Map<String, dynamic>);
+  }
+
   Future<void> deleteItem(String id) async {
     await _request('DELETE', '/bookmarks/items/$id?space=$space');
   }

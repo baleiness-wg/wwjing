@@ -30,6 +30,7 @@ class _HomePageState extends State<HomePage> {
   bool _randomBusy = false;
   bool _showPlatformFilters = false;
   final Set<String> _selectedItemIds = {};
+  final Set<String> _coverRefreshInFlight = {};
 
   @override
   void dispose() {
@@ -93,6 +94,20 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _openLink(BuildContext context, BookmarkItem item) async {
     await widget.linkLauncher.open(context, item.sourceUrl);
+  }
+
+  Future<void> _refreshCover(BookmarkItem item) async {
+    if (!_coverRefreshInFlight.add(item.id)) return;
+    final state = context.read<AppState>();
+    try {
+      if (item.sourceUrl.trim().isEmpty) return;
+      final metadata = await state.fetchBookmarkMetadata(item.sourceUrl);
+      if (metadata?.coverUrl?.trim().isNotEmpty == true) {
+        await state.persistMetadataForItem(item.id, metadata);
+      }
+    } finally {
+      _coverRefreshInFlight.remove(item.id);
+    }
   }
 
   Future<void> _showRandom(BuildContext context) async {
@@ -473,6 +488,7 @@ class _HomePageState extends State<HomePage> {
                                   final item = state.items[index];
                                   final card = BookmarkItemCard(
                                     item: item,
+                                    onImageError: () => _refreshCover(item),
                                     selectionValue: _editMode
                                         ? _selectedItemIds.contains(item.id)
                                         : null,

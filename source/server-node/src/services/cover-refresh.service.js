@@ -10,7 +10,10 @@ async function refreshMissingCovers() {
   let scanned = 0;
   let updated = 0;
   try {
-    const items = await itemModel.findItemsMissingImages(100);
+    const items = [
+      ...(await itemModel.findItemsMissingImages(100)),
+      ...(await itemModel.findItemsWithImages(100))
+    ];
     for (const item of items) {
         scanned += 1;
         try {

@@ -27,6 +27,7 @@ import {
   deleteBookmarkItem,
   getBookmarkFolders,
   getBookmarkItems,
+  getBookmarkItem,
   getAllBookmarkItems,
   getBookmarkFolderShares,
   removeBookmarkFolderShare,
@@ -496,17 +497,25 @@ function openCreateItem() {
   itemDialogVisible.value = true;
 }
 
-function openEditItem(item) {
+async function openEditItem(item) {
+  let latest = item;
+  try {
+    const result = await getBookmarkItem(item.id, currentSpace.value);
+    latest = result.item || result;
+  } catch (error) {
+    ElMessage.error(error.message);
+    return;
+  }
   itemDialogMode.value = "edit";
   Object.assign(itemForm, {
-    id: item.id,
-    sourceUrl: item.sourceUrl,
-    title: item.title || "",
-    description: item.description || "",
-    coverUrl: item.coverUrl || "",
-    folderIds: item.folderIds?.length ? [...item.folderIds] : (item.folderId ? [item.folderId] : [])
+    id: latest.id,
+    sourceUrl: latest.sourceUrl,
+    title: latest.title || "",
+    description: latest.description || "",
+    coverUrl: latest.coverUrl || "",
+    folderIds: latest.folderIds?.length ? [...latest.folderIds] : (latest.folderId ? [latest.folderId] : [])
   });
-  itemImages.value = [...(item.images || [])];
+  itemImages.value = [...(latest.images || [])];
   pendingImages.value = [];
   previewCoverFailed.value = false;
   itemDialogVisible.value = true;

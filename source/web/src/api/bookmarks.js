@@ -86,6 +86,10 @@ export function updateBookmarkItem(id, data, space) {
   });
 }
 
+export function getBookmarkItem(id, space = "star") {
+  return request(`${baseUrl}/items/${id}?space=${encodeURIComponent(space)}`);
+}
+
 export function pinBookmarkItem(id, folderId, pinned, space = "star") {
   return request(`${baseUrl}/items/${id}/pin`, {
     method: "PATCH",
