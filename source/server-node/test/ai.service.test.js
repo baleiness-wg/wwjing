@@ -201,12 +201,12 @@ test("AI request metadata does not include prompt, reply, or credentials", async
   restoreConfig();
 });
 
-test("AI reply appends the original link when it mentions a known item", () => {
+test("AI reply does not attach a link from a title-only mention", () => {
   assert.equal(
     aiService.appendMentionedItemLinks("建议先看 Flutter 入门", {
       items: [{ title: "Flutter 入门", sourceUrl: "https://example.com/flutter" }]
     }),
-    "建议先看 Flutter 入门（https://example.com/flutter）"
+    "建议先看 Flutter 入门"
   );
   assert.equal(
     aiService.appendMentionedItemLinks("这是泛泛讨论", { items: [{ title: "Flutter 入门", sourceUrl: "https://example.com/flutter" }] }),

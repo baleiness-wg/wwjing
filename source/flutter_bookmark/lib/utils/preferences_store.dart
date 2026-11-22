@@ -17,8 +17,8 @@ class SharedPreferencesStore implements PreferencesStore {
   static const _recentKey = 'recent_folder_ids';
   static const _clipboardKey = 'handled_clipboard_url';
   static const _randomFoldersKey = 'selected_random_folder_ids';
-  static const _recommendationsKey = 'home_recommendations';
-  static const _recommendationItemIdsKey = 'home_recommendation_item_ids';
+  static const _recommendationsKey = 'home_recommendations_v2';
+  static const _recommendationItemIdsKey = 'home_recommendation_item_ids_v2';
 
   Future<SharedPreferences> get _prefs => SharedPreferences.getInstance();
 
