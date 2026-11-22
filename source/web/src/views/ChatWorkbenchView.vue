@@ -676,9 +676,8 @@ function renameGuest() {
   if (!next) return;
   displayName.value = next.slice(0, 40);
   localStorage.setItem("office_display_name", displayName.value);
+  send({ type: "user:rename", name: displayName.value });
   user.value = { ...user.value, name: displayName.value };
-  socket.value?.close();
-  window.setTimeout(connect, 100);
 }
 
 function openPasswordDialog() {

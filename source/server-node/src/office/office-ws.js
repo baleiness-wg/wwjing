@@ -39,6 +39,24 @@ function attachOfficeWebSocket(server) {
       let message;
       try { message = JSON.parse(raw.toString()); } catch { return; }
        if (!message.type) return;
+       if (message.type === "user:rename") {
+         const nextName = String(message.name || "").trim().slice(0, 40);
+         if (!nextName) return;
+         const previousName = client.officeUser?.name || "用户";
+         client.officeUser.name = nextName;
+         for (const topic of room.topics) {
+           for (const key of Object.keys(topic.cellAuthors || {})) {
+             if (topic.cellAuthors[key] === previousName) topic.cellAuthors[key] = nextName;
+           }
+           for (const chat of topic.messages || []) {
+             if (chat.author === previousName) chat.author = nextName;
+           }
+         }
+         room.revision += 1;
+         broadcast(room, { type: "user:renamed", oldName: previousName, name: nextName, revision: room.revision });
+         client.send(JSON.stringify({ type: "snapshot", user: client.officeUser, topics: room.topics, locks: room.locks, columnWidths: room.columnWidths, revision: room.revision }));
+         return;
+       }
        if (message.type === "column:resize") {
          const index = Number(message.index);
          const width = Math.max(42, Math.min(800, Number(message.width)));
