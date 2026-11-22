@@ -27,6 +27,7 @@ import {
   deleteBookmarkItem,
   getBookmarkFolders,
   getBookmarkItems,
+  getAllBookmarkItems,
   getBookmarkFolderShares,
   removeBookmarkFolderShare,
   shareBookmarkFolder,
@@ -85,6 +86,7 @@ watch(
     selectedIds.value = [];
     await loadFolders();
     await loadItems();
+    await loadAiItems();
   }
 );
 
@@ -120,6 +122,7 @@ const activeTitle = computed(() => {
   return "全部收藏";
 });
 const folderViewKey = computed(() => `${currentSpace.value}:${activeFolderId.value === undefined ? "all" : activeFolderId.value === null ? "uncategorized" : activeFolderId.value}`);
+const aiItems = ref([]);
 const aiDirectoryContext = computed(() => ({
   space: currentSpace.value,
   directoryId: activeFolderId.value === undefined ? null : activeFolderId.value,
@@ -129,8 +132,8 @@ const aiDirectoryContext = computed(() => ({
     : activeFolderId.value === null
       ? "灵感"
       : folderPath(activeFolderId.value),
-  loadedItemCount: items.value.length,
-  items: items.value.map((item) => ({
+  loadedItemCount: aiItems.value.length,
+  items: aiItems.value.map((item) => ({
     title: item.title,
     description: item.description,
     sourceHost: itemHost(item),
@@ -659,7 +662,21 @@ onMounted(async () => {
   window.setTimeout(() => window.dispatchEvent(new CustomEvent("wwjing:bookmark-location", { detail: activeTitle.value })), 0);
   await loadFolders();
   await loadItems();
+  await loadAiItems();
 });
+
+async function loadAiItems() {
+  const filters = {};
+  if (activeFolderId.value !== undefined) {
+    if (activeFolderId.value === null) filters.uncategorized = true;
+    else {
+      filters.folderId = activeFolderId.value;
+      filters.includeDescendants = true;
+    }
+  }
+  const result = await getAllBookmarkItems(filters, currentSpace.value);
+  aiItems.value = result.items || [];
+}
 
 onBeforeUnmount(() => window.removeEventListener("wwjing:open-ai-chat", openGlobalAiChat));
 

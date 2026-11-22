@@ -49,6 +49,20 @@ export function getBookmarkItems(filters = {}, space = "star") {
   return request(`${baseUrl}/items?${query.toString()}`);
 }
 
+export async function getAllBookmarkItems(filters = {}, space = "star") {
+  const pageSize = 100;
+  const all = [];
+  let page = 1;
+  let totalPages = 1;
+  do {
+    const result = await getBookmarkItems({ ...filters, page, pageSize }, space);
+    all.push(...(result.items || []));
+    totalPages = Number(result.totalPages || Math.ceil((result.total || 0) / pageSize) || 1);
+    page += 1;
+  } while (page <= totalPages);
+  return { items: all, total: all.length, page: 1, pageSize: all.length };
+}
+
 export function detectBookmarkMetadata(sourceUrl) {
   return request(`${baseUrl}/metadata`, {
     method: "POST",
