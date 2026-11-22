@@ -60,8 +60,20 @@ function signedUrl(value) {
   }
 }
 
+function objectKey(value) {
+  if (!value) return value;
+  const endpoint = config.oss.endpoint.replace(/^https?:\/\//, "");
+  try {
+    const url = new URL(value);
+    if (url.hostname.includes(endpoint.split("/")[0])) {
+      return decodeURIComponent(url.pathname.replace(/^\//, ""));
+    }
+  } catch (_) { /* already an object key */ }
+  return value;
+}
+
 function signImages(images = []) {
   return images.map(signedUrl);
 }
 
-module.exports = { upload, signedUrl, signImages };
+module.exports = { upload, signedUrl, signImages, objectKey };

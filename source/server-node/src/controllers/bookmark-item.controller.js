@@ -62,8 +62,11 @@ const uploadImages = [upload.single("image"), async (req, res, next) => {
   try {
     const item = await itemService.get(req.auth.sub, req.params.id, req.body?.space || "star");
     const uploaded = await oss.upload(req.auth.sub, item.id, req.file);
-    const images = [...(item.images || []), uploaded.key];
-    const updated = await itemService.update(req.auth.sub, item.id, {
+    const images = [
+      ...(item.images || []).map(oss.objectKey),
+      uploaded.key
+    ];
+    const updated = await itemModel.update(req.auth.sub, item.id, {
       space: req.body?.space || "star",
       folderId: item.folderId,
       folderIds: item.folderIds || [],
