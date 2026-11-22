@@ -854,12 +854,13 @@ watch(activeTitle, (title) => window.dispatchEvent(new CustomEvent("wwjing:bookm
 
          <div :key="folderViewKey" v-loading="loadingItems" class="bookmark-results" aria-live="polite">
             <article
-              v-for="item in items"
+             v-for="(item, index) in items"
               :key="item.id"
               class="bookmark-card"
               draggable="true"
               @dragstart="draggingItemId = String(item.id)"
-              @dragend="draggingItemId = null"
+               :class="{ 'is-pin-end': item.pinned && (!items[index + 1] || !items[index + 1].pinned) }"
+               @dragend="draggingItemId = null"
             >
             <el-checkbox
               class="bookmark-check"

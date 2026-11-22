@@ -316,7 +316,7 @@ async function submitPassword() {
 </template>
 
 <style scoped>
-.global-whale-button { position: fixed; z-index: 20; width: 108px; height: 108px; border: 0; border-radius: 50%; background: transparent; color: #006b5f; cursor: grab; user-select: none; touch-action: none; filter: drop-shadow(0 3px 8px rgb(0 107 95 / 24%)); }
-.global-whale-button img { width: 96px; height: 96px; display: block; margin: auto; object-fit: contain; pointer-events: none; filter: none; }
+.global-whale-button { position: fixed; z-index: 20; width: 132px; height: 132px; border: 0; border-radius: 50%; background: transparent; color: #006b5f; cursor: grab; user-select: none; touch-action: none; filter: drop-shadow(0 3px 8px rgb(0 107 95 / 24%)); }
+.global-whale-button img { width: 120px; height: 120px; display: block; margin: auto; object-fit: contain; pointer-events: none; filter: none; }
 .global-whale-button.is-dragging { cursor: grabbing; }
 </style>

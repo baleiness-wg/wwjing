@@ -474,8 +474,23 @@ class _HomePageState extends State<HomePage> {
                                 itemCount:
                                     state.items.length +
                                     (state.loadingMore ? 1 : 0),
-                                separatorBuilder: (_, _) =>
-                                    const SizedBox(height: 4),
+                                separatorBuilder: (_, index) {
+                                  final isPinEnd =
+                                      index < state.items.length - 1 &&
+                                      state.items[index].pinned &&
+                                      !state.items[index + 1].pinned;
+                                  return isPinEnd
+                                      ? const Padding(
+                                          padding: EdgeInsets.symmetric(
+                                            vertical: 5,
+                                          ),
+                                          child: Divider(
+                                            height: 1,
+                                            thickness: 2,
+                                          ),
+                                        )
+                                      : const SizedBox(height: 4);
+                                },
                                 itemBuilder: (context, index) {
                                   if (index == state.items.length) {
                                     return const Padding(

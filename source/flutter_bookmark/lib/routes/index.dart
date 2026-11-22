@@ -301,8 +301,8 @@ class _BookmarkAppState extends State<BookmarkApp> with WidgetsBindingObserver {
                             onPressed: () => _showRootAiChat(context, state),
                             icon: SvgPicture.asset(
                               'assets/whale.svg',
-                              width: 58,
-                              height: 58,
+                              width: 72,
+                              height: 72,
                             ),
                           ),
                         ),
