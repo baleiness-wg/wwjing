@@ -71,6 +71,11 @@ class BookmarkItemCard extends StatelessWidget {
                 label: '编辑',
               ),
               appPopupMenuItem(
+                value: 'pin',
+                icon: item.pinned ? Icons.push_pin : Icons.push_pin_outlined,
+                label: item.pinned ? '取消置顶' : '置顶',
+              ),
+              appPopupMenuItem(
                 value: 'move',
                 icon: Icons.drive_file_move_outline,
                 label: '移动',

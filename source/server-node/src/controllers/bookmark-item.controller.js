@@ -47,6 +47,13 @@ async function remove(req, res, next) {
   }
 }
 
+async function pin(req, res, next) {
+  try {
+    await itemService.pin(req.auth.sub, req.params.id, req.body?.folderId, req.body?.pinned === true, req.body?.space || "star");
+    res.status(204).send();
+  } catch (error) { next(error); }
+}
+
 function uploadImages(req, res) {
   res.status(501).json({
     error: {
@@ -56,4 +63,4 @@ function uploadImages(req, res) {
   });
 }
 
-module.exports = { list, create, get, update, remove, uploadImages };
+module.exports = { list, create, get, update, remove, pin, uploadImages };

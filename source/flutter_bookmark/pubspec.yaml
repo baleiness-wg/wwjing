@@ -1,7 +1,7 @@
 name: wwjing_bookmark
 description: "微微鲸统一收藏 Android 客户端"
 publish_to: 'none'
-version: 1.1.0+5
+version: 1.1.0+6
 
 environment:
   sdk: ^3.13.4

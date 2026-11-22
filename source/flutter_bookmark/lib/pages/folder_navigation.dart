@@ -172,19 +172,14 @@ class _FolderNavigationState extends State<FolderNavigation> {
       _initializedPinnedKey = pinnedKey;
     }
     final nodes = _visibleNodes(state.folderTree);
-    final effectiveAppName =
-        widget.appConfig?.appName ??
-        (const String.fromEnvironment('APP_TYPE').isNotEmpty
-            ? AppConfig.current.appName
-            : '鲸界');
     return SafeArea(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(14, 12, 14, 6),
-            child: Text(
-              effectiveAppName,
+            child: const Text(
+              'Bookmarks',
               style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
             ),
           ),

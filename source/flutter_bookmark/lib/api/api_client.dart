@@ -341,6 +341,14 @@ class ApiClient {
     await _request('DELETE', '/bookmarks/items/$id?space=$space');
   }
 
+  Future<void> pinItem(String id, String folderId, bool pinned) async {
+    await _request(
+      'PATCH',
+      '/bookmarks/items/$id/pin',
+      body: {'folderId': folderId, 'pinned': pinned, 'space': space},
+    );
+  }
+
   Future<dynamic> _request(
     String method,
     String path, {

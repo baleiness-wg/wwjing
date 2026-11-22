@@ -492,6 +492,10 @@ class _HomePageState extends State<HomePage> {
                                       if (action == 'move') {
                                         _move(context, item);
                                       }
+                                      if (action == 'pin' &&
+                                          state.view == BookmarkView.folder) {
+                                        state.pinItem(item.id, !item.pinned);
+                                      }
                                       if (action == 'delete') {
                                         state.deleteItem(item.id);
                                       }

@@ -33,7 +33,8 @@ import {
   shareBookmarkFolder,
   getRandomBookmark,
   updateBookmarkFolder,
-  updateBookmarkItem
+  updateBookmarkItem,
+  pinBookmarkItem
 } from "../api/bookmarks";
 import AiChatPanel from "../components/AiChatPanel.vue";
 
@@ -317,6 +318,15 @@ function selectFolder(folderId) {
 function searchItems() {
   page.value = 1;
   loadItems();
+}
+
+async function toggleItemPin(item) {
+  if (activeFolderId.value === undefined || activeFolderId.value === null) {
+    ElMessage.warning("请先进入具体收藏夹目录后再置顶");
+    return;
+  }
+  await pinBookmarkItem(item.id, activeFolderId.value, !item.pinned, currentSpace.value);
+  await loadItems();
 }
 
 function changePage(value) {
@@ -822,6 +832,7 @@ watch(activeTitle, (title) => window.dispatchEvent(new CustomEvent("wwjing:bookm
                 <template #dropdown>
                   <el-dropdown-menu>
                     <el-dropdown-item :command="() => openMoveItems([item])">移动</el-dropdown-item>
+                    <el-dropdown-item :command="() => toggleItemPin(item)">{{ item.pinned ? "取消置顶" : "置顶" }}</el-dropdown-item>
                     <el-dropdown-item divided :icon="Delete" :command="() => removeItems([item])">删除</el-dropdown-item>
                   </el-dropdown-menu>
                 </template>

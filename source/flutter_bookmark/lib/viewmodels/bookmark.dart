@@ -88,6 +88,7 @@ class BookmarkItem {
     this.sourceHost,
     this.itemType = 'link',
     this.metadata = const {},
+    this.pinned = false,
     this.images = const [],
   });
 
@@ -108,6 +109,7 @@ class BookmarkItem {
     metadata: json['metadata'] is Map
         ? Map<String, dynamic>.from(json['metadata'] as Map)
         : const {},
+    pinned: json['pinned'] == true,
     images:
         (json['images'] as List?)?.whereType<String>().toList() ??
         _legacyImages(json),
@@ -122,6 +124,7 @@ class BookmarkItem {
   final String? sourceHost;
   final String itemType;
   final Map<String, dynamic> metadata;
+  final bool pinned;
   final List<String> images;
 
   String? get coverUrl => images.isEmpty ? null : images.first;

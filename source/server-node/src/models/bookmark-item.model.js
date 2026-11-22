@@ -48,10 +48,12 @@ async function findDuplicate(userId, normalizedUrl, space = "star", client = poo
 async function list(userId, filters) {
   const conditions = [`item.space = $2`, itemVisibility("$2")];
   const parameters = [userId, filters.space || "star"];
+  let pinFolderParameter;
   if (filters.itemType) { parameters.push(filters.itemType); conditions.push(`item.item_type = $${parameters.length}`); }
   if (filters.excludeCompleted) conditions.push("COALESCE((item.metadata->>'completed')::boolean, false) = false");
   if (filters.folderId) {
     parameters.push(filters.folderId);
+    pinFolderParameter = parameters.length;
     const folderFilter = filters.includeDescendants ? `WITH RECURSIVE descendants AS (
       SELECT id FROM bookmark_folders WHERE id = $${parameters.length} AND space = $2
       UNION ALL SELECT child.id FROM bookmark_folders child JOIN descendants parent ON child.parent_id = parent.id WHERE child.space = $2
@@ -76,7 +78,11 @@ async function list(userId, filters) {
   parameters.push(filters.pageSize, (filters.page - 1) * filters.pageSize);
   const limitIndex = parameters.length - 1;
   const offsetIndex = parameters.length;
-  const result = await pool.query(`SELECT ${selectFields}, COUNT(*) OVER()::int AS "totalCount" FROM bookmark_items item WHERE ${conditions.join(" AND ")} ORDER BY item.updated_at DESC, item.id DESC LIMIT $${limitIndex} OFFSET $${offsetIndex}`, parameters);
+  const itemSelect = filters.folderId
+    ? `${selectFields}, COALESCE((SELECT pinned FROM bookmark_item_folders pin WHERE pin.item_id = item.id AND pin.folder_id = $${pinFolderParameter}), false) AS "pinned"`
+    : `${selectFields}, false AS "pinned"`;
+  const pinOrder = filters.folderId ? `COALESCE((SELECT pinned FROM bookmark_item_folders pin WHERE pin.item_id = item.id AND pin.folder_id = $${pinFolderParameter}), false) DESC,` : "";
+  const result = await pool.query(`SELECT ${itemSelect}, COUNT(*) OVER()::int AS "totalCount" FROM bookmark_items item WHERE ${conditions.join(" AND ")} ORDER BY ${pinOrder} item.updated_at DESC, item.id DESC LIMIT $${limitIndex} OFFSET $${offsetIndex}`, parameters);
   return { items: result.rows.map(({ totalCount, ...item }) => item), total: result.rows[0]?.totalCount || 0 };
 }
 
@@ -116,4 +122,14 @@ async function remove(userId, id, space = "star") {
   return result.rowCount > 0;
 }
 
-module.exports = { findById, findDuplicate, list, create, update, remove };
+async function pin(userId, itemId, folderId, pinned, space) {
+  await pool.query(
+    `UPDATE bookmark_item_folders link SET pinned = $4
+     FROM bookmark_items item
+     WHERE link.item_id = $2 AND link.folder_id = $3 AND item.id = link.item_id
+       AND item.user_id = $1 AND item.space = $5`,
+    [userId, itemId, folderId, pinned, space]
+  );
+}
+
+module.exports = { findById, findDuplicate, list, create, update, remove, pin };

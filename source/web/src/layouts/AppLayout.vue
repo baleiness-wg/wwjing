@@ -39,16 +39,15 @@ const navigationItems = [
   {
     path: "/tools",
     label: "Tools",
-      icon: Folder,
-      children: [
-        { path: "/tools/bookmarks", label: "Bookmarks", icon: Star },
-        { path: "/transfer", label: "Transfer", icon: Switch }
-      ]
-  }
+    icon: Folder,
+    children: [{ path: "/transfer", label: "Transfer", icon: Switch }]
+  },
+  { path: "/tools/bookmarks", label: "Bookmarks", icon: Star }
 ];
 
 const isToolsActive = computed(() => route.path === "/tools");
 const isTransferActive = computed(() => route.path === "/transfer");
+const isBookmarksActive = computed(() => route.path.startsWith("/tools/bookmarks"));
 
 watch(
   () => route.path,
@@ -196,7 +195,6 @@ async function submitPassword() {
          <img class="brand-mark-image" src="/whale.svg" alt="鲸界" />
         <div v-if="menuVisible" class="aside-brand-copy">
           <strong>鲸界</strong>
-          <small>工作空间</small>
         </div>
         <el-button
           v-if="isMobile()"
@@ -214,7 +212,7 @@ async function submitPassword() {
           <button
             v-if="!item.children"
             class="side-menu-item"
-            :class="{ 'is-active': route.path === item.path }"
+            :class="{ 'is-active': item.path === '/tools/bookmarks' ? isBookmarksActive : route.path === item.path }"
             :title="item.label"
             @click="go(item.path)"
           >
@@ -318,6 +316,6 @@ async function submitPassword() {
 
 <style scoped>
 .global-whale-button { position: fixed; z-index: 20; width: 108px; height: 108px; border: 0; border-radius: 50%; background: transparent; color: #006b5f; cursor: grab; user-select: none; touch-action: none; filter: drop-shadow(0 3px 8px rgb(0 107 95 / 24%)); }
-.global-whale-button img { width: 96px; height: 96px; display: block; margin: auto; object-fit: contain; pointer-events: none; }
+.global-whale-button img { width: 96px; height: 96px; display: block; margin: auto; object-fit: contain; pointer-events: none; filter: none; }
 .global-whale-button.is-dragging { cursor: grabbing; }
 </style>
