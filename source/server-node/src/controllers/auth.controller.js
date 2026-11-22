@@ -36,7 +36,10 @@ async function profile(req, res, next) {
     const user = await require("../models/users.model").findById(req.auth.sub);
     if (!user) return res.status(404).json({ error: { code: "USER_NOT_FOUND", message: "用户不存在" } });
     res.json({ user });
-  } catch (error) { next(error); }
+  } catch (error) {
+    (req.log || logger).error({ userId: req.auth?.sub, errorCode: error.code }, "user profile update failed");
+    next(error);
+  }
 }
 
 async function updateProfile(req, res, next) {
