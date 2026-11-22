@@ -4,6 +4,8 @@ import { useRoute, useRouter } from "vue-router";
 import {
   ArrowLeft,
   ArrowRight,
+  DArrowLeft,
+  DArrowRight,
   Close,
   ChatDotRound,
   Folder,
@@ -253,12 +255,11 @@ async function submitPassword() {
     <el-container>
       <el-header class="app-header">
         <div class="header-brand">
-          <el-button text circle class="menu-toggle" :icon="Menu" :aria-label="menuVisible ? '收起菜单' : '展开菜单'" :title="menuVisible ? '收起菜单' : '展开菜单'" @click="toggleMenu" />
-          <el-breadcrumb v-if="route.path === '/transfer' || route.path.startsWith('/tools')" class="header-breadcrumb" separator="/">
-            <el-breadcrumb-item>Tools</el-breadcrumb-item>
-            <el-breadcrumb-item v-if="route.path.startsWith('/tools/bookmarks')">Bookmarks</el-breadcrumb-item>
-            <el-breadcrumb-item v-else-if="route.path === '/transfer'">Transfer</el-breadcrumb-item>
-            <el-breadcrumb-item v-if="bookmarkLocation" class="is-current">{{ bookmarkLocation }}</el-breadcrumb-item>
+          <el-button text circle class="menu-toggle" :icon="menuVisible ? DArrowLeft : DArrowRight" :aria-label="menuVisible ? '收起菜单' : '展开菜单'" :title="menuVisible ? '收起菜单' : '展开菜单'" @click="toggleMenu" />
+          <el-breadcrumb v-if="route.path === '/transfer' || route.path.startsWith('/tools/bookmarks')" class="header-breadcrumb" separator="/">
+            <el-breadcrumb-item v-if="route.path === '/transfer'">Tools</el-breadcrumb-item>
+            <el-breadcrumb-item>{{ route.path === '/transfer' ? 'Transfer' : 'Bookmarks' }}</el-breadcrumb-item>
+            <el-breadcrumb-item v-if="route.path.startsWith('/tools/bookmarks') && bookmarkLocation" class="is-current">{{ bookmarkLocation }}</el-breadcrumb-item>
           </el-breadcrumb>
         </div>
         <div class="header-actions">

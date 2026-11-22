@@ -192,7 +192,7 @@ watch(() => contextKey(props.context), () => {
 .ai-chat-composer { display: flex; align-items: flex-end; gap: 8px; padding: 12px; border-top: 1px solid #edf2ef; background: #fff; }
 .ai-chat-composer .el-input { flex: 1; }
 @media (max-width: 640px) {
-  .ai-chat-entry { right: 16px; bottom: 16px; }
+  .ai-chat-entry { right: 8px; bottom: 8px; }
   .ai-chat-panel { width: calc(100vw - 24px); height: min(680px, calc(95vh - 24px)); }
 }
 </style>

@@ -113,14 +113,7 @@ onMounted(loadContent);
 
 <template>
   <div class="page-content transfer-page">
-    <div class="section-heading page-title">
-      <div>
-        <p class="eyebrow">工具 / 数据传输</p>
-        <p class="lead">在同一个账号的不同设备之间保存一条文件或文字。</p>
-      </div>
-    </div>
-
-    <el-card class="transfer-card" shadow="never">
+    <div class="transfer-content">
       <div class="transfer-tabs">
         <el-button :type="activeInput === 'file' ? 'primary' : 'default'" @click="activeInput = 'file'">文件</el-button>
         <el-button :type="activeInput === 'text' ? 'primary' : 'default'" @click="activeInput = 'text'">文字</el-button>
@@ -156,6 +149,6 @@ onMounted(loadContent);
         </template>
         <el-empty v-else description="当前没有内容" />
       </div>
-    </el-card>
+    </div>
   </div>
 </template>

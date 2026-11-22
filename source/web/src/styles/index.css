@@ -37,18 +37,18 @@ html, body {
   overflow: hidden;
 }
 #app {
-  height: 95vh;
-  max-height: 95vh;
+  height: 100dvh;
+  max-height: 100vh;
   overflow: hidden;
 }
 .app-shell {
-  height: 95vh;
-  max-height: 95vh;
+  height: 100dvh;
+  max-height: 100vh;
   overflow: hidden;
   background: #f5f7f4;
 }
 .app-aside {
-  height: 95vh;
+  height: 100dvh;
   overflow-y: auto;
   overflow-x: hidden;
   flex: 0 0 auto;
@@ -84,8 +84,8 @@ html, body {
 .top-nav .active { color: var(--brand-green); font-weight: 700; }
 .header-actions { display: flex; align-items: center; gap: 10px; }
 .user-button { color: #526360; }
-.app-main { height: calc(95vh - 56px); overflow-y: auto; overflow-x: hidden; padding: 20px clamp(16px, 2.5vw, 32px); }
-.app-main.bookmark-main { height: calc(95vh - 56px); min-height: 0; overflow: hidden; padding: 0; }
+.app-main { height: calc(100dvh - 56px); overflow-y: auto; overflow-x: hidden; padding: 20px clamp(16px, 2.5vw, 32px); }
+.app-main.bookmark-main { height: calc(100dvh - 56px); min-height: 0; overflow: hidden; padding: 0; }
 .header-breadcrumb { max-width: min(58vw, 680px); overflow: hidden; font-size: 13px; white-space: nowrap; }
 .header-breadcrumb .el-breadcrumb__inner { color: #73827d; font-weight: 500; }
 .header-breadcrumb .el-breadcrumb__item:last-child .el-breadcrumb__inner { color: var(--brand-green); font-weight: 700; }
@@ -317,6 +317,7 @@ h3 { margin-bottom: 10px; color: #263d40; font-size: 17px; }
 .tool-card:hover { border-color: #278477; transform: translateY(-2px); }
 .home-page { display: grid; min-height: calc(95vh - 120px); place-items: center; color: #18343a; font-size: clamp(42px, 7vw, 76px); font-weight: 700; letter-spacing: -.06em; }
 .transfer-card { max-width: 760px; border: 1px solid #dfe8e1; border-radius: 16px; }
+.transfer-content { width: 100%; max-width: 900px; margin: 0 auto; padding: 28px 0; }
 .transfer-tabs { display: flex; gap: 8px; margin-bottom: 24px; }
 .upload-zone { display: grid; min-height: 220px; place-items: center; align-content: center; gap: 8px; border: 1px dashed #9dbcb2; border-radius: 14px; background: #f7fbf8; color: #5d716d; cursor: pointer; }
 .upload-zone.dragging { border-color: #155e56; background: #eaf6f0; }
@@ -536,9 +537,16 @@ h3 { margin-bottom: 10px; color: #263d40; font-size: 17px; }
   .list-toolbar-title { gap: 10px; }
   .list-toolbar-actions .el-button { padding-left: 9px; padding-right: 9px; }
   .form-row { grid-template-columns: 1fr; gap: 0; }
-  .app-main { padding: 22px 16px 32px; }
-  .app-header { padding: 0 12px; }
-  .header-actions { gap: 2px; }
+   .app-main { padding: 14px 12px 24px; }
+   .app-main.bookmark-main { padding: 0; }
+   .app-header { height: 52px; min-height: 52px; }
+   .app-header { padding: 0 12px; }
+   .header-actions { gap: 0; }
+   .header-actions > .el-button { display: none; }
+   .user-button { min-width: 42px; padding: 8px; font-size: 0; }
+   .user-button .el-icon { margin: 0; font-size: 18px; }
+   .header-brand { min-width: 0; }
+   .header-breadcrumb { max-width: 62vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .header-actions .el-button--primary { padding: 8px 10px; }
   .top-nav { margin-left: 4px; }
   .user-button { max-width: 90px; overflow: hidden; }
@@ -556,17 +564,26 @@ h3 { margin-bottom: 10px; color: #263d40; font-size: 17px; }
   .bookmarks-heading .lead { display: none; }
   .bookmarks-heading h1 { font-size: 36px; }
   .bookmarks-heading .el-button { flex: 0 0 auto; margin-top: 25px; }
-  .bookmarks-workspace { display: block; min-height: 0; height: auto; max-height: none; overflow: visible; }
-  .folder-panel { max-height: 300px; overflow: auto; border-right: 0; border-bottom: 1px solid #e5ebe6; padding: 14px 12px; }
+   .bookmarks-page { overflow: visible; }
+   .bookmarks-workspace { display: block; min-height: 0; height: 100%; max-height: none; overflow: hidden; }
+   .bookmark-folder-backdrop { position: fixed; z-index: 24; inset: 0; background: rgb(24 52 58 / 30%); }
+   .folder-panel { position: fixed; z-index: 25; top: 0; bottom: 0; left: 0; width: min(290px, 84vw); height: 100dvh; min-height: 100vh; max-height: none; box-sizing: border-box; overflow: auto; transform: translateX(-105%); border-right: 1px solid #e5ebe6; border-bottom: 0; padding: 14px 12px calc(14px + env(safe-area-inset-bottom)); background: #fbfcfb; box-shadow: 5px 0 18px rgb(24 52 58 / 14%); transition: transform .2s ease; }
+   .folder-panel.is-mobile-visible { transform: translateX(0); }
   .folder-tree .el-tree-node__content { min-width: max-content; }
   .folder-node .el-button { opacity: 1; }
-  .bookmark-list-panel { padding: 0; }
-  .list-toolbar { padding: 14px; }
+   .bookmark-list-panel { padding: 0; }
+   .mobile-folder-toggle { display: inline-flex !important; flex: 0 0 auto; }
+   .list-toolbar { padding: 12px; gap: 10px; }
   .bookmark-results { padding: 0 14px; }
-  .list-toolbar { display: grid; gap: 14px; }
+   .list-toolbar { display: grid; gap: 10px; }
+   .list-toolbar-title { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+   .list-toolbar-title h2 { min-width: 0; margin: 0; overflow: hidden; font-size: 20px; text-overflow: ellipsis; white-space: nowrap; }
+   .list-toolbar-actions { flex: 0 0 auto; gap: 4px; }
+   .list-toolbar-actions .el-button { margin: 0; padding: 7px 8px; }
   .bookmark-search { width: 100%; }
-   .bookmark-card { grid-template-columns: 22px 84px minmax(0, 1fr); gap: 10px; padding: 17px 0; }
-  .bookmark-cover { width: 84px; height: 72px; }
+   .bookmark-card { grid-template-columns: 20px 72px minmax(0, 1fr); gap: 8px; padding: 13px 0; }
+   .bookmark-cover { width: 84px; height: 72px; }
+   .bookmark-cover { width: 72px; height: 60px; }
   .bookmark-cover__fallback strong { font-size: 24px; }
   .bookmark-body { grid-column: 3; }
   .bookmark-actions { grid-column: 3; justify-self: end; margin-top: -4px; }
@@ -575,8 +592,19 @@ h3 { margin-bottom: 10px; color: #263d40; font-size: 17px; }
   .bookmark-body > a { white-space: normal; overflow-wrap: anywhere; }
   .bookmark-body small { white-space: normal; overflow-wrap: anywhere; }
   .bulk-bar { align-items: flex-start; }
-  .bookmark-pagination { justify-content: center; }
+   .bookmark-pagination { justify-content: center; }
+   .transfer-content { padding: 14px 0; }
+   .transfer-tabs { gap: 6px; margin-bottom: 14px; }
+   .transfer-tabs .el-button { flex: 1; }
+   .upload-zone { min-height: 170px; padding: 18px; text-align: center; }
+   .content-row { align-items: flex-start; flex-direction: column; }
+   .content-row .el-button { width: 100%; }
+   .current-content { min-height: 120px; }
+   .global-whale-button { width: 72px; height: 72px; }
+   .global-whale-button img { width: 64px; height: 64px; }
 }
+
+.mobile-folder-toggle { display: none; }
 
 .random-dish-card { display: flex; flex-direction: column; gap: 16px; }
 .random-dialog .el-dialog__body { max-height: min(68vh, 620px); overflow-y: auto; }

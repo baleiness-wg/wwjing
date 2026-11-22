@@ -72,6 +72,7 @@ const randomDialogVisible = ref(false);
 const loadingRandom = ref(false);
 const randomItem = ref(null);
 const aiChatVisible = ref(false);
+const folderMenuVisible = ref(false);
 
 const folderForm = reactive({ id: null, name: "", parentId: null, position: 0 });
 const itemForm = reactive({ id: null, sourceUrl: "", title: "", description: "", coverUrl: "", folderIds: [] });
@@ -313,6 +314,7 @@ function selectFolder(folderId) {
   page.value = 1;
   void loadItems();
   void loadAiItems();
+  folderMenuVisible.value = false;
 }
 
 function searchItems() {
@@ -696,8 +698,9 @@ watch(activeTitle, (title) => window.dispatchEvent(new CustomEvent("wwjing:bookm
 
 <template>
   <div class="bookmarks-page">
+    <div v-if="folderMenuVisible" class="bookmark-folder-backdrop" @click="folderMenuVisible = false"></div>
     <div class="bookmarks-workspace">
-      <aside v-loading="loadingFolders" class="folder-panel" aria-label="收藏目录">
+      <aside v-loading="loadingFolders" class="folder-panel" :class="{ 'is-mobile-visible': folderMenuVisible }" aria-label="收藏目录">
         <div class="panel-title">
           <div>
             <span class="panel-kicker">目录</span>
@@ -765,6 +768,7 @@ watch(activeTitle, (title) => window.dispatchEvent(new CustomEvent("wwjing:bookm
       <main class="bookmark-list-panel">
         <div class="list-toolbar">
            <div class="list-toolbar-title">
+             <el-button class="mobile-folder-toggle" text circle :icon="Folder" title="打开收藏目录" aria-label="打开收藏目录" @click="folderMenuVisible = true" />
              <h2>{{ activeTitle }}</h2>
              <div class="list-toolbar-actions">
                <el-button type="success" plain :icon="Dish" @click="openRandomFilterDialog">Today</el-button>
