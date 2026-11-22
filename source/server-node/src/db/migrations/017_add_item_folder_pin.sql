@@ -1,2 +1,5 @@
 ALTER TABLE bookmark_item_folders
   ADD COLUMN IF NOT EXISTS pinned BOOLEAN NOT NULL DEFAULT FALSE;
+
+ALTER TABLE bookmark_item_folders
+  ADD COLUMN IF NOT EXISTS pinned_at TIMESTAMPTZ;

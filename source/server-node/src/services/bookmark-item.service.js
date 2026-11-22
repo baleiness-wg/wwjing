@@ -252,14 +252,14 @@ async function remove(userId, idValue, space = "star") {
 async function pin(userId, idValue, folderId, pinned, spaceValue = "star") {
   const space = parseSpace(spaceValue);
   const id = parseId(idValue, "id");
-  const folder = await validateFolder(userId, folderId, space);
-  if (!folder) throw new BookmarkError(400, "INVALID_INPUT", "置顶必须指定收藏夹目录");
   if (!await itemModel.findById(userId, id, space)) {
     throw new BookmarkError(404, "ITEM_NOT_FOUND", "收藏条目不存在");
   }
-  if (!await itemModel.pin(userId, id, folder, pinned, space)) {
-    throw new BookmarkError(404, "ITEM_FOLDER_NOT_FOUND", "收藏不在当前目录中");
+  if (folderId !== null && folderId !== undefined && folderId !== "") {
+    const folder = await validateFolder(userId, folderId, space);
+    if (!folder) throw new BookmarkError(400, "INVALID_INPUT", "目录不存在");
   }
+  await itemModel.pin(userId, id, folderId || null, pinned, space);
 }
 
 module.exports = { normalizeUrl, list, get, create, update, remove, pin, parseSpace, imageUrls };

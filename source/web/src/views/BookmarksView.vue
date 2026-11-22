@@ -330,13 +330,9 @@ function searchItems() {
 }
 
 async function toggleItemPin(item) {
-  if (activeFolderId.value === undefined || activeFolderId.value === null) {
-    ElMessage.warning("请先进入具体收藏夹目录后再置顶");
-    return;
-  }
   try {
     await pinBookmarkItem(item.id, activeFolderId.value, !item.pinned, currentSpace.value);
-    ElMessage.success(item.pinned ? "已取消置顶" : "已置顶到当前目录");
+    ElMessage.success(item.pinned ? "已取消置顶" : "已置顶到对应目录");
     await loadItems();
   } catch (error) {
     ElMessage.error(error.message || "置顶失败，请确认该收藏已关联当前目录");

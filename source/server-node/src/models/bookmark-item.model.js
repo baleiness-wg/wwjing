@@ -85,7 +85,7 @@ async function list(userId, filters) {
   const itemSelect = filters.folderId
     ? `${selectFields}, COALESCE((SELECT pinned FROM bookmark_item_folders pin WHERE pin.item_id = item.id AND pin.folder_id = $${pinFolderParameter}), false) AS "pinned"`
     : `${selectFields}, false AS "pinned"`;
-  const pinOrder = filters.folderId ? `COALESCE((SELECT pinned FROM bookmark_item_folders pin WHERE pin.item_id = item.id AND pin.folder_id = $${pinFolderParameter}), false) DESC,` : "";
+  const pinOrder = filters.folderId ? `COALESCE((SELECT pinned FROM bookmark_item_folders pin WHERE pin.item_id = item.id AND pin.folder_id = $${pinFolderParameter}), false) DESC, COALESCE((SELECT pinned_at FROM bookmark_item_folders pin WHERE pin.item_id = item.id AND pin.folder_id = $${pinFolderParameter}), 'epoch'::timestamptz) DESC,` : "";
   const result = await pool.query(`SELECT ${itemSelect}, COUNT(*) OVER()::int AS "totalCount" FROM bookmark_items item WHERE ${conditions.join(" AND ")} ORDER BY ${pinOrder} item.updated_at DESC, item.id DESC LIMIT $${limitIndex} OFFSET $${offsetIndex}`, parameters);
   return { items: result.rows.map(({ totalCount, ...item }) => ({ ...item, images: signImages(item.images || []) })), total: result.rows[0]?.totalCount || 0 };
 }
@@ -138,8 +138,17 @@ async function remove(userId, id, space = "star") {
 }
 
 async function pin(userId, itemId, folderId, pinned, space) {
+  if (!folderId) {
+    await pool.query(
+      `UPDATE bookmark_item_folders link SET pinned = $3, pinned_at = CASE WHEN $3 THEN NOW() ELSE NULL END
+       FROM bookmark_items item
+       WHERE link.item_id = $2 AND item.id = link.item_id AND item.user_id = $1 AND item.space = $4`,
+      [userId, itemId, pinned, space]
+    );
+    return true;
+  }
   const result = await pool.query(
-    `UPDATE bookmark_item_folders link SET pinned = $4
+    `UPDATE bookmark_item_folders link SET pinned = $4, pinned_at = CASE WHEN $4 THEN NOW() ELSE NULL END
      FROM bookmark_items item
      WHERE link.item_id = $2 AND link.folder_id = $3 AND item.id = link.item_id
        AND item.user_id = $1 AND item.space = $5`,

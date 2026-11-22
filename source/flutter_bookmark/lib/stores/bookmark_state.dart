@@ -414,9 +414,8 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> pinItem(String id, bool pinned) async {
-    if (view != BookmarkView.folder || selectedFolderId == null) return;
     await _run(() async {
-      await api.pinItem(id, selectedFolderId!, pinned);
+      await api.pinItem(id, selectedFolderId ?? '', pinned);
       await refresh(resetPage: true);
     });
   }
