@@ -199,6 +199,7 @@ class _BookmarkAppState extends State<BookmarkApp> with WidgetsBindingObserver {
         : '全部收藏';
     final allItems = await state.api.getAllItems();
     if (!context.mounted) return;
+    final chatItems = inStar ? state.items : allItems;
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -210,9 +211,9 @@ class _BookmarkAppState extends State<BookmarkApp> with WidgetsBindingObserver {
           'directoryId': directoryId,
           'directoryName': directoryName,
           'directoryPath': directoryName,
-          'loadedItemCount': allItems.length,
+          'loadedItemCount': chatItems.length,
           'items': [
-            for (final item in (inStar ? state.items : allItems))
+            for (final item in chatItems)
               {
                 'id': item.id,
                 'title': item.title,
@@ -222,7 +223,7 @@ class _BookmarkAppState extends State<BookmarkApp> with WidgetsBindingObserver {
           ],
         },
         linkLauncher: const LinkLauncher(),
-        items: allItems,
+        items: chatItems,
         onEditItem: (item) => state.openDraft(item),
         onItemAction: (item, action) {
           if (action == 'delete') state.deleteItem(item.id);

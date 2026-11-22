@@ -102,8 +102,13 @@ function appendMentionedItemLinks(answer, context) {
   for (const item of context.items) {
     const title = limitedString(item.title, MAX_FIELD_LENGTH);
     const url = limitedString(item.sourceUrl, 1000);
-    if (title.length < 2 || !url || !enriched.includes(title) || enriched.includes(url)) continue;
-    enriched = enriched.replace(title, `${title}（${url}）`);
+    if (title.length < 2 || !enriched.includes(title)) continue;
+    const marker = `[[bookmark:${item.id}]]`;
+    if (enriched.includes(marker)) continue;
+    enriched = enriched.replace(title, `${title}${marker}`);
+    if (url && !enriched.includes(url)) {
+      enriched = enriched.replace(marker, `${marker}（${url}）`);
+    }
   }
   return enriched;
 }

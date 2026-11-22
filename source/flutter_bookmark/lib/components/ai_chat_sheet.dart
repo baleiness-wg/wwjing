@@ -192,9 +192,12 @@ class _AiChatSheetState extends State<AiChatSheet> {
                             mentionedItems: message.role == 'assistant'
                                 ? widget.items.where((item) {
                                     final title = item.title?.trim();
-                                    final idMatch = message.content
-                                        .toLowerCase()
-                                        .contains(item.id.toLowerCase());
+                                    final idMatch = RegExp(
+                                      r'\[\[bookmark:' +
+                                          RegExp.escape(item.id) +
+                                          r'\]\]',
+                                      caseSensitive: false,
+                                    ).hasMatch(message.content);
                                     final urlMatch =
                                         RegExp(
                                           r'https?://[^\s<>()]+',
@@ -371,6 +374,10 @@ class _MessageWithInlineItems extends StatelessWidget {
       RegExp(r'\[([^\]]+)\]\(https?://[^)\s]+\)'),
       (match) => match.group(1)!,
     );
+    remaining = remaining.replaceAllMapped(
+      RegExp(r'\[\[bookmark:[a-f0-9]{32}\]\]', caseSensitive: false),
+      (_) => '',
+    );
     final children = <Widget>[];
     final pending = [...items];
     while (pending.isNotEmpty) {
@@ -400,7 +407,15 @@ class _MessageWithInlineItems extends StatelessWidget {
       final matchedItem = matched;
       final before = remaining.substring(0, matchIndex).trim();
       if (before.isNotEmpty) {
-        children.add(MarkdownMessage(content: before, onOpenLink: onOpenLink));
+        children.add(
+          MarkdownMessage(
+            content: before.replaceAll(
+              RegExp(r'\[\[bookmark:[a-f0-9]{32}\]\]', caseSensitive: false),
+              '',
+            ),
+            onOpenLink: onOpenLink,
+          ),
+        );
       }
       children.add(const SizedBox(height: 6));
       children.add(
@@ -430,11 +445,23 @@ class _MessageWithInlineItems extends StatelessWidget {
         RegExp(r'^\s*[（(]\s*https?://[^）)\s]+\s*[）)]', caseSensitive: false),
         '',
       );
+      remaining = remaining.replaceFirst(
+        RegExp(r'^\s*\[\[bookmark:[a-f0-9]{32}\]\]', caseSensitive: false),
+        '',
+      );
       pending.remove(matchedItem);
     }
     if (remaining.trim().isNotEmpty) {
       children.add(
-        MarkdownMessage(content: remaining.trim(), onOpenLink: onOpenLink),
+        MarkdownMessage(
+          content: remaining
+              .replaceAll(
+                RegExp(r'\[\[bookmark:[a-f0-9]{32}\]\]', caseSensitive: false),
+                '',
+              )
+              .trim(),
+          onOpenLink: onOpenLink,
+        ),
       );
     }
     return Column(
