@@ -79,6 +79,9 @@ const folderForm = reactive({ id: null, name: "", parentId: null, position: 0 })
 const itemForm = reactive({ id: null, sourceUrl: "", title: "", description: "", coverUrl: "", folderIds: [] });
 const imageInput = ref(null);
 const itemImages = ref([]);
+const pendingImages = ref([]);
+const previewImagesVisible = ref(false);
+const previewImageIndex = ref(0);
 const bulkFolderIds = ref([]);
 const draggingItemId = ref(null);
 
@@ -488,6 +491,8 @@ function openCreateItem() {
     folderIds: activeFolderId.value === undefined || activeFolderId.value === null ? [] : [activeFolderId.value]
   });
   previewCoverFailed.value = false;
+  itemImages.value = [];
+  pendingImages.value = [];
   itemDialogVisible.value = true;
 }
 
@@ -502,6 +507,7 @@ function openEditItem(item) {
     folderIds: item.folderIds?.length ? [...item.folderIds] : (item.folderId ? [item.folderId] : [])
   });
   itemImages.value = [...(item.images || [])];
+  pendingImages.value = [];
   previewCoverFailed.value = false;
   itemDialogVisible.value = true;
 }
@@ -509,13 +515,22 @@ function openEditItem(item) {
 async function uploadItemImage(event) {
   const file = event.target.files?.[0];
   event.target.value = "";
-  if (!file || !itemForm.id) return;
+  if (!file) return;
+  if (!itemForm.id) {
+    pendingImages.value = [...pendingImages.value, file];
+    return;
+  }
   try {
     const result = await uploadBookmarkImage(itemForm.id, file, currentSpace.value);
     itemImages.value = result.images || [...itemImages.value, result.image];
     itemForm.coverUrl = itemImages.value[0] || "";
     ElMessage.success("图片已上传");
   } catch (error) { ElMessage.error(error.message); }
+}
+
+function openImagePreview(index = 0) {
+  previewImageIndex.value = index;
+  previewImagesVisible.value = true;
 }
 
 async function detectMetadata() {
@@ -551,7 +566,16 @@ async function submitItem(allowDuplicate = false) {
   };
   saving.value = true;
   try {
-    if (itemDialogMode.value === "create") await createBookmarkItem({ ...data, allowDuplicate }, currentSpace.value);
+    if (itemDialogMode.value === "create") {
+      const created = await createBookmarkItem({ ...data, allowDuplicate }, currentSpace.value);
+      const itemId = created?.item?.id || created?.id;
+      if (itemId) {
+        for (const file of pendingImages.value) {
+          const result = await uploadBookmarkImage(itemId, file, currentSpace.value);
+          itemImages.value = result.images || itemImages.value;
+        }
+      }
+    }
     else await updateBookmarkItem(itemForm.id, data, currentSpace.value);
     itemDialogVisible.value = false;
     ElMessage.success(itemDialogMode.value === "create" ? "收藏已创建" : "收藏已更新");
@@ -933,11 +957,24 @@ watch(activeTitle, (title) => window.dispatchEvent(new CustomEvent("wwjing:bookm
         </el-form-item>
         <el-form-item label="图片">
           <input ref="imageInput" type="file" accept="image/jpeg,image/png,image/webp,image/gif" hidden @change="uploadItemImage" />
-          <el-button :disabled="itemDialogMode === 'create'" @click="imageInput?.click()">追加图片</el-button>
-          <span class="muted image-upload-hint">{{ itemDialogMode === 'create' ? '保存后可追加图片' : `已上传 ${itemImages.length} 张` }}</span>
-          <div v-if="itemImages.length || itemForm.coverUrl" class="item-cover-preview">
-            <img :src="itemImages[0] || itemForm.coverUrl" alt="收藏封面" />
-            <span v-if="itemImages.length > 1" class="item-image-count">📁 {{ itemImages.length }}</span>
+          <div v-if="itemImages.length || pendingImages.length || itemForm.coverUrl" class="item-image-strip">
+            <button
+              v-for="(image, index) in [...itemImages, ...pendingImages.map((file) => URL.createObjectURL(file))]"
+              :key="`${image}-${index}`"
+              type="button"
+              class="item-image-thumb item-image-thumb-button"
+              @click="openImagePreview(index)"
+            >
+              <img :src="image" alt="收藏图片" />
+              <span v-if="index === 0" class="item-image-cover-badge">封面</span>
+            </button>
+            <button v-if="!itemImages.length && itemForm.coverUrl" type="button" class="item-image-thumb item-image-thumb-button" @click="openImagePreview(0)">
+              <img :src="itemForm.coverUrl" alt="收藏封面" />
+            </button>
+          </div>
+          <div class="image-upload-actions">
+            <el-button @click="imageInput?.click()">追加图片</el-button>
+            <span class="muted image-upload-hint">{{ itemImages.length + pendingImages.length }} 张图片</span>
           </div>
         </el-form-item>
         <el-form-item label="收藏目录">
@@ -956,6 +993,13 @@ watch(activeTitle, (title) => window.dispatchEvent(new CustomEvent("wwjing:bookm
         <el-button @click="itemDialogVisible = false">取消</el-button>
         <el-button type="primary" :loading="saving" @click="submitItem()">保存</el-button>
       </template>
+    </el-dialog>
+    <el-dialog v-model="previewImagesVisible" title="图片预览" width="min(760px, 94vw)">
+      <el-carousel v-if="itemImages.length || pendingImages.length" :initial-index="previewImageIndex" height="min(60vh, 520px)" arrow="always" indicator-position="outside">
+        <el-carousel-item v-for="(image, index) in [...itemImages, ...pendingImages.map((file) => URL.createObjectURL(file))]" :key="`${image}-${index}`">
+          <img class="item-image-preview" :src="image" alt="收藏图片" />
+        </el-carousel-item>
+      </el-carousel>
     </el-dialog>
 
     <el-dialog v-model="moveItemsVisible" title="移动收藏" width="min(440px, 92vw)">

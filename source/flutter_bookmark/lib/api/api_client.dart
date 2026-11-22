@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
+
 import 'package:http/http.dart' as http;
 
 import '../viewmodels/bookmark.dart';
@@ -342,17 +344,24 @@ class ApiClient {
   }
 
   Future<List<String>> uploadItemImage(String id, String path) async {
+    debugPrint(
+      '[ApiClient] POST /bookmarks/items/$id/images file=$path space=$space',
+    );
     final token = await tokenStore.read();
-    final request = http.MultipartRequest(
-      'POST',
-      Uri.parse('$baseUrl/bookmarks/items/$id/images'),
-    )
-      ..headers['Authorization'] = token == null
-          ? ''
-          : (token.startsWith('Bearer ') ? token : 'Bearer $token')
-      ..fields['space'] = space
-      ..files.add(await http.MultipartFile.fromPath('image', path));
+    final request =
+        http.MultipartRequest(
+            'POST',
+            Uri.parse('$baseUrl/bookmarks/items/$id/images'),
+          )
+          ..headers['Authorization'] = token == null
+              ? ''
+              : (token.startsWith('Bearer ') ? token : 'Bearer $token')
+          ..fields['space'] = space
+          ..files.add(await http.MultipartFile.fromPath('image', path));
     final response = await http.Response.fromStream(await _http.send(request));
+    debugPrint(
+      '[ApiClient] image upload response status=${response.statusCode} bodyLength=${response.body.length}',
+    );
     final data = _decode(response) as Map<String, dynamic>;
     return (data['images'] as List? ?? const []).whereType<String>().toList();
   }

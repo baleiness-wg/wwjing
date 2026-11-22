@@ -244,6 +244,9 @@ class _BookmarkFormState extends State<BookmarkForm> {
     }
     final state = context.read<AppState>();
     final sourceUrl = _url.text.trim();
+    debugPrint(
+      '[BookmarkForm] save start editing=${state.editingItemId != null} images=${_images.length} pendingImages=${_pendingImages.length}',
+    );
     final value = BookmarkDraft(
       sourceUrl: sourceUrl,
       title: _title.text.trim(),
@@ -256,17 +259,31 @@ class _BookmarkFormState extends State<BookmarkForm> {
       value,
       allowDuplicate: allowDuplicate,
       metadataFuture: null,
+      pendingImagePaths: _pendingImages.map((file) => file.path).toList(),
     );
     if (!mounted) return;
+    debugPrint(
+      '[BookmarkForm] save result saved=$saved itemId=${state.lastSavedItemId} errorCode=${state.errorCode} error=${state.error}',
+    );
     if (saved) {
       final itemId = state.lastSavedItemId;
       if (itemId != null) {
         try {
+          debugPrint(
+            '[BookmarkForm] uploading pending images count=${_pendingImages.length} itemId=$itemId',
+          );
           for (final file in _pendingImages) {
-            await state.api.uploadItemImage(itemId, file.path);
+            debugPrint('[BookmarkForm] upload start path=${file.path}');
+            final images = await state.api.uploadItemImage(itemId, file.path);
+            debugPrint(
+              '[BookmarkForm] upload success itemId=$itemId savedImages=${images.length}',
+            );
           }
           await state.refresh(resetPage: true);
         } on ApiException catch (error) {
+          debugPrint(
+            '[BookmarkForm] upload failed code=${error.code} status=${error.statusCode} message=${error.message}',
+          );
           if (mounted)
             ScaffoldMessenger.of(context)
                 .showSnackBar(SnackBar(content: Text(error.message)));

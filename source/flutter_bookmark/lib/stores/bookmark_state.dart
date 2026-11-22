@@ -326,6 +326,7 @@ class AppState extends ChangeNotifier {
     BookmarkDraft value, {
     bool allowDuplicate = false,
     Future<BookmarkMetadata?>? metadataFuture,
+    List<String> pendingImagePaths = const [],
   }) async {
     draft = value;
     lastSavedItemId = null;
@@ -357,6 +358,11 @@ class AppState extends ChangeNotifier {
         await preferences.rememberFolder(folderId);
       }
       recentFolderIds = await preferences.recentFolders();
+      if (lastSavedItemId != null) {
+        for (final path in pendingImagePaths) {
+          await api.uploadItemImage(lastSavedItemId!, path);
+        }
+      }
       draft = null;
       editingItemId = null;
       saved = true;
