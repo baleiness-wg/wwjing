@@ -82,10 +82,31 @@ async function list(userId, filters) {
   parameters.push(filters.pageSize, (filters.page - 1) * filters.pageSize);
   const limitIndex = parameters.length - 1;
   const offsetIndex = parameters.length;
-  const itemSelect = filters.folderId
-    ? `${selectFields}, COALESCE((SELECT pinned FROM bookmark_item_folders pin WHERE pin.item_id = item.id AND pin.folder_id = $${pinFolderParameter}), false) AS "pinned"`
-    : `${selectFields}, false AS "pinned"`;
-  const pinOrder = filters.folderId ? `COALESCE((SELECT pinned FROM bookmark_item_folders pin WHERE pin.item_id = item.id AND pin.folder_id = $${pinFolderParameter}), false) DESC,` : "";
+  let pinnedExpression = "false";
+  if (filters.folderId) {
+    const pinnedFolderFilter = filters.includeDescendants
+      ? `WITH RECURSIVE descendants AS (
+           SELECT id FROM bookmark_folders WHERE id = $${pinFolderParameter} AND space = $2
+           UNION ALL
+           SELECT child.id FROM bookmark_folders child
+           JOIN descendants parent ON child.parent_id = parent.id
+           WHERE child.space = $2
+         ) SELECT id FROM descendants`
+      : `$${pinFolderParameter}`;
+    pinnedExpression = `EXISTS (
+      SELECT 1 FROM bookmark_item_folders pin
+      WHERE pin.item_id = item.id
+        AND pin.folder_id IN (${pinnedFolderFilter})
+        AND pin.pinned = true
+    )`;
+  } else if (!filters.uncategorized) {
+    pinnedExpression = `EXISTS (
+      SELECT 1 FROM bookmark_item_folders pin
+      WHERE pin.item_id = item.id AND pin.pinned = true
+    )`;
+  }
+  const itemSelect = `${selectFields}, ${pinnedExpression} AS "pinned"`;
+  const pinOrder = `${pinnedExpression} DESC,`;
   const result = await pool.query(`SELECT ${itemSelect}, COUNT(*) OVER()::int AS "totalCount" FROM bookmark_items item WHERE ${conditions.join(" AND ")} ORDER BY ${pinOrder} item.updated_at DESC, item.id DESC LIMIT $${limitIndex} OFFSET $${offsetIndex}`, parameters);
   return { items: result.rows.map(({ totalCount, ...item }) => ({ ...item, images: signImages(item.images || []) })), total: result.rows[0]?.totalCount || 0 };
 }
