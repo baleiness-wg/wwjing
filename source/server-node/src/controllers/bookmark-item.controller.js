@@ -58,7 +58,10 @@ async function pin(req, res, next) {
     }
     await itemService.pin(req.auth.sub, req.params.id, req.body.folderId, req.body.pinned, req.body?.space || "star");
     res.status(204).send();
-  } catch (error) { next(error); }
+  } catch (error) {
+    (req.log || logger).error({ userId: req.auth?.sub, itemId: req.params.id, folderId: req.body?.folderId, code: error.code, message: error.message }, "bookmark item pin failed");
+    next(error);
+  }
 }
 
 const uploadImages = [upload.single("image"), async (req, res, next) => {

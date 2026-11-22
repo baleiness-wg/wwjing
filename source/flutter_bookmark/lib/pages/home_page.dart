@@ -513,7 +513,20 @@ class _HomePageState extends State<HomePage> {
                                       }
                                       if (action == 'pin' &&
                                           state.view == BookmarkView.folder) {
-                                        state.pinItem(item.id, !item.pinned);
+                                        state
+                                            .pinItem(item.id, !item.pinned)
+                                            .then((_) {
+                                              if (state.error != null &&
+                                                  context.mounted) {
+                                                ScaffoldMessenger.of(
+                                                  context,
+                                                ).showSnackBar(
+                                                  SnackBar(
+                                                    content: Text(state.error!),
+                                                  ),
+                                                );
+                                              }
+                                            });
                                       }
                                       if (action == 'delete') {
                                         state.deleteItem(item.id);
