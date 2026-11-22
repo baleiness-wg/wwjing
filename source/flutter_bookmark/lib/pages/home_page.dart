@@ -512,7 +512,10 @@ class _HomePageState extends State<HomePage> {
                                         _move(context, item);
                                       }
                                       if (action == 'pin' &&
-                                          state.view == BookmarkView.folder) {
+                                          (state.view == BookmarkView.folder ||
+                                              state.view ==
+                                                  BookmarkView.uncategorized ||
+                                              state.view == BookmarkView.all)) {
                                         state
                                             .pinItem(item.id, !item.pinned)
                                             .then((_) {
