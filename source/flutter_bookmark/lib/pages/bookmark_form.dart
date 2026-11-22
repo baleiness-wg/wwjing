@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+
+import 'dart:io';
+
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../components/folder_picker_dialog.dart';
-import '../components/bookmark_cover.dart';
 import '../stores/bookmark_state.dart';
 import '../viewmodels/bookmark.dart';
 import '../utils/link_launcher.dart';
@@ -29,6 +31,7 @@ class _BookmarkFormState extends State<BookmarkForm> {
   String? _folderId;
   Set<String> _folderIds = {};
   List<String> _images = const [];
+  List<XFile> _pendingImages = [];
   bool _recognizing = false;
   Future<BookmarkMetadata?>? _metadataFuture;
   BookmarkDraft? _lastObservedDraft;
@@ -106,28 +109,66 @@ class _BookmarkFormState extends State<BookmarkForm> {
   Future<void> _pickImages() async {
     final files = await ImagePicker().pickMultiImage(imageQuality: 90);
     if (files.isEmpty || !mounted) return;
-    if (context.read<AppState>().editingItemId == null) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('请先保存收藏，再上传图片')));
-      return;
-    }
-    try {
-      var images = [..._images];
-      for (final file in files) {
-        images = await context.read<AppState>().api.uploadItemImage(
-          context.read<AppState>().editingItemId!,
-          file.path,
-        );
-      }
-      setState(() {
-        _images = images;
-        _imageUrl.text = images.isEmpty ? '' : images.first;
-      });
-    } on ApiException catch (error) {
-      if (mounted)
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(error.message)));
-    }
+    setState(() => _pendingImages = [..._pendingImages, ...files]);
+  }
+
+  Future<void> _showImages(int initialIndex) async {
+    final previewImages = [
+      ..._images.map((image) => _PreviewImage.network(image)),
+      ..._pendingImages.map((file) => _PreviewImage.file(file.path)),
+    ];
+    if (previewImages.isEmpty) return;
+    await showDialog<void>(
+      context: context,
+      builder: (context) => Dialog(
+        child: StatefulBuilder(
+          builder: (context, setDialogState) {
+            var currentIndex = initialIndex;
+            return SizedBox(
+              height: MediaQuery.sizeOf(context).height * .72,
+              child: Stack(
+                children: [
+                  PageView.builder(
+                    itemCount: previewImages.length,
+                    controller: PageController(initialPage: initialIndex),
+                    onPageChanged: (index) =>
+                        setDialogState(() => currentIndex = index),
+                    itemBuilder: (_, index) =>
+                        InteractiveViewer(child: previewImages[index].build()),
+                  ),
+                  Positioned(
+                    top: 12,
+                    left: 0,
+                    right: 0,
+                    child: Center(
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: Colors.black54,
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
+                          child: Text(
+                            '${currentIndex + 1} / ${previewImages.length}',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+      ),
+    );
   }
 
   void _onUrlChanged(String value) {
@@ -195,6 +236,7 @@ class _BookmarkFormState extends State<BookmarkForm> {
 
   Future<void> _save({bool allowDuplicate = false}) async {
     if (!_formKey.currentState!.validate()) return;
+    if (_metadataFuture != null) await _metadataFuture;
     if (_title.text.trim().isEmpty) {
       ScaffoldMessenger.of(context)
           .showSnackBar(const SnackBar(content: Text('请输入标题')));
@@ -208,17 +250,30 @@ class _BookmarkFormState extends State<BookmarkForm> {
       description: _description.text.trim(),
       folderId: _folderId,
       folderIds: _folderIds.toList(),
-      images: _imageUrl.text.trim().isEmpty
-          ? const []
-          : [_imageUrl.text.trim()],
+      images: _images,
     );
     final saved = await state.saveDraft(
       value,
       allowDuplicate: allowDuplicate,
-      metadataFuture: _metadataFuture,
+      metadataFuture: null,
     );
     if (!mounted) return;
-    if (saved) return;
+    if (saved) {
+      final itemId = state.lastSavedItemId;
+      if (itemId != null) {
+        try {
+          for (final file in _pendingImages) {
+            await state.api.uploadItemImage(itemId, file.path);
+          }
+          await state.refresh(resetPage: true);
+        } on ApiException catch (error) {
+          if (mounted)
+            ScaffoldMessenger.of(context)
+                .showSnackBar(SnackBar(content: Text(error.message)));
+        }
+      }
+      return;
+    }
     if (state.errorCode == 'DUPLICATE_BOOKMARK') {
       final duplicate = DuplicateBookmarkInfo.fromJson(state.errorData);
       final action = await showDialog<String>(
@@ -354,71 +409,75 @@ class _BookmarkFormState extends State<BookmarkForm> {
                 maxLines: 16,
               ),
               const SizedBox(height: 8),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  BookmarkCover(
-                    sourceUrl: _url.text,
-                    coverUrl: _imageUrl.text,
-                    width: 88,
-                    height: 88,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: TextField(
-                      controller: _imageUrl,
-                      decoration: const InputDecoration(
-                        labelText: '图片 URL（可选）',
-                        prefixIcon: Icon(Icons.image_outlined),
-                      ),
-                      keyboardType: TextInputType.url,
-                      onChanged: (value) => setState(() {
-                        _images = value.trim().isEmpty
-                            ? const []
-                            : [value.trim()];
-                      }),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              if (_images.isNotEmpty)
+              if (_images.isNotEmpty || _pendingImages.isNotEmpty)
                 SizedBox(
-                  height: 76,
-                  child: ListView.separated(
+                  height: 96,
+                  child: ReorderableListView.builder(
                     scrollDirection: Axis.horizontal,
-                    itemCount: _images.length,
-                    separatorBuilder: (_, _) => const SizedBox(width: 8),
-                    itemBuilder: (context, index) => Stack(
-                      children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: Image.network(
-                            _images[index],
-                            width: 76,
-                            height: 76,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, _, _) =>
-                                const Icon(Icons.broken_image_outlined),
-                          ),
-                        ),
-                        Positioned(
-                          right: 0,
-                          top: 0,
-                          child: IconButton(
-                            visualDensity: VisualDensity.compact,
-                            iconSize: 18,
-                            color: Colors.white,
-                            style: IconButton.styleFrom(
-                              backgroundColor: Colors.black54,
+                    itemCount: _images.length + _pendingImages.length,
+                    onReorder: (oldIndex, newIndex) => setState(() {
+                      if (newIndex > oldIndex) newIndex -= 1;
+                      final image = _images.removeAt(oldIndex);
+                      _images.insert(newIndex, image);
+                      _imageUrl.text = _images.firstOrNull ?? '';
+                    }),
+                    itemBuilder: (_, index) {
+                      final isPending = index >= _images.length;
+                      final image = isPending
+                          ? _pendingImages[index - _images.length].path
+                          : _images[index];
+                      return GestureDetector(
+                        key: ValueKey('$image-$index'),
+                        onTap: () => _showImages(index),
+                        child: Stack(
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(10),
+                              child: isPending
+                                  ? Image.file(
+                                      File(image),
+                                      width: 96,
+                                      height: 96,
+                                      fit: BoxFit.cover,
+                                    )
+                                  : Image.network(
+                                      image,
+                                      width: 96,
+                                      height: 96,
+                                      fit: BoxFit.cover,
+                                    ),
                             ),
-                            onPressed: () =>
-                                setState(() => _images.removeAt(index)),
-                            icon: const Icon(Icons.close),
-                          ),
+                            Positioned(
+                              right: 0,
+                              top: 0,
+                              child: IconButton(
+                                iconSize: 14,
+                                color: Colors.white,
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints.tightFor(
+                                  width: 22,
+                                  height: 22,
+                                ),
+                                style: IconButton.styleFrom(
+                                  backgroundColor: Colors.black54,
+                                ),
+                                onPressed: () => setState(() {
+                                  if (isPending) {
+                                    _pendingImages.removeAt(
+                                      index - _images.length,
+                                    );
+                                  } else {
+                                    _images.removeAt(index);
+                                  }
+                                  _imageUrl.text = _images.firstOrNull ?? '';
+                                }),
+                                icon: const Icon(Icons.close),
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
+                      );
+                    },
                   ),
                 ),
               const SizedBox(height: 8),
@@ -443,25 +502,10 @@ class _BookmarkFormState extends State<BookmarkForm> {
                     child: OutlinedButton.icon(
                       onPressed: _pickImages,
                       icon: const Icon(Icons.add_photo_alternate_outlined),
-                      label: Text('追加图片（${_images.length}）'),
+                      label: const Text('追加图片'),
                     ),
                   ),
                 ],
-              ),
-              Align(
-                alignment: Alignment.centerRight,
-                child: OutlinedButton.icon(
-                  onPressed: _recognizing
-                      ? null
-                      : () => _metadataFuture = _recognizeCover(),
-                  icon: _recognizing
-                      ? const SizedBox.square(
-                          dimension: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.auto_awesome_outlined),
-                  label: Text(_images.isEmpty ? '识别封面' : '重新识别封面'),
-                ),
               ),
               const SizedBox(height: 14),
               Card.outlined(
@@ -545,4 +589,14 @@ class _BookmarkFormState extends State<BookmarkForm> {
       ),
     );
   }
+}
+
+class _PreviewImage {
+  const _PreviewImage.network(this.value) : file = false;
+  const _PreviewImage.file(this.value) : file = true;
+  final String value;
+  final bool file;
+  Widget build() => file
+      ? Image.file(File(value), fit: BoxFit.contain)
+      : Image.network(value, fit: BoxFit.contain);
 }

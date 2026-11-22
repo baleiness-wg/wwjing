@@ -41,4 +41,27 @@ async function upload(userId, itemId, file) {
   return { key, url, expiresIn: config.oss.signedUrlExpires };
 }
 
-module.exports = { upload };
+function signedUrl(value) {
+  if (!value) return value;
+  const endpoint = config.oss.endpoint.replace(/^https?:\/\//, "");
+  let key = value;
+  try {
+    const url = new URL(value);
+    if (!url.hostname.includes(endpoint.split("/")[0])) return value;
+    key = decodeURIComponent(url.pathname.replace(/^\//, ""));
+  } catch (_) { /* value may already be an object key */ }
+  try {
+    return client().signatureUrl(key, {
+      expires: config.oss.signedUrlExpires,
+      response: { "content-disposition": "inline" }
+    });
+  } catch (_) {
+    return value;
+  }
+}
+
+function signImages(images = []) {
+  return images.map(signedUrl);
+}
+
+module.exports = { upload, signedUrl, signImages };

@@ -36,7 +36,7 @@ class BookmarkItemCard extends StatelessWidget {
     final cover = BookmarkCover(
       sourceUrl: item.sourceUrl,
       sourceHost: item.sourceHost,
-      coverUrl: item.coverUrl,
+      coverUrl: item.images.isNotEmpty ? item.images.first : item.coverUrl,
       width: compact ? 44 : 58,
       height: compact ? 44 : 58,
     );

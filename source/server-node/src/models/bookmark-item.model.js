@@ -1,5 +1,6 @@
 const pool = require("../db");
 const { randomId } = require("../utils/id");
+const { signImages } = require("../services/oss.service");
 
 const platformDomains = {
   xiaohongshu: ["xiaohongshu.com", "xhslink.cn", "xhslink.com"],
@@ -32,7 +33,10 @@ async function findById(userId, id, space = "star", client = pool) {
     `SELECT ${selectFields} FROM bookmark_items item WHERE item.id = $2 AND item.space = $3 AND ${itemVisibility("$3")}`,
     [userId, id, space]
   );
-  return result.rows[0] || null;
+  if (!result.rows[0]) return null;
+  result.rows[0].images = signImages(result.rows[0].images || []);
+  result.rows[0].coverUrl = result.rows[0].images[0] || result.rows[0].coverUrl;
+  return result.rows[0];
 }
 
 async function findDuplicate(userId, normalizedUrl, space = "star", client = pool) {
@@ -83,7 +87,7 @@ async function list(userId, filters) {
     : `${selectFields}, false AS "pinned"`;
   const pinOrder = filters.folderId ? `COALESCE((SELECT pinned FROM bookmark_item_folders pin WHERE pin.item_id = item.id AND pin.folder_id = $${pinFolderParameter}), false) DESC,` : "";
   const result = await pool.query(`SELECT ${itemSelect}, COUNT(*) OVER()::int AS "totalCount" FROM bookmark_items item WHERE ${conditions.join(" AND ")} ORDER BY ${pinOrder} item.updated_at DESC, item.id DESC LIMIT $${limitIndex} OFFSET $${offsetIndex}`, parameters);
-  return { items: result.rows.map(({ totalCount, ...item }) => item), total: result.rows[0]?.totalCount || 0 };
+  return { items: result.rows.map(({ totalCount, ...item }) => ({ ...item, images: signImages(item.images || []) })), total: result.rows[0]?.totalCount || 0 };
 }
 
 async function syncFolders(client, itemId, userId, space, folderIds) {

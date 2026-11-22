@@ -935,6 +935,10 @@ watch(activeTitle, (title) => window.dispatchEvent(new CustomEvent("wwjing:bookm
           <input ref="imageInput" type="file" accept="image/jpeg,image/png,image/webp,image/gif" hidden @change="uploadItemImage" />
           <el-button :disabled="itemDialogMode === 'create'" @click="imageInput?.click()">追加图片</el-button>
           <span class="muted image-upload-hint">{{ itemDialogMode === 'create' ? '保存后可追加图片' : `已上传 ${itemImages.length} 张` }}</span>
+          <div v-if="itemImages.length || itemForm.coverUrl" class="item-cover-preview">
+            <img :src="itemImages[0] || itemForm.coverUrl" alt="收藏封面" />
+            <span v-if="itemImages.length > 1" class="item-image-count">📁 {{ itemImages.length }}</span>
+          </div>
         </el-form-item>
         <el-form-item label="收藏目录">
           <div class="folder-select-row">
