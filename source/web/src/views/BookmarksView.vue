@@ -546,6 +546,7 @@ async function submitItem(allowDuplicate = false) {
     title: itemForm.title.trim() || null,
     description: itemForm.description.trim() || null,
     coverUrl: itemForm.coverUrl.trim() || null,
+    images: [...itemImages.value],
     folderIds: [...itemForm.folderIds]
   };
   saving.value = true;

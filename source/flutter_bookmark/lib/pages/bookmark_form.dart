@@ -382,6 +382,46 @@ class _BookmarkFormState extends State<BookmarkForm> {
                 ],
               ),
               const SizedBox(height: 8),
+              if (_images.isNotEmpty)
+                SizedBox(
+                  height: 76,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: _images.length,
+                    separatorBuilder: (_, _) => const SizedBox(width: 8),
+                    itemBuilder: (context, index) => Stack(
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Image.network(
+                            _images[index],
+                            width: 76,
+                            height: 76,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, _, _) =>
+                                const Icon(Icons.broken_image_outlined),
+                          ),
+                        ),
+                        Positioned(
+                          right: 0,
+                          top: 0,
+                          child: IconButton(
+                            visualDensity: VisualDensity.compact,
+                            iconSize: 18,
+                            color: Colors.white,
+                            style: IconButton.styleFrom(
+                              backgroundColor: Colors.black54,
+                            ),
+                            onPressed: () =>
+                                setState(() => _images.removeAt(index)),
+                            icon: const Icon(Icons.close),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              const SizedBox(height: 8),
               OutlinedButton.icon(
                 onPressed: _pickImages,
                 icon: const Icon(Icons.add_photo_alternate_outlined),
