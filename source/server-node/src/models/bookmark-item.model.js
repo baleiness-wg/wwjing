@@ -91,9 +91,20 @@ async function list(userId, filters) {
 }
 
 async function syncFolders(client, itemId, userId, space, folderIds) {
+  const existing = await client.query(
+    "SELECT folder_id, pinned FROM bookmark_item_folders WHERE item_id = $1",
+    [itemId]
+  );
+  const pinnedByFolder = new Map(existing.rows.map((row) => [String(row.folder_id), row.pinned]));
   await client.query("DELETE FROM bookmark_item_folders WHERE item_id = $1", [itemId]);
   if (folderIds.length) {
-    await client.query(`INSERT INTO bookmark_item_folders (item_id, folder_id) SELECT $1, folder.id FROM bookmark_folders folder WHERE folder.id = ANY($2::varchar[])`, [itemId, folderIds]);
+    await client.query(
+      `INSERT INTO bookmark_item_folders (item_id, folder_id, pinned)
+       SELECT $1, folder.id, COALESCE(($3::jsonb ->> folder.id)::boolean, false)
+       FROM bookmark_folders folder
+       WHERE folder.id = ANY($2::varchar[])`,
+      [itemId, folderIds, JSON.stringify(Object.fromEntries(pinnedByFolder))]
+    );
   }
 }
 
@@ -127,13 +138,14 @@ async function remove(userId, id, space = "star") {
 }
 
 async function pin(userId, itemId, folderId, pinned, space) {
-  await pool.query(
+  const result = await pool.query(
     `UPDATE bookmark_item_folders link SET pinned = $4
      FROM bookmark_items item
      WHERE link.item_id = $2 AND link.folder_id = $3 AND item.id = link.item_id
        AND item.user_id = $1 AND item.space = $5`,
     [userId, itemId, folderId, pinned, space]
   );
+  return result.rowCount > 0;
 }
 
 async function findItemsMissingImages(limit = 100) {

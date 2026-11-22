@@ -473,7 +473,6 @@ class _HomePageState extends State<HomePage> {
                                   final item = state.items[index];
                                   final card = BookmarkItemCard(
                                     item: item,
-                                    onImageError: state.refresh,
                                     selectionValue: _editMode
                                         ? _selectedItemIds.contains(item.id)
                                         : null,

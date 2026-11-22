@@ -204,7 +204,7 @@ class _BookmarkAppState extends State<BookmarkApp> with WidgetsBindingObserver {
         : '全部收藏';
     final allItems = await state.api.getAllItems();
     if (!context.mounted) return;
-    final chatItems = inStar ? state.items : allItems;
+    final chatItems = allItems;
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,

@@ -257,7 +257,9 @@ async function pin(userId, idValue, folderId, pinned, spaceValue = "star") {
   if (!await itemModel.findById(userId, id, space)) {
     throw new BookmarkError(404, "ITEM_NOT_FOUND", "收藏条目不存在");
   }
-  await itemModel.pin(userId, id, folder, pinned, space);
+  if (!await itemModel.pin(userId, id, folder, pinned, space)) {
+    throw new BookmarkError(404, "ITEM_FOLDER_NOT_FOUND", "收藏不在当前目录中");
+  }
 }
 
 module.exports = { normalizeUrl, list, get, create, update, remove, pin, parseSpace, imageUrls };

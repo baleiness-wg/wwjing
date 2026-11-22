@@ -53,7 +53,10 @@ async function remove(req, res, next) {
 
 async function pin(req, res, next) {
   try {
-    await itemService.pin(req.auth.sub, req.params.id, req.body?.folderId, req.body?.pinned === true, req.body?.space || "star");
+    if (typeof req.body?.pinned !== "boolean") {
+      return res.status(400).json({ error: { code: "INVALID_INPUT", message: "pinned 必须是布尔值" } });
+    }
+    await itemService.pin(req.auth.sub, req.params.id, req.body.folderId, req.body.pinned, req.body?.space || "star");
     res.status(204).send();
   } catch (error) { next(error); }
 }
