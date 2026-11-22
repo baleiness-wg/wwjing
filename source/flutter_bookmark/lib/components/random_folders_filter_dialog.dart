@@ -137,7 +137,7 @@ class _RandomFoldersFilterDialogState
               _buildOption(
                 id: 'uncategorized',
                 title: '灵感',
-                icon: Icons.inbox_outlined,
+                icon: Icons.lightbulb_outline,
               ),
               for (final node in nodes) _buildFolderOption(node),
             ],

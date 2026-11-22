@@ -16,7 +16,8 @@ import {
   MoreFilled,
   Plus,
   Refresh,
-  Search
+  Search,
+  Opportunity
 } from "@element-plus/icons-vue";
 import {
   createBookmarkFolder,
@@ -114,7 +115,7 @@ function buildTree(parentId = null, ancestors = new Set()) {
 const folderTree = computed(() => buildTree());
 const activeFolder = computed(() => activeFolderId.value ? folderMap.value.get(String(activeFolderId.value)) : null);
 const activeTitle = computed(() => {
-  if (activeFolderId.value === null) return "未分类";
+  if (activeFolderId.value === null) return "灵感";
   if (activeFolder.value) return activeFolder.value.name;
   return "全部收藏";
 });
@@ -126,7 +127,7 @@ const aiDirectoryContext = computed(() => ({
   directoryPath: activeFolderId.value === undefined
     ? "全部收藏"
     : activeFolderId.value === null
-      ? "未分类"
+      ? "灵感"
       : folderPath(activeFolderId.value),
   loadedItemCount: items.value.length,
   items: items.value.map((item) => ({
@@ -196,7 +197,7 @@ function markCoverFailed(url) {
 }
 
 function folderPath(folderId) {
-  if (folderId === null || folderId === undefined) return "未分类";
+  if (folderId === null || folderId === undefined) return "灵感";
   const names = [];
   const visited = new Set();
   let current = folderMap.value.get(String(folderId));
@@ -210,7 +211,7 @@ function folderPath(folderId) {
 
 function folderPaths(item) {
   const ids = item.folderIds?.length ? item.folderIds : (item.folderId ? [item.folderId] : []);
-  return ids.length ? ids.map((id) => folderPath(id)).join("、") : "未分类";
+  return ids.length ? ids.map((id) => folderPath(id)).join("、") : "灵感";
 }
 
 function flattenOptions(nodes = folderTree.value, depth = 0) {
@@ -223,7 +224,7 @@ function flattenOptions(nodes = folderTree.value, depth = 0) {
 const folderOptions = computed(() => flattenOptions());
 const randomFolderOptions = computed(() => [
   { id: "all", name: "全部收藏", depth: 0, type: "all" },
-  { id: "uncategorized", name: "未分类", depth: 0, type: "uncategorized" },
+  { id: "uncategorized", name: "灵感", depth: 0, type: "uncategorized" },
   ...folderOptions.value.map((folder) => ({ ...folder, type: "folder" }))
 ]);
 
@@ -415,7 +416,7 @@ async function dropItemOnFolder(folderId) {
   draggingItemId.value = null;
   try {
     await updateBookmarkItem(itemId, { folderIds: folderId ? [folderId] : [] }, currentSpace.value);
-    ElMessage.success(folderId ? "收藏已移动" : "收藏已移入未分类");
+    ElMessage.success(folderId ? "收藏已移动" : "收藏已移入灵感");
     await Promise.all([loadFolders(), loadItems()]);
   } catch (error) {
     ElMessage.error(error.message);
@@ -683,8 +684,8 @@ watch(activeTitle, (title) => window.dispatchEvent(new CustomEvent("wwjing:bookm
              @drop.prevent="dropItemOnFolder(null)"
              @click="selectFolder(null)"
            >
-            <span class="uncategorized-mark">—</span>
-            <span>未分类</span>
+             <Opportunity class="uncategorized-icon" />
+             <span>灵感</span>
           </button>
         </nav>
 
@@ -878,7 +879,7 @@ watch(activeTitle, (title) => window.dispatchEvent(new CustomEvent("wwjing:bookm
         <el-alert title="图片上传接口已预留，当前版本暂不上传图片。" type="info" :closable="false" />
         <el-form-item label="收藏目录">
           <div class="folder-select-row">
-            <el-select v-model="itemForm.folderIds" class="full-width" multiple collapse-tags collapse-tags-tooltip placeholder="未分类">
+            <el-select v-model="itemForm.folderIds" class="full-width" multiple collapse-tags collapse-tags-tooltip placeholder="灵感">
               <el-option v-for="folder in folderOptions" :key="folder.id" :label="folder.label" :value="folder.id" />
             </el-select>
             <el-button :icon="FolderAdd" title="新建目录并选择" aria-label="新建目录并选择" @click="openCreateFolderForItem" />
@@ -893,7 +894,7 @@ watch(activeTitle, (title) => window.dispatchEvent(new CustomEvent("wwjing:bookm
 
     <el-dialog v-model="moveItemsVisible" title="移动收藏" width="min(440px, 92vw)">
         <p class="muted">将 {{ selectedIds.length }} 条收藏关联到：</p>
-      <el-select v-model="bulkFolderIds" class="full-width" multiple collapse-tags collapse-tags-tooltip placeholder="未分类">
+            <el-select v-model="bulkFolderIds" class="full-width" multiple collapse-tags collapse-tags-tooltip placeholder="灵感">
         <el-option v-for="folder in folderOptions" :key="folder.id" :label="folder.label" :value="folder.id" />
       </el-select>
       <template #footer>
