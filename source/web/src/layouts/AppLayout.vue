@@ -21,7 +21,7 @@ const router = useRouter();
 const route = useRoute();
 const isMobile = () => window.matchMedia("(max-width: 640px)").matches;
 const menuVisible = ref(!isMobile());
-const toolsExpanded = ref(route.path.startsWith("/tools"));
+const toolsExpanded = ref(route.path.startsWith("/tools") || route.path === "/transfer");
 const user = JSON.parse(localStorage.getItem("wwjing_user") || "null");
 const passwordDialogVisible = ref(false);
 const passwordLoading = ref(false);
@@ -41,18 +41,19 @@ const navigationItems = [
     label: "Tools",
       icon: Folder,
       children: [
-        { path: "/tools/bookmarks/star", label: "Bookmarks", icon: Star },
+        { path: "/tools/bookmarks", label: "Bookmarks", icon: Star },
         { path: "/transfer", label: "Transfer", icon: Switch }
       ]
   }
 ];
 
 const isToolsActive = computed(() => route.path === "/tools");
+const isTransferActive = computed(() => route.path === "/transfer");
 
 watch(
   () => route.path,
   (path) => {
-    if (path.startsWith("/tools")) toolsExpanded.value = true;
+    if (path.startsWith("/tools") || path === "/transfer") toolsExpanded.value = true;
   }
 );
 
@@ -120,11 +121,13 @@ onMounted(() => window.addEventListener("wwjing:bookmark-location", updateBookma
 onBeforeUnmount(() => window.removeEventListener("wwjing:bookmark-location", updateBookmarkLocation));
 
 function beginWhaleDrag(event) {
+  event.currentTarget?.setPointerCapture?.(event.pointerId);
   draggingWhale.value = true;
   whaleMoved = false;
   whaleStart = { x: event.clientX, y: event.clientY, right: whalePosition.right, top: whalePosition.top };
   window.addEventListener("pointermove", moveWhale);
   window.addEventListener("pointerup", endWhaleDrag, { once: true });
+  window.addEventListener("pointercancel", endWhaleDrag, { once: true });
 }
 function moveWhale(event) {
   if (!whaleStart) return;
@@ -136,6 +139,7 @@ function endWhaleDrag() {
   draggingWhale.value = false;
   whaleStart = null;
   window.removeEventListener("pointermove", moveWhale);
+  window.removeEventListener("pointercancel", endWhaleDrag);
   localStorage.setItem("wwjing_whale_position", JSON.stringify(whalePosition));
 }
 function openWhale(event) {
@@ -189,7 +193,7 @@ async function submitPassword() {
 
     <el-aside :width="menuVisible ? '220px' : '64px'" class="app-aside">
       <div class="aside-brand" :class="{ 'is-collapsed': !menuVisible }" role="link" tabindex="0" title="鲸界" @click="go('/transfer')" @keydown.enter="go('/transfer')">
-        <span class="brand-mark">鲸</span>
+         <img class="brand-mark-image" src="/whale.svg" alt="鲸界" />
         <div v-if="menuVisible" class="aside-brand-copy">
           <strong>鲸界</strong>
           <small>工作空间</small>
@@ -237,7 +241,7 @@ async function submitPassword() {
               v-for="child in item.children"
               :key="child.path"
               class="side-menu-item side-submenu-item"
-              :class="{ 'is-active': route.path === child.path }"
+              :class="{ 'is-active': child.path === '/transfer' ? isTransferActive : route.path === child.path }"
               @click="go(child.path)"
             >
               <el-icon><component :is="child.icon" /></el-icon>
@@ -252,9 +256,10 @@ async function submitPassword() {
       <el-header class="app-header">
         <div class="header-brand">
           <el-button text circle class="menu-toggle" :icon="Menu" :aria-label="menuVisible ? '收起菜单' : '展开菜单'" :title="menuVisible ? '收起菜单' : '展开菜单'" @click="toggleMenu" />
-          <el-breadcrumb v-if="route.path.startsWith('/tools/bookmarks')" class="header-breadcrumb" separator="/">
+          <el-breadcrumb v-if="route.path === '/transfer' || route.path.startsWith('/tools')" class="header-breadcrumb" separator="/">
             <el-breadcrumb-item>Tools</el-breadcrumb-item>
-            <el-breadcrumb-item>Bookmarks</el-breadcrumb-item>
+            <el-breadcrumb-item v-if="route.path.startsWith('/tools/bookmarks')">Bookmarks</el-breadcrumb-item>
+            <el-breadcrumb-item v-else-if="route.path === '/transfer'">Transfer</el-breadcrumb-item>
             <el-breadcrumb-item v-if="bookmarkLocation" class="is-current">{{ bookmarkLocation }}</el-breadcrumb-item>
           </el-breadcrumb>
         </div>
@@ -279,7 +284,9 @@ async function submitPassword() {
         <router-view />
       </el-main>
     </el-container>
-      <button class="global-whale-button" :class="{ 'is-dragging': draggingWhale }" :style="{ right: `${whalePosition.right}px`, top: `${whalePosition.top}px` }" title="和 AI 讨论收藏" @pointerdown="beginWhaleDrag" @click="openWhale">🐋</button>
+      <button class="global-whale-button" :class="{ 'is-dragging': draggingWhale }" :style="{ right: `${whalePosition.right}px`, top: `${whalePosition.top}px` }" title="和 AI 讨论收藏" @pointerdown="beginWhaleDrag" @click="openWhale">
+        <img src="/whale.svg" alt="" />
+      </button>
      <el-dialog v-model="passwordDialogVisible" title="修改密码" width="min(92vw, 420px)">
     <el-form label-position="top" @submit.prevent="submitPassword">
       <el-form-item label="当前密码"><el-input v-model="passwordForm.currentPassword" type="password" show-password /></el-form-item>
@@ -310,6 +317,7 @@ async function submitPassword() {
 </template>
 
 <style scoped>
-.global-whale-button { position: fixed; z-index: 20; width: 72px; height: 72px; border: 0; border-radius: 50%; background: transparent; font-size: 52px; line-height: 1; cursor: grab; user-select: none; touch-action: none; filter: drop-shadow(0 3px 8px rgb(15 23 42 / 18%)); }
+.global-whale-button { position: fixed; z-index: 20; width: 108px; height: 108px; border: 0; border-radius: 50%; background: transparent; color: #006b5f; cursor: grab; user-select: none; touch-action: none; filter: drop-shadow(0 3px 8px rgb(0 107 95 / 24%)); }
+.global-whale-button img { width: 96px; height: 96px; display: block; margin: auto; object-fit: contain; pointer-events: none; }
 .global-whale-button.is-dragging { cursor: grabbing; }
 </style>

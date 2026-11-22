@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 import '../api/api_client.dart';
 import '../constants/app_config.dart';
@@ -298,9 +299,10 @@ class _BookmarkAppState extends State<BookmarkApp> with WidgetsBindingObserver {
                             key: const Key('root-ai-chat-button'),
                             tooltip: '和 AI 讨论收藏',
                             onPressed: () => _showRootAiChat(context, state),
-                            icon: const Text(
-                              '🐋',
-                              style: TextStyle(fontSize: 54),
+                            icon: SvgPicture.asset(
+                              'assets/whale.svg',
+                              width: 58,
+                              height: 58,
                             ),
                           ),
                         ),

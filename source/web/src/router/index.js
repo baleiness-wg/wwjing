@@ -11,20 +11,20 @@ const router = createRouter({
     { path: "/", redirect: "/transfer" },
     { path: "/transfer", name: "transfer", component: TransferView, meta: { requiresAuth: true } },
     { path: "/office", name: "office", component: ChatWorkbenchView },
-    { path: "/tools", redirect: "/tools/bookmarks/star" },
+    { path: "/tools", redirect: "/tools/bookmarks" },
     { path: "/tools/transfer", redirect: "/transfer" },
-    { path: "/tools/bookmarks", redirect: "/tools/bookmarks/star" },
+    {
+      path: "/tools/bookmarks",
+      name: "bookmarks-star",
+      component: BookmarksView,
+      meta: { requiresAuth: true, space: "star", title: "鲸界" }
+    },
+    { path: "/tools/bookmarks/star", redirect: "/tools/bookmarks" },
     {
       path: "/tools/bookmarks/kitchen",
       name: "bookmarks-kitchen",
       component: BookmarksView,
        meta: { requiresAuth: true, space: "kitchen", title: "疯狂的厨房" }
-    },
-    {
-      path: "/tools/bookmarks/star",
-      name: "bookmarks-star",
-      component: BookmarksView,
-      meta: { requiresAuth: true, space: "star", title: "鲸界" }
     },
     { path: "/login", name: "login", component: LoginView }
   ]

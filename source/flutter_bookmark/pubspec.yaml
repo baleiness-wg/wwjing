@@ -21,6 +21,8 @@ dependencies:
   flutter_markdown: ^0.7.7+1
   # 使用系统浏览器或已安装应用打开收藏原链接。
   url_launcher: 6.3.2
+  # SVG 鲸鱼图标。
+  flutter_svg: ^2.0.17
 
 dev_dependencies:
   flutter_test:
@@ -29,3 +31,5 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/whale.svg

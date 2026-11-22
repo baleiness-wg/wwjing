@@ -61,6 +61,7 @@ html, body {
 .aside-brand-copy strong, .aside-brand-copy small { display: block; }
 .aside-brand-copy small { margin-top: 3px; color: #8a9893; font-size: 11px; }
 .brand-mark, .header-brand-mark { display: grid; width: 34px; height: 34px; flex: 0 0 auto; place-items: center; border-radius: 10px; background: var(--brand-green); color: white; font-weight: 700;margin-right:10px }
+.brand-mark-image { width: 34px; height: 34px; flex: 0 0 auto; margin-right: 10px; object-fit: contain; }
 .side-menu { display: grid; gap: 4px; padding: 10px; }
 .side-menu-entry { display: contents; }
 .side-menu-item { display: flex; width: 100%; min-height: 40px; align-items: center; gap: 10px; border: 0; border-radius: 8px; background: transparent; color: #526360; cursor: pointer; font: inherit; padding: 0 10px; text-align: left; }
