@@ -28,7 +28,6 @@ import {
   getBookmarkFolders,
   getBookmarkItems,
   getBookmarkItem,
-  getAllBookmarkItems,
   getBookmarkFolderShares,
   removeBookmarkFolderShare,
   shareBookmarkFolder,
@@ -38,7 +37,6 @@ import {
   pinBookmarkItem
   ,uploadBookmarkImage
 } from "../api/bookmarks";
-import AiChatPanel from "../components/AiChatPanel.vue";
 
 const route = useRoute();
 const currentSpace = computed(() => route.meta.space || "star");
@@ -73,7 +71,6 @@ const failedCoverUrls = ref(new Set());
 const randomDialogVisible = ref(false);
 const loadingRandom = ref(false);
 const randomItem = ref(null);
-const aiChatVisible = ref(false);
 const folderMenuVisible = ref(false);
 
 const folderForm = reactive({ id: null, name: "", parentId: null, position: 0 });
@@ -95,7 +92,6 @@ watch(
     selectedIds.value = [];
     await loadFolders();
     await loadItems();
-    await loadAiItems();
   }
 );
 
@@ -131,25 +127,6 @@ const activeTitle = computed(() => {
   return "全部收藏";
 });
 const folderViewKey = computed(() => `${currentSpace.value}:${activeFolderId.value === undefined ? "all" : activeFolderId.value === null ? "uncategorized" : activeFolderId.value}`);
-const aiItems = ref([]);
-const aiDirectoryContext = computed(() => ({
-  space: currentSpace.value,
-  directoryId: activeFolderId.value === undefined ? null : activeFolderId.value,
-  directoryName: activeTitle.value,
-  directoryPath: activeFolderId.value === undefined
-    ? "全部收藏"
-    : activeFolderId.value === null
-      ? "灵感"
-      : folderPath(activeFolderId.value),
-  loadedItemCount: aiItems.value.length,
-  items: aiItems.value.map((item) => ({
-    title: item.title,
-    description: item.description,
-    sourceHost: itemHost(item),
-    sourceUrl: item.sourceUrl,
-    folderPath: folderPaths(item)
-  }))
-}));
 const selectedItems = computed(() => items.value.filter((item) => selectedIds.value.includes(String(item.id))));
 const previewHost = computed(() => sourceHost(itemForm.sourceUrl));
 
@@ -320,7 +297,6 @@ function selectFolder(folderId) {
       : String(folderId);
   page.value = 1;
   void loadItems();
-  void loadAiItems();
   folderMenuVisible.value = false;
 }
 
@@ -723,30 +699,11 @@ function formatDate(value) {
   return value ? new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium" }).format(new Date(value)) : "";
 }
 
-function openGlobalAiChat() { aiChatVisible.value = !aiChatVisible.value; }
-
 onMounted(async () => {
-  window.addEventListener("wwjing:open-ai-chat", openGlobalAiChat);
   window.setTimeout(() => window.dispatchEvent(new CustomEvent("wwjing:bookmark-location", { detail: activeTitle.value })), 0);
   await loadFolders();
   await loadItems();
-  await loadAiItems();
 });
-
-async function loadAiItems() {
-  const filters = {};
-  if (activeFolderId.value !== undefined) {
-    if (activeFolderId.value === null) filters.uncategorized = true;
-    else {
-      filters.folderId = activeFolderId.value;
-      filters.includeDescendants = true;
-    }
-  }
-  const result = await getAllBookmarkItems(filters, currentSpace.value);
-  aiItems.value = result.items || [];
-}
-
-onBeforeUnmount(() => window.removeEventListener("wwjing:open-ai-chat", openGlobalAiChat));
 
 watch(activeTitle, (title) => window.dispatchEvent(new CustomEvent("wwjing:bookmark-location", { detail: title })));
 </script>
@@ -1081,6 +1038,5 @@ watch(activeTitle, (title) => window.dispatchEvent(new CustomEvent("wwjing:bookm
       </template>
     </el-dialog>
 
-    <AiChatPanel v-model="aiChatVisible" :context="aiDirectoryContext" />
   </div>
 </template>

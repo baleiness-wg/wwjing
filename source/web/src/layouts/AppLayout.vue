@@ -18,6 +18,8 @@ import {
 } from "@element-plus/icons-vue";
 import { ElMessage } from "element-plus";
 import { changePassword, getProfile, updateProfile } from "../api/auth";
+import { getAllBookmarkItems } from "../api/bookmarks";
+import AiChatPanel from "../components/AiChatPanel.vue";
 
 const router = useRouter();
 const route = useRoute();
@@ -32,6 +34,8 @@ const profileDialogVisible = ref(false);
 const profileLoading = ref(false);
 const profileDescription = ref("");
 const bookmarkLocation = ref("");
+const aiChatVisible = ref(false);
+const aiItems = ref([]);
 const whalePosition = reactive({ right: 24, top: 140 });
 const draggingWhale = ref(false);
 let whaleStart = null;
@@ -50,6 +54,21 @@ const navigationItems = [
 const isToolsActive = computed(() => route.path === "/tools");
 const isTransferActive = computed(() => route.path === "/transfer");
 const isBookmarksActive = computed(() => route.path.startsWith("/tools/bookmarks"));
+const aiSpace = computed(() => route.meta.space || "star");
+const aiContext = computed(() => ({
+  space: aiSpace.value,
+  directoryId: null,
+  directoryName: "全部收藏",
+  directoryPath: "全部收藏",
+  loadedItemCount: aiItems.value.length,
+  items: aiItems.value.map((item) => ({
+    title: item.title,
+    description: item.description,
+    sourceHost: item.sourceUrl,
+    sourceUrl: item.sourceUrl,
+    folderPath: item.folderPath || ""
+  }))
+}));
 
 watch(
   () => route.path,
@@ -118,8 +137,27 @@ function updateBookmarkLocation(event) {
   bookmarkLocation.value = event.detail || "";
 }
 
+function openGlobalAiChat() {
+  aiChatVisible.value = !aiChatVisible.value;
+}
+
+async function loadAiItems() {
+  try {
+    const result = await getAllBookmarkItems({}, aiSpace.value);
+    aiItems.value = result.items || [];
+  } catch {
+    aiItems.value = [];
+  }
+}
+
 onMounted(() => window.addEventListener("wwjing:bookmark-location", updateBookmarkLocation));
-onBeforeUnmount(() => window.removeEventListener("wwjing:bookmark-location", updateBookmarkLocation));
+onMounted(() => window.addEventListener("wwjing:open-ai-chat", openGlobalAiChat));
+onMounted(loadAiItems);
+onBeforeUnmount(() => {
+  window.removeEventListener("wwjing:bookmark-location", updateBookmarkLocation);
+  window.removeEventListener("wwjing:open-ai-chat", openGlobalAiChat);
+});
+watch(aiSpace, loadAiItems);
 
 function beginWhaleDrag(event) {
   event.currentTarget?.setPointerCapture?.(event.pointerId);
@@ -311,6 +349,7 @@ async function submitPassword() {
       <el-button type="primary" :loading="profileLoading" @click="submitProfile">保存</el-button>
     </template>
   </el-dialog>
+  <AiChatPanel v-model="aiChatVisible" :context="aiContext" />
   </el-container>
  
 </template>
