@@ -66,7 +66,7 @@ function createRoom(roomId = "main", name = "默认房间", password = "", owner
 
 function getRoom(roomId = "main") {
   if (!rooms.has(roomId) || rooms.get(roomId).version !== ROOM_VERSION) {
-    rooms.set(roomId, createRoom());
+    rooms.set(roomId, createRoom(roomId));
   }
   const room = rooms.get(roomId);
   room.locks ||= {};

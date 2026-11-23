@@ -155,6 +155,20 @@ function send(message) {
   if (socket.value?.readyState === WebSocket.OPEN) socket.value.send(JSON.stringify(message));
 }
 
+function resetRoomState() {
+  Object.keys(drafts).forEach((key) => delete drafts[key]);
+  Object.keys(pendingLocalValues).forEach((key) => delete pendingLocalValues[key]);
+  Object.keys(pendingUpdates).forEach((key) => delete pendingUpdates[key]);
+  Object.keys(unreadCells.value).forEach((key) => delete unreadCells.value[key]);
+  editingCell.value = null;
+  editingOriginalValue.value = "";
+  editingLockSent.value = false;
+  cellLocks.value = {};
+  topics.value = [];
+  activeTopicId.value = "";
+  columns.value = [];
+}
+
 function isOwnAuthor(author) {
   if (!author) return true;
   const savedUser = JSON.parse(localStorage.getItem("wwjing_user") || "null");
@@ -322,12 +336,14 @@ async function loadSnapshotForCurrentRoom() {
 function connect() {
   if (!activeRoomId.value) return;
   if (socket.value?.readyState === WebSocket.OPEN || socket.value?.readyState === WebSocket.CONNECTING) return;
+  const connectionRoomId = activeRoomId.value;
   const token = "";
   const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
   socket.value = new WebSocket(`${protocol}//${window.location.host}/api/office/ws?token=${encodeURIComponent(token)}&guest=${encodeURIComponent(guestName.value)}&displayName=${encodeURIComponent(displayName.value)}&roomId=${encodeURIComponent(activeRoomId.value)}&password=${encodeURIComponent(roomPassword.value)}`);
   socket.value.onopen = () => { reconnectDelay = 1000; connectionText.value = "实时"; };
   socket.value.onerror = () => { connectionText.value = "已加载"; };
   socket.value.onclose = (event) => {
+    if (connectionRoomId !== activeRoomId.value) return;
     if (pendingRoomId.value && event.code === 4003) {
       localStorage.removeItem(`office_room_password:${pendingRoomId.value}`);
       roomPassword.value = "";
@@ -342,6 +358,7 @@ function connect() {
     reconnectDelay = Math.min(reconnectDelay * 2, 10000);
   };
   socket.value.onmessage = ({ data }) => {
+    if (connectionRoomId !== activeRoomId.value) return;
     const message = JSON.parse(data);
       if (message.type === "snapshot") {
         user.value = { ...message.user, name: currentDisplayName.value };
@@ -642,9 +659,7 @@ function enterRoom(room) {
     roomDialogVisible.value = false;
     activeRoomId.value = room.id;
     snapshotSequence += 1;
-    topics.value = [];
-    activeTopicId.value = "";
-    columns.value = [];
+    resetRoomState();
     socket.value?.close();
     window.setTimeout(() => { connect(); loadSnapshotForCurrentRoom(); }, 100);
     return;
@@ -666,9 +681,7 @@ async function createRoom() {
   localStorage.setItem("office_active_room", room.id);
   localStorage.setItem(`office_room_password:${room.id}`, roomPassword.value);
   snapshotSequence += 1;
-  topics.value = [];
-  activeTopicId.value = "";
-  columns.value = [];
+  resetRoomState();
   socket.value?.close();
   window.setTimeout(() => { connect(); loadSnapshotForCurrentRoom(); }, 100);
 }
@@ -679,9 +692,7 @@ function confirmEnterRoom() {
   localStorage.setItem(`office_room_password:${activeRoomId.value}`, roomPassword.value);
   snapshotRequestId += 1;
   snapshotSequence += 1;
-  topics.value = [];
-  activeTopicId.value = "";
-  columns.value = [];
+  resetRoomState();
   socket.value?.close();
   window.setTimeout(() => { connect(); loadSnapshotForCurrentRoom(); }, 100);
 }
