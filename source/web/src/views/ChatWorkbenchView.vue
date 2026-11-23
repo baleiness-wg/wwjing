@@ -86,6 +86,10 @@ function fitColumnWidth(index, broadcast = true) {
   if (broadcast) send({ type: "column:resize", index, width });
 }
 
+function fitAllColumnWidths(broadcast = false) {
+  sheetColumns.value.forEach((_, index) => fitColumnWidth(index, broadcast));
+}
+
 function beginRowResize(rowIndex, event) {
   event.preventDefault();
   resizingRow.value = rowIndex;
@@ -329,8 +333,9 @@ async function loadSnapshotForCurrentRoom() {
   topics.value = snapshot.topics;
   cellLocks.value = snapshot.locks || {};
   if (editingCell.value) cellLocks.value[editingCell.value] = currentDisplayName.value;
-  columnWidths.value = snapshot.columnWidths || columnWidths.value;
-  selectTopic(snapshot.topics[0]);
+   columnWidths.value = snapshot.columnWidths || columnWidths.value;
+   selectTopic(snapshot.topics[0]);
+   fitAllColumnWidths(false);
 }
 
 function connect() {
@@ -365,7 +370,10 @@ function connect() {
         topics.value = message.topics;
         cellLocks.value = message.locks || {};
         columnWidths.value = message.columnWidths || columnWidths.value;
-        if (topics.value[0]) selectTopic(topics.value[0]);
+         if (topics.value[0]) {
+           selectTopic(topics.value[0]);
+           fitAllColumnWidths(false);
+         }
       } else if (message.type === "column:resized") {
         columnWidths.value[message.index] = message.width;
       } else if (message.type === "cell:editing" || message.type === "cell:editing-end") {
@@ -536,6 +544,7 @@ function updateTitle(value) {
   }
   send({ type: "cell:update", topicId: activeTopicId.value, row: 0, column: 0, value });
   updateCellFallback(activeTopicId.value, 0, 0, value);
+  fitAllColumnWidths();
 }
 
 function updateHeader(cellIndex, value) {
@@ -549,6 +558,7 @@ function updateHeader(cellIndex, value) {
   columns.value[cellIndex] = value;
   send({ type: "cell:update", topicId: activeTopicId.value, row: 1, column: cellIndex, value });
   updateCellFallback(activeTopicId.value, 1, cellIndex, value);
+  fitColumnWidth(cellIndex);
 }
 
 function cellAuthor(rowIndex, cellIndex) {
