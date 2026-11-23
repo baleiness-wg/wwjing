@@ -398,12 +398,12 @@ function connect() {
         topic.cellAuthors ||= {};
         topic.cellAuthors[`${message.row}:${message.column}`] = message.user;
       } else if (message.type === "cell:updated") {
-      notifyOffice(message, "已完成编辑");
+      if (!message.suppressUnread) notifyOffice(message, "已完成编辑");
       const topic = topics.value.find((item) => item.id === message.topicId);
       if (!topic) return;
       topic.cells[message.row] ||= [];
       topic.cells[message.row][message.column] = message.value;
-      if (message.user !== currentDisplayName.value) unreadCells.value[`${message.topicId}:${message.row}:${message.column}`] = true;
+      if (!message.suppressUnread && message.user !== currentDisplayName.value) unreadCells.value[`${message.topicId}:${message.row}:${message.column}`] = true;
       fitColumnWidth(message.column, false);
       topic.cellAuthors ||= {};
       if (String(message.value || "").trim()) topic.cellAuthors[`${message.row}:${message.column}`] = message.user;
@@ -603,7 +603,7 @@ async function clearCurrentSheet() {
   for (let row = 0; row < rows; row += 1) {
     for (let column = 0; column < columnsCount; column += 1) {
       if (activeTopic.value.cells[row]?.[column]) {
-        send({ type: "cell:update", topicId: activeTopicId.value, row, column, value: "" });
+        send({ type: "cell:update", topicId: activeTopicId.value, row, column, value: "", suppressUnread: true });
       }
     }
   }
