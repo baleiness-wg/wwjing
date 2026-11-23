@@ -12,11 +12,22 @@ function create(req, res) {
 
 function updatePassword(req, res) {
   const room = getRoom(req.params.id);
-  if (!room || (room.ownerId !== String(req.auth.sub) && room.ownerName !== req.auth.username)) return res.status(403).json({ message: "无权修改此房间" });
+  const guestName = decodeOfficeGuest(req.headers["x-office-guest"]);
+  const ownerMatches = room && (
+    room.ownerId === String(req.auth.sub) ||
+    room.ownerName === req.auth.username ||
+    room.ownerId === `guest:${guestName}` ||
+    room.ownerName === guestName
+  );
+  if (!ownerMatches) return res.status(403).json({ message: "无权修改此房间" });
   const password = String(req.body?.password || "");
   if (password.length < 4) return res.status(400).json({ message: "密码至少 4 位" });
   room.password = password.slice(0, 120);
   res.json({ ok: true });
+}
+
+function decodeOfficeGuest(value) {
+  try { return decodeURIComponent(String(value || "")).trim().slice(0, 40); } catch { return ""; }
 }
 
 function remove(req, res) {

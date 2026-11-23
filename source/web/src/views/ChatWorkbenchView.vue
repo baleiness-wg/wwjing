@@ -596,8 +596,12 @@ async function loadRooms() {
 async function changeRoomPassword(room) {
   const password = window.prompt("输入新房间密码", "")?.trim();
   if (!password) return;
+  if (password.length < 4) return ElMessage.warning("房间密码至少 4 位");
   const response = await fetch(`/api/office/rooms/${encodeURIComponent(room.id)}/password`, { method: "PATCH", headers: { "Content-Type": "application/json", Authorization: "", "X-Office-Guest": encodeURIComponent(guestName.value) }, body: JSON.stringify({ password }) });
-  if (!response.ok) return ElMessage.error("修改密码失败");
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    return ElMessage.error(payload.message || payload.error?.message || `修改密码失败（${response.status}）`);
+  }
   localStorage.setItem(`office_room_password:${room.id}`, password);
   ElMessage.success("房间密码已修改");
 }
