@@ -12,10 +12,11 @@ export async function request(url, options = {}) {
   if (!response.ok) {
     const payload = await response.json().catch(() => ({}));
 
-    if (response.status === 401) {
+    if (response.status === 401 && !window.location.pathname.endsWith("/login")) {
       localStorage.removeItem("wwjing_token");
       localStorage.removeItem("wwjing_user");
-      window.location.href = `${import.meta.env.BASE_URL}login`;
+      const loginPath = `${import.meta.env.BASE_URL}login`.replace(/\/+/g, "/");
+      if (window.location.pathname !== loginPath) window.location.replace(loginPath);
     }
 
     const details = payload.error || payload;

@@ -142,6 +142,7 @@ function openGlobalAiChat() {
 }
 
 async function loadAiItems() {
+  if (!localStorage.getItem("wwjing_token")) return;
   try {
     const result = await getAllBookmarkItems({}, aiSpace.value);
     aiItems.value = result.items || [];
