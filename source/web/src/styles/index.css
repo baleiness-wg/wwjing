@@ -458,7 +458,7 @@ h3 { margin-bottom: 10px; color: #263d40; font-size: 17px; }
 .topic-panel-heading button { border: 0; border-radius: 5px; background: #e2f2e9; color: #287761; cursor: pointer; font-size: 17px; line-height: 1; padding: 3px 7px; }
 .topic-item { display: block; width: 100%; margin-bottom: 3px; border: 0; border-radius: 6px; background: transparent; color: #62766e; cursor: pointer; font: inherit; font-size: 12px; padding: 9px 8px; text-align: left; }
 .topic-item:hover, .topic-item.is-active { background: #e0f0e7; color: #287761; font-weight: 700; }
-.sheet-panel { min-width: 0; background: #fff; }
+.sheet-panel { display: flex; min-width: 0; min-height: 0; flex-direction: column; background: #fff; }
 .sheet-toolbar, .formula-bar, .sheet-status { display: flex; align-items: center; gap: 12px; }
 .sheet-toolbar { justify-content: space-between; min-height: 38px; border-bottom: 1px solid #d4d4d4; padding: 0 8px; }
 .sheet-tab { color: #444; font-size: 12px; font-weight: 600; }
@@ -472,7 +472,7 @@ h3 { margin-bottom: 10px; color: #263d40; font-size: 17px; }
 .name-box { width: 48px; border: 1px solid #c8c8c8; color: #555; font-size: 11px; text-align: center; }
 .formula-symbol { color: #666; font: italic 700 12px Georgia, serif; }
 .formula-bar input { min-width: 0; flex: 1; border: 0; outline: 0; background: transparent; color: #8b9b95; font: inherit; font-size: 12px; }
-.sheet-scroll { position: relative; overflow: auto; background-color: #fff; background-image: linear-gradient(to right, #e5e5e5 1px, transparent 1px), linear-gradient(to bottom, #e5e5e5 1px, transparent 1px); background-size: 58px 28px; }
+.sheet-scroll { position: relative; min-height: 0; flex: 1 1 auto; overflow: auto; background-color: #fff; background-image: linear-gradient(to right, #e5e5e5 1px, transparent 1px), linear-gradient(to bottom, #e5e5e5 1px, transparent 1px); background-size: 58px 28px; }
 .workbench-sheet { width: 1830px; min-width: 1830px; border-collapse: collapse; table-layout: fixed; color: #111; font-size: 12px; }
 .workbench-sheet th, .workbench-sheet td { height: 28px; border: 1px solid #111; padding: 0 5px; text-align: left; }
 .workbench-sheet th { position: relative; }
