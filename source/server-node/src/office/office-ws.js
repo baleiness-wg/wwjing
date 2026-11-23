@@ -1,7 +1,7 @@
 const jwt = require("jsonwebtoken");
 const { WebSocketServer } = require("ws");
 const config = require("../config");
-const { getRoom, verifyRoom, broadcast, removeClient } = require("./room-manager");
+const { getRoom, verifyRoom, broadcast, removeClient, initializeTopic, defaultColumnWidths } = require("./room-manager");
 
 function attachOfficeWebSocket(server) {
   const wss = new WebSocketServer({ noServer: true });
@@ -83,7 +83,20 @@ function attachOfficeWebSocket(server) {
          }
          return;
       }
-      if (message.type === "topic:create") {
+       if (message.type === "sheet:initialize") {
+         const topic = room.topics.find((item) => item.id === message.topicId);
+         if (!topic) return;
+         initializeTopic(topic);
+         Object.keys(room.locks).filter((key) => key.startsWith(`${topic.id}:`)).forEach((key) => delete room.locks[key]);
+         for (const [key, owner] of room.lockClients) {
+           if (key.startsWith(`${topic.id}:`)) room.lockClients.delete(key);
+         }
+         room.columnWidths = [...defaultColumnWidths];
+         room.revision += 1;
+         const initialized = { type: "sheet:initialized", topic, columnWidths: room.columnWidths, user: user.name, suppressUnread: true, revision: room.revision };
+         broadcast(room, initialized, client);
+         client.send(JSON.stringify({ ...initialized, requestId: message.requestId }));
+       } else if (message.type === "topic:create") {
         const template = room.topics[0];
         const topic = {
           id: `topic-${Date.now()}`,

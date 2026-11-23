@@ -28,7 +28,7 @@ class AppConfig {
 
   static const star = AppConfig._(
     type: AppType.star,
-    appName: '鲸界',
+    appName: 'Whaleland',
     space: 'star',
     supportsRandom: true,
   );

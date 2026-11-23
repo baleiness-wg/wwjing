@@ -231,10 +231,10 @@ async function submitPassword() {
     <div v-if="menuVisible && isMobile()" class="menu-backdrop" @click="menuVisible = false"></div>
 
     <el-aside :width="menuVisible ? '220px' : '64px'" class="app-aside">
-      <div class="aside-brand" :class="{ 'is-collapsed': !menuVisible }" role="link" tabindex="0" title="鲸界" @click="go('/transfer')" @keydown.enter="go('/transfer')">
-         <img class="brand-mark-image" src="/whale.svg" alt="鲸界" />
+      <div class="aside-brand" :class="{ 'is-collapsed': !menuVisible }" role="link" tabindex="0" title="Whaleland" @click="go('/transfer')" @keydown.enter="go('/transfer')">
+         <img class="brand-mark-image" src="/whale.svg" alt="Whaleland" />
         <div v-if="menuVisible" class="aside-brand-copy">
-          <strong>鲸界</strong>
+           <strong>Whaleland</strong>
         </div>
         <el-button
           v-if="isMobile()"

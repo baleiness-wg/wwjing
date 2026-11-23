@@ -44,7 +44,7 @@ android {
         create("star") {
             dimension = "appType"
             applicationIdSuffix = ".star"
-            resValue("string", "app_name", "鲸界")
+            resValue("string", "app_name", "Whaleland")
         }
     }
 

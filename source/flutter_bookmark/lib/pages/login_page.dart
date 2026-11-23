@@ -64,7 +64,7 @@ class _LoginPageState extends State<LoginPage> {
         widget.appConfig?.appName ??
         (const String.fromEnvironment('APP_TYPE').isNotEmpty
             ? AppConfig.current.appName
-            : '鲸界');
+            : 'Whaleland');
     final isKitchen =
         widget.appConfig?.type == AppType.kitchen ||
         (widget.appConfig == null &&

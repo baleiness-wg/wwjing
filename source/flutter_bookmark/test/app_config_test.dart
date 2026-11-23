@@ -15,7 +15,7 @@ void main() {
     final config = AppConfig.fromType('star');
 
     expect(config.type, AppType.star);
-    expect(config.appName, '鲸界');
+    expect(config.appName, 'Whaleland');
     expect(config.space, 'star');
     expect(config.supportsRandom, isTrue);
   });

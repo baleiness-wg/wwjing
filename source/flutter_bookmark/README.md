@@ -4,7 +4,7 @@
 | 模式 | Flutter flavor | 收藏空间 | 应用名称 | 随机推荐 |
 | --- | --- | --- | --- | --- |
 | kitchen | `kitchen` | `cookie` | 疯狂的厨�?| 支持 |
-| star | `star` | `star` | 鲸界 | 不支�?|
+| star | `star` | `star` | Whaleland | 不支持 |
 
 ## 本地运行
 

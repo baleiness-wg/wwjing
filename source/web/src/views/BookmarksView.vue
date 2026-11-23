@@ -40,7 +40,7 @@ import {
 
 const route = useRoute();
 const currentSpace = computed(() => route.meta.space || "star");
-const currentTitle = computed(() => route.meta.title || (currentSpace.value === "cookie" ? "疯狂的厨房" : "鲸界"));
+const currentTitle = computed(() => route.meta.title || (currentSpace.value === "cookie" ? "疯狂的厨房" : "Whaleland"));
 
 
 const pageSize = 12;

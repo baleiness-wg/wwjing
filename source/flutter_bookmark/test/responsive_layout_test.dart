@@ -436,7 +436,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.text('鲸界'), findsOneWidget);
+    expect(find.text('Whaleland'), findsOneWidget);
     expect(find.byIcon(Icons.water_drop_rounded), findsOneWidget);
   });
 

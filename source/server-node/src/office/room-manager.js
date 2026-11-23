@@ -1,6 +1,8 @@
 const rooms = new Map();
 const ROOM_VERSION = 7;
 
+const defaultColumnWidths = [58, 58, 180, 380, 58, 58, 58, ...Array(19).fill(58)];
+
 function createRoom(roomId = "main", name = "默认房间", password = "", ownerId = null, ownerName = null) {
   const rows = [
     ["周报素材整理", "进行中", "下午再看一下"],
@@ -64,6 +66,14 @@ function createRoom(roomId = "main", name = "默认房间", password = "", owner
   };
 }
 
+function initializeTopic(topic) {
+  const template = createRoom("template").topics[0];
+  topic.cells = JSON.parse(JSON.stringify(template.cells));
+  topic.cellAuthors = {};
+  topic.cellEditedAt = {};
+  topic.messages = [];
+}
+
 function getRoom(roomId = "main") {
   if (!rooms.has(roomId) || rooms.get(roomId).version !== ROOM_VERSION) {
     rooms.set(roomId, createRoom(roomId));
@@ -122,4 +132,4 @@ function removeClient(roomId, client) {
   // 房间只在 Node 进程重启时重置，短暂断线和自动重连不能丢失内容。
 }
 
-module.exports = { getRoom, listRooms, createNamedRoom, verifyRoom, removeRoom, broadcast, removeClient };
+module.exports = { getRoom, listRooms, createNamedRoom, verifyRoom, removeRoom, broadcast, removeClient, initializeTopic, defaultColumnWidths };

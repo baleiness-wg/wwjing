@@ -20,7 +20,7 @@ const user = ref({ name: "用户" });
 const guestName = ref(localStorage.getItem("office_guest_name") || `游客${Math.floor(100 + Math.random() * 900)}`);
 const displayName = ref(localStorage.getItem("office_display_name") || "");
 const currentDisplayName = computed(() => displayName.value || guestName.value);
-const defaultDocumentTitle = document.title || "鲸界";
+const defaultDocumentTitle = document.title || "Whaleland";
 let titleFlashTimer;
 let titleFlashIndex = 0;
 let hasUnreadOfficeNotice = false;
@@ -398,6 +398,15 @@ function connect() {
       if (!topic || editingCell.value === `${message.topicId}:${message.row}:${message.column}`) return;
       topic.cells[message.row] ||= [];
       topic.cells[message.row][message.column] = message.value;
+      } else if (message.type === "sheet:initialized") {
+        const topicIndex = topics.value.findIndex((item) => item.id === message.topic.id);
+        if (topicIndex >= 0) topics.value[topicIndex] = message.topic;
+        if (message.columnWidths) columnWidths.value = message.columnWidths;
+        Object.keys(drafts).filter((key) => key.startsWith(`${message.topic.id}:`)).forEach((key) => delete drafts[key]);
+        Object.keys(pendingLocalValues).filter((key) => key.startsWith(`${message.topic.id}:`)).forEach((key) => delete pendingLocalValues[key]);
+        Object.keys(unreadCells.value).filter((key) => key.startsWith(`${message.topic.id}:`)).forEach((key) => delete unreadCells.value[key]);
+        if (message.topic.id === activeTopicId.value) selectTopic(message.topic);
+        saveState.value = "已同步";
       } else if (message.type === "cell:draft") {
         const topic = topics.value.find((item) => item.id === message.topicId);
         if (!topic || editingCell.value === `${message.topicId}:${message.row}:${message.column}`) return;
@@ -607,19 +616,9 @@ function addTopic() {
 
 async function clearCurrentSheet() {
   if (!activeTopic.value) return;
-  if (!window.confirm("确定清空当前工作表吗？此操作会清除表格内容和编辑标记。")) return;
-  const rows = activeTopic.value.cells.length;
-  const columnsCount = Math.max(...activeTopic.value.cells.map((row) => row.length), 0);
-  for (let row = 0; row < rows; row += 1) {
-    for (let column = 0; column < columnsCount; column += 1) {
-      if (activeTopic.value.cells[row]?.[column]) {
-        send({ type: "cell:update", topicId: activeTopicId.value, row, column, value: "", suppressUnread: true });
-      }
-    }
-  }
-  activeTopic.value.cells = activeTopic.value.cells.map((row) => row.map(() => ""));
-  activeTopic.value.cellAuthors = {};
-  activeTopic.value.cellEditedAt = {};
+  if (!window.confirm("确定初始化当前工作表吗？当前内容会被替换为脱敏演示数据。")) return;
+  saveState.value = "初始化中";
+  send({ type: "sheet:initialize", topicId: activeTopicId.value, requestId: `${Date.now()}-${Math.random().toString(36).slice(2)}` });
 }
 
 async function loadRooms() {
@@ -779,7 +778,7 @@ onUnmounted(() => {
       <aside v-if="!roomListCollapsed" class="office-room-list"><div class="office-room-head"><strong>聊天房间</strong><span><button type="button" title="新建房间" @click="roomDialogMode = 'create'; roomName = ''; roomPassword = ''; roomDialogVisible = true">＋</button><button type="button" class="room-collapse-button" title="收起房间列表" aria-label="收起房间列表" @click="roomListCollapsed = true">‹</button></span></div><div v-for="room in rooms" :key="room.id" class="office-room-row"><button type="button" class="office-room-item" :class="{ 'is-active': room.id === activeRoomId }" @click="room.id === activeRoomId ? null : enterRoom(room)">{{ room.name }}<small>{{ room.protected ? '🔒' : '' }} {{ room.online || 0 }}</small></button><el-dropdown v-if="room.id !== 'main'" trigger="click"><button type="button" class="office-room-more">⋯</button><template #dropdown><el-dropdown-menu><el-dropdown-item @click="changeRoomPassword(room)">修改密码</el-dropdown-item><el-dropdown-item divided @click="deleteRoom(room)">删除房间</el-dropdown-item></el-dropdown-menu></template></el-dropdown></div></aside>
       <button v-else type="button" class="office-room-expand" title="展开房间列表" @click="roomListCollapsed = false">＋</button>
       <div v-if="!activeRoomId" class="office-empty-room"><h2>请创建房间</h2><p>创建一个聊天房间后开始协作编辑。</p><button type="button" @click="roomDialogMode = 'create'; roomName = ''; roomPassword = ''; roomDialogVisible = true">＋ 创建房间</button></div><div v-else class="sheet-panel">
-         <div class="sheet-toolbar"><div class="sheet-tab"><span class="sheet-tab-icon">▦</span> 工作表</div><div class="sheet-actions"><button type="button" @click="addRow">＋ 行</button><button type="button" class="sheet-clear-button" @click="clearCurrentSheet">清屏</button><span class="sheet-save-state">{{ saveState }}</span></div></div>
+         <div class="sheet-toolbar"><div class="sheet-tab"><span class="sheet-tab-icon">▦</span> 工作表</div><div class="sheet-actions"><button type="button" @click="addRow">＋ 行</button><button type="button" class="sheet-clear-button" @click="clearCurrentSheet">初始化</button><span class="sheet-save-state">{{ saveState }}</span></div></div>
         <div class="formula-bar"><span class="name-box">{{ selectedCell }}</span><span class="formula-symbol">fx</span><input value="点击单元格编辑内容" readonly aria-label="公式栏提示"></div>
         <div class="sheet-scroll"><table class="workbench-sheet"><colgroup><col class="col-row-number"><col v-for="(_, index) in sheetColumns" :key="index" :style="{ width: `${columnWidths[index]}px` }"></colgroup><thead><tr class="column-letters" :style="{ height: `${rowHeights.letters || 26}px` }"><th class="row-number"></th><th v-for="(_, index) in sheetColumns" :key="index">{{ String.fromCharCode(65 + index) }}<span class="column-resize-handle" @mousedown="beginResize(index, $event)"></span><span class="row-resize-handle" @mousedown="beginRowResize(0, $event)"></span></th></tr><tr class="sheet-title-row" :style="{ height: `${rowHeights.title || 30}px` }"><th class="row-number">1</th><th :colspan="sheetColumns.length" class="sheet-title-cell"><span v-if="fixedCellAuthor(0, 0)" class="cell-author">{{ fixedCellAuthor(0, 0) }}：</span><input :value="title" aria-label="表格标题" @input="updateTitle($event.target.value)"><span class="row-resize-handle" @mousedown="beginRowResize(1, $event)"></span></th></tr><tr class="sheet-header" :style="{ height: `${rowHeights.header || 28}px` }"><th class="row-number">2</th><th v-for="(_, index) in sheetColumns" :key="index"><span v-if="index < 7 && fixedCellAuthor(1, index)" class="cell-author">{{ fixedCellAuthor(1, index) }}：</span><input v-if="index < 7" :value="columns[index]" :aria-label="`第 ${index + 1} 列标题`" @input="updateHeader(index, $event.target.value)"></th></tr></thead><tbody><tr v-for="(row, rowIndex) in rows" :key="rowIndex" :style="{ height: `${rowHeights[rowIndex + 2] || 28}px` }"><td class="row-number">{{ rowIndex + 3 }}</td><td v-for="(_, cellIndex) in sheetColumns" :key="cellIndex" :class="{ 'is-selected': selectedCell === `${String.fromCharCode(65 + cellIndex)}${rowIndex + 3}` }" @click="selectedCell = `${String.fromCharCode(65 + cellIndex)}${rowIndex + 3}`"><span v-if="cellAuthor(rowIndex, cellIndex)" class="cell-author">{{ cellAuthor(rowIndex, cellIndex) }}：</span><input :value="row[cellIndex] || ''" :aria-label="`${sheetColumns[cellIndex]} 第 ${rowIndex + 3} 行`" @input="updateCell(rowIndex, cellIndex, $event.target.value)"><span class="row-resize-handle" @mousedown="beginRowResize(rowIndex + 2, $event)"></span></td></tr></tbody></table></div>
         <footer class="sheet-status"><span>{{ statusText }}</span><span>◉ {{ user.name }}</span></footer>

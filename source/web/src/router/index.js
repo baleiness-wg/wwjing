@@ -17,7 +17,7 @@ const router = createRouter({
       path: "/tools/bookmarks",
       name: "bookmarks-star",
       component: BookmarksView,
-      meta: { requiresAuth: true, space: "star", title: "鲸界" }
+      meta: { requiresAuth: true, space: "star", title: "Whaleland" }
     },
     { path: "/tools/bookmarks/star", redirect: "/tools/bookmarks" },
     {

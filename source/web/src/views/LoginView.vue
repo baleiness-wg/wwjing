@@ -32,7 +32,7 @@ async function submit() {
 <template>
   <main class="login-page">
     <el-card class="login-card" shadow="never">
-      <p class="eyebrow">WWJ / 鲸界</p>
+      <p class="eyebrow">WWJ / Whaleland</p>
       <h1> {{ isRegister ? "Register" : "Login" }} </h1>
       <el-form label-position="top" @submit.prevent="submit">
         <el-form-item label="用户名">
