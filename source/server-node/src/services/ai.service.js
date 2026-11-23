@@ -80,8 +80,9 @@ function buildMessages({ context, message, history }) {
     "当用户询问推荐、建议、今天做什么、先看什么、值得看什么或类似问题时，应优先从当前收藏中寻找合适内容，而不是给脱离收藏的泛泛建议。",
     recommendationRequest
      ? "这是一个基于收藏夹的建议请求。请像熟悉用户的朋友一样自然回答，不使用固定模板，不要机械重复日期、时间或‘今天是……’；只有时间场景确实有帮助时才自然提及早晚、工作日或周末。如果提到具体收藏，就在对应名称后自然附上该收藏的原始链接。"
-      : "如果用户询问当前目录内容，可以自然参考收藏；如果提到具体收藏，可以在对应名称后附上原始链接。",
-    "链接必须原样使用目录上下文中的 sourceUrl，不要改写或编造链接。",
+     : "如果用户询问当前目录内容，可以自然参考收藏；如果提到具体收藏，可以在对应名称后附上原始链接。",
+     "链接必须原样使用目录上下文中的 sourceUrl，不要改写或编造链接。",
+     "只要回答中具体提到某条收藏，就必须在该收藏名称后追加 [[bookmark:收藏ID]]；收藏ID必须来自目录上下文，不能编造。客户端会据此展示原始链接和收藏卡片。",
     "如果目录上下文不足以回答问题，请直接说明不确定，不要编造事实，也不要把所有收藏重复罗列出来。",
     limitation,
     `目录上下文：${contextResult.serialized}`
@@ -103,13 +104,17 @@ function appendMentionedItemLinks(answer, context) {
   for (const item of context.items) {
     const title = limitedString(item.title, MAX_FIELD_LENGTH);
     const sourceUrl = limitedString(item.sourceUrl, 1000);
-    if (title.length < 2 || !sourceUrl || !enriched.includes(title)) continue;
-    if (enriched.includes(sourceUrl)) {
-      if (item.id && !enriched.includes(`[[bookmark:${item.id}]]`)) enriched += ` [[bookmark:${item.id}]]`;
+    const marker = item.id ? `[[bookmark:${item.id}]]` : "";
+    if (marker && enriched.includes(marker)) {
+      if (sourceUrl && !enriched.includes(sourceUrl)) enriched = enriched.replace(marker, `[${title || sourceUrl}](${sourceUrl}) ${marker}`);
       continue;
     }
-    const marker = item.id ? ` [[bookmark:${item.id}]]` : "";
-    enriched = enriched.replace(title, `[${title}](${sourceUrl})${marker}`);
+    if (title.length < 2 || !sourceUrl || !enriched.includes(title)) continue;
+    if (enriched.includes(sourceUrl)) {
+      if (marker) enriched = enriched.replace(title, `${title} ${marker}`);
+      continue;
+    }
+    enriched = enriched.replace(title, `[${title}](${sourceUrl})${marker ? ` ${marker}` : ""}`);
   }
   return enriched;
 }

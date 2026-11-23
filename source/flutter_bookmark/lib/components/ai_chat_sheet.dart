@@ -386,6 +386,7 @@ class _MessageWithInlineItems extends StatelessWidget {
       var matchIndex = -1;
       for (final item in pending) {
         final candidates = [
+          '[[' + 'bookmark:${item.id}]]',
           if (item.title?.trim().isNotEmpty == true &&
               !RegExp(
                 r'^[a-z0-9.-]+\.[a-z]{2,}$',
@@ -410,7 +411,7 @@ class _MessageWithInlineItems extends StatelessWidget {
         children.add(
           MarkdownMessage(
             content: before.replaceAll(
-              RegExp(r'\[\[bookmark:[a-f0-9]{32}\]\]', caseSensitive: false),
+              RegExp(r'\[\[bookmark:[^\]]+\]\]', caseSensitive: false),
               '',
             ),
             onOpenLink: onOpenLink,
@@ -446,7 +447,7 @@ class _MessageWithInlineItems extends StatelessWidget {
         '',
       );
       remaining = remaining.replaceFirst(
-        RegExp(r'^\s*\[\[bookmark:[a-f0-9]{32}\]\]', caseSensitive: false),
+        RegExp(r'^\s*\[\[bookmark:[^\]]+\]\]', caseSensitive: false),
         '',
       );
       pending.remove(matchedItem);
@@ -456,7 +457,7 @@ class _MessageWithInlineItems extends StatelessWidget {
         MarkdownMessage(
           content: remaining
               .replaceAll(
-                RegExp(r'\[\[bookmark:[a-f0-9]{32}\]\]', caseSensitive: false),
+                RegExp(r'\[\[bookmark:[^\]]+\]\]', caseSensitive: false),
                 '',
               )
               .trim(),

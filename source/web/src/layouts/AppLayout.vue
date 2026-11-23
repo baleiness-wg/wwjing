@@ -62,6 +62,7 @@ const aiContext = computed(() => ({
   directoryPath: "全部收藏",
   loadedItemCount: aiItems.value.length,
   items: aiItems.value.map((item) => ({
+    id: String(item.id || ""),
     title: item.title,
     description: item.description,
     sourceHost: item.sourceUrl,

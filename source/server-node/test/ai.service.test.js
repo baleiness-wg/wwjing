@@ -214,6 +214,15 @@ test("AI reply attaches the original link and bookmark marker for a mentioned ti
   );
 });
 
+test("AI reply resolves an explicit bookmark marker even without a title", () => {
+  assert.equal(
+    aiService.appendMentionedItemLinks("先看 [[bookmark:abc]]", {
+      items: [{ id: "abc", title: "Flutter 入门", sourceUrl: "https://example.com/flutter" }]
+    }),
+    "先看 [Flutter 入门](https://example.com/flutter) [[bookmark:abc]]"
+  );
+});
+
 test("AI reply normalizes nested malformed links", () => {
   assert.equal(
     aiService.appendMentionedItemLinks("视频 https://v.douyin.com（https://v.douyin.com/IKMupVJyMEk/）/3dpoFkbK88g/ ↗", { items: [] }),
