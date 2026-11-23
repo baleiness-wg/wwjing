@@ -102,9 +102,14 @@ function appendMentionedItemLinks(answer, context) {
   let enriched = answer.replace(/https?:\/\/[^\s<（(]*[（(](https?:\/\/[^\s）)>]+)[）)>][^\s]*/gi, "$1");
   for (const item of context.items) {
     const title = limitedString(item.title, MAX_FIELD_LENGTH);
-    if (title.length < 2 || !enriched.includes(title)) continue;
-    // 标题相同不代表 AI 确实引用了该收藏，禁止仅凭标题强行绑定链接。
-    // 只有 AI 明确返回收藏 ID 时，Flutter 才会渲染真实收藏卡片。
+    const sourceUrl = limitedString(item.sourceUrl, 1000);
+    if (title.length < 2 || !sourceUrl || !enriched.includes(title)) continue;
+    if (enriched.includes(sourceUrl)) {
+      if (item.id && !enriched.includes(`[[bookmark:${item.id}]]`)) enriched += ` [[bookmark:${item.id}]]`;
+      continue;
+    }
+    const marker = item.id ? ` [[bookmark:${item.id}]]` : "";
+    enriched = enriched.replace(title, `[${title}](${sourceUrl})${marker}`);
   }
   return enriched;
 }

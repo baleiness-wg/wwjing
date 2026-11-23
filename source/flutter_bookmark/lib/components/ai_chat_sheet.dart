@@ -71,7 +71,7 @@ class _AiChatSheetState extends State<AiChatSheet> {
     _scrollToEnd();
     try {
       final history = _messages
-          .take(_messages.length - 1)
+          .take(_messages.length - 2)
           .where((entry) => entry.role == 'user' || entry.role == 'assistant')
           .map((entry) => {'role': entry.role, 'content': entry.content})
           .toList();
@@ -375,7 +375,7 @@ class _MessageWithInlineItems extends StatelessWidget {
       (match) => match.group(1)!,
     );
     remaining = remaining.replaceAllMapped(
-      RegExp(r'\[\[bookmark:[a-f0-9]{32}\]\]', caseSensitive: false),
+      RegExp(r'\[\[bookmark:[^\]]+\]\]', caseSensitive: false),
       (_) => '',
     );
     final children = <Widget>[];
