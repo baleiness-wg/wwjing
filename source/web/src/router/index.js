@@ -1,9 +1,10 @@
 import { createRouter, createWebHistory } from "vue-router";
-import LoginView from "../views/LoginView.vue";
-import TransferView from "../views/TransferView.vue";
-import BookmarksView from "../views/BookmarksView.vue";
 import ChatWorkbenchView from "../views/ChatWorkbenchView.vue";
 import { getApplicationBase } from "./base";
+
+const LoginView = () => import("../views/LoginView.vue");
+const TransferView = () => import("../views/TransferView.vue");
+const BookmarksView = () => import("../views/BookmarksView.vue");
 
 const router = createRouter({
   history: createWebHistory(getApplicationBase()),

@@ -1,0 +1,242 @@
+@baseUrl = http://localhost:3000/api
+@username = bookmark-demo
+@password = replace-with-password
+@space = star
+
+### Office：使用创建房间后返回的房间 ID；中文及特殊字符密码需 URI 编码
+@officeRoomId = replace-with-room-id
+@officePasswordEncoded = %E5%AF%86%E7%A0%81%20%25%26%2B%20test
+
+### 获取房间快照，密码错误返回 403
+GET {{baseUrl}}/office/snapshot
+X-Office-Room: {{officeRoomId}}
+X-Office-Password: {{officePasswordEncoded}}
+X-Office-Password-Encoding: uri
+
+### Register a bookmark test account (run once)
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "username": "{{username}}",
+  "password": "{{password}}"
+}
+
+### Change password; success invalidates this client session
+POST {{baseUrl}}/auth/change-password
+Authorization: Bearer {{TOKEN}}
+Content-Type: application/json
+
+{
+  "currentPassword": "{{password}}",
+  "newPassword": "replace-with-new-password",
+  "confirmPassword": "replace-with-new-password"
+}
+
+### Log in, then copy the response token without its leading "Bearer " into TOKEN
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{username}}",
+  "password": "{{password}}"
+}
+
+### Read current content
+GET http://localhost:3000/api/transfer/content
+Authorization: Bearer {{TOKEN}}
+
+### List folders in an app space
+GET {{baseUrl}}/bookmarks/folders?space={{space}}
+Authorization: Bearer {{TOKEN}}
+
+### List bookmark items in an app space
+GET {{baseUrl}}/bookmarks/items?space={{space}}&page=1&pageSize=20
+Authorization: Bearer {{TOKEN}}
+
+### List cookie tags
+GET {{baseUrl}}/bookmarks/tags?space=cookie
+Authorization: Bearer {{TOKEN}}
+
+### Create a cookie tag
+POST {{baseUrl}}/bookmarks/tags
+Authorization: Bearer {{TOKEN}}
+Content-Type: application/json
+
+{
+  "space": "cookie",
+  "name": "快手"
+}
+
+### Pick a random cookie recipe (supports optional folderIds, e.g. folderIds=1,2,3)
+GET {{baseUrl}}/bookmarks/random?space=cookie&folderIds=1,2
+Authorization: Bearer {{TOKEN}}
+
+### Save text content
+POST http://localhost:3000/api/transfer/content/text
+Authorization: Bearer {{TOKEN}}
+Content-Type: application/json
+
+{
+  "text": "内容将在同一账号的其他设备上可见"
+}
+
+### Upload a file (maximum 100 MB)
+POST http://localhost:3000/api/transfer/content/file
+Authorization: Bearer {{TOKEN}}
+Content-Type: multipart/form-data; boundary=boundary
+
+--boundary
+Content-Disposition: form-data; name="file"; filename="example.txt"
+Content-Type: text/plain
+
+example file content
+--boundary--
+
+### Download current file
+GET http://localhost:3000/api/transfer/content/file
+Authorization: Bearer {{TOKEN}}
+
+### Errors
+# 401: missing or invalid token
+# 404: no content found
+# 409: current content is text
+# 413: uploaded file is larger than 100 MB
+
+### List the flat folder tree
+GET {{baseUrl}}/bookmarks/folders
+Authorization: Bearer {{TOKEN}}
+
+### Create a root folder; copy folder.id into ROOT_FOLDER_ID
+POST {{baseUrl}}/bookmarks/folders
+Authorization: Bearer {{TOKEN}}
+Content-Type: application/json
+
+{
+  "name": "稍后阅读",
+  "position": 0
+}
+
+### Create a child folder; copy folder.id into CHILD_FOLDER_ID
+POST {{baseUrl}}/bookmarks/folders
+Authorization: Bearer {{TOKEN}}
+Content-Type: application/json
+
+{
+  "name": "技术文章",
+  "parentId": "{{ROOT_FOLDER_ID}}",
+  "position": 0
+}
+
+### Save a categorized link
+POST {{baseUrl}}/bookmarks/items
+Authorization: Bearer {{TOKEN}}
+Content-Type: application/json
+
+{
+  "folderIds": ["{{ROOT_FOLDER_ID}}", "{{CHILD_FOLDER_ID}}"],
+  "sourceUrl": "https://example.com/article/?utm_source=demo#section",
+  "title": "示例文章",
+  "description": "仅响应返回描述；服务端日志不会记录正文",
+  "coverUrl": "https://example.com/cover.jpg"
+}
+
+### Fetch public page metadata (private and local network targets are rejected)
+POST {{baseUrl}}/bookmarks/metadata
+Authorization: Bearer {{TOKEN}}
+Content-Type: application/json
+
+{
+  "sourceUrl": "https://example.com/article"
+}
+
+### Trigger duplicate detection (returns 409 and existing item summary)
+POST {{baseUrl}}/bookmarks/items
+Authorization: Bearer {{TOKEN}}
+Content-Type: application/json
+
+{
+  "sourceUrl": "https://EXAMPLE.com/article?utm_medium=share",
+  "title": "重复示例"
+}
+
+### Explicitly allow the duplicate
+POST {{baseUrl}}/bookmarks/items
+Authorization: Bearer {{TOKEN}}
+Content-Type: application/json
+
+{
+  "sourceUrl": "https://example.com/article",
+  "title": "保留不同上下文",
+  "allowDuplicate": true
+}
+
+### Save an uncategorized link
+POST {{baseUrl}}/bookmarks/items
+Authorization: Bearer {{TOKEN}}
+Content-Type: application/json
+
+{
+  "sourceUrl": "https://example.org/unclassified",
+  "description": "未指定 folderId"
+}
+
+### List uncategorized bookmarks with stable pagination
+GET {{baseUrl}}/bookmarks/items?uncategorized=true&page=1&pageSize=20
+Authorization: Bearer {{TOKEN}}
+
+### Search title, description, or source URL
+GET {{baseUrl}}/bookmarks/items?query=示例&page=1&pageSize=20
+Authorization: Bearer {{TOKEN}}
+
+### Chat with the current loaded bookmark directory context
+POST {{baseUrl}}/ai/chat
+Authorization: Bearer {{TOKEN}}
+Content-Type: application/json
+
+{
+  "context": {
+    "space": "star",
+    "directoryId": "{{CHILD_FOLDER_ID}}",
+    "directoryName": "技术文章",
+    "directoryPath": "稍后阅读 / 技术文章",
+    "loadedItemCount": 1,
+    "items": [
+      {
+        "title": "示例文章",
+        "description": "仅发送当前页面已加载的收藏元数据",
+        "sourceHost": "example.com",
+        "sourceUrl": "https://example.com/article",
+        "folderPath": "稍后阅读 / 技术文章"
+      }
+    ]
+  },
+  "history": [],
+  "message": "请根据当前目录的收藏，给我一个阅读建议"
+}
+
+# Success: { "answer": "...", "truncated": false }
+# Errors: 400 AI_INVALID_INPUT; 401 missing/invalid token;
+# 502 AI_PROVIDER_ERROR; 503 AI_NOT_CONFIGURED; 504 AI_TIMEOUT.
+
+### Pin a folder
+PATCH {{baseUrl}}/bookmarks/folders/{{FOLDER_ID}}
+Authorization: Bearer {{TOKEN}}
+Content-Type: application/json
+
+{"space":"star","pinned":true}
+
+### Share a folder with another username
+POST {{baseUrl}}/bookmarks/folders/{{FOLDER_ID}}/shares
+Authorization: Bearer {{TOKEN}}
+Content-Type: application/json
+
+{"space":"star","username":"other-user"}
+### 收藏条目图片上传接口（预留）
+# 当前版本仅预留路由，尚未实现文件存储。
+POST {{baseUrl}}/api/bookmarks/items/{{itemId}}/images
+Authorization: Bearer {{token}}
+Content-Type: multipart/form-data
+
+# 未来字段：images[]，支持一次上传多张图片。
+# 当前返回 501 IMAGE_UPLOAD_NOT_IMPLEMENTED。

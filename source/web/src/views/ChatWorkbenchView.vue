@@ -17,16 +17,19 @@ const officeHeaderName = () => encodeURIComponent(currentDisplayName.value);
 const roomDialogVisible = ref(false);
 const roomDialogMode = ref("enter");
 const roomName = ref("");
+const roomActionLoading = ref(false);
 const activeTopicId = ref("");
 const user = ref({ name: "用户" });
-const guestName = ref(localStorage.getItem("office_guest_name") || `游客${Math.floor(100 + Math.random() * 900)}`);
+const guestName = ref(localStorage.getItem("office_guest_name") || `游客${Math.floor(100000 + Math.random() * 900000)}`);
+localStorage.setItem("office_guest_name", guestName.value);
+const officeClientId = localStorage.getItem("office_client_id") || globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+localStorage.setItem("office_client_id", officeClientId);
 const displayName = ref(localStorage.getItem("office_display_name") || "");
 const currentDisplayName = computed(() => displayName.value || guestName.value);
 const defaultDocumentTitle = document.title || "Whaleland";
 let titleFlashTimer;
 let titleFlashIndex = 0;
 let hasUnreadOfficeNotice = false;
-const officeChannel = typeof BroadcastChannel !== "undefined" ? new BroadcastChannel("wwjing-office-events") : null;
 const selectedCell = ref("A1");
 const socket = ref(null);
 const columnWidths = ref([58, 58, 180, 380, 58, 58, 58, ...Array(19).fill(58)]);
@@ -42,7 +45,7 @@ const importedSheet = computed(() => Boolean(activeTopic.value?.imported));
 const activeRoomName = computed(() => rooms.value.find((room) => room.id === activeRoomId.value)?.name || "未进入房间");
 const title = computed(() => activeTopic.value?.cells[0]?.[0] || "Book1");
 const dataRows = computed(() => activeTopic.value?.cells?.slice(2) || []);
-const visibleRowCount = ref(50);
+const visibleRowCount = ref(25);
 const rows = computed(() => {
   const data = dataRows.value.slice(0, visibleRowCount.value);
   return [...data, ...Array.from({ length: Math.max(0, visibleRowCount.value - data.length) }, () => [])];
@@ -51,6 +54,9 @@ const sheetColumns = computed(() => Array.from(
   { length: Math.max(26, columns.value.length) },
   (_, index) => columns.value[index] || `列${String.fromCharCode(65 + index)}`
 ));
+const editedTimeFormatter = new Intl.DateTimeFormat("zh-CN", { hour: "2-digit", minute: "2-digit" });
+let scrollFrame = null;
+let badgeSyncPending = false;
 
 function beginResize(index, event) {
   event.preventDefault();
@@ -85,7 +91,9 @@ function fitColumnWidth(index, broadcast = true) {
   const canvas = document.createElement("canvas");
   const context = canvas.getContext("2d");
   context.font = "12px Arial, Microsoft YaHei, sans-serif";
-  const longest = Math.max(...values.map((value) => context.measureText(value).width), 42);
+  let longest = 42;
+  const measured = new Set(values);
+  measured.forEach((value) => { longest = Math.max(longest, context.measureText(value).width); });
   const width = Math.min(800, Math.max(42, Math.ceil(longest + 88)));
   columnWidths.value[index] = width;
   if (broadcast) send({ type: "column:resize", index, width });
@@ -93,6 +101,12 @@ function fitColumnWidth(index, broadcast = true) {
 
 function fitAllColumnWidths(broadcast = false) {
   sheetColumns.value.forEach((_, index) => fitColumnWidth(index, broadcast));
+}
+
+let fitColumnsTimer;
+function scheduleFitAllColumnWidths(broadcast = false) {
+  window.clearTimeout(fitColumnsTimer);
+  fitColumnsTimer = window.setTimeout(() => { fitColumnsTimer = null; fitAllColumnWidths(broadcast); }, 100);
 }
 
 function beginRowResize(rowIndex, event) {
@@ -121,8 +135,23 @@ function handleSheetScroll(event) {
   if (element.scrollTop + element.clientHeight >= element.scrollHeight - 240) visibleRowCount.value += 25;
 }
 
+function fillVisibleSheet() {
+  nextTick(() => {
+    const element = document.querySelector(".sheet-scroll");
+    if (element && element.clientHeight > 0 && element.scrollHeight <= element.clientHeight + 240) {
+      visibleRowCount.value += 25;
+      fillVisibleSheet();
+    }
+  });
+}
+
 function handleOfficeScroll(event) {
-  if (event.target?.classList?.contains("sheet-scroll")) handleSheetScroll(event);
+  if (!event.target?.classList?.contains("sheet-scroll") || scrollFrame !== null) return;
+  const element = event.target;
+  scrollFrame = window.requestAnimationFrame(() => {
+    scrollFrame = null;
+    handleSheetScroll({ target: element });
+  });
 }
 
 function cellInlineStyle(row, column) {
@@ -161,7 +190,10 @@ function applyImportedCellStyles() {
 }
 
 function syncCellLockBadges() {
+  if (badgeSyncPending) return;
+  badgeSyncPending = true;
   nextTick(() => {
+    badgeSyncPending = false;
     const topic = activeTopic.value;
     const setAuthorColor = (element, author) => {
       element?.classList.toggle("is-other-author", Boolean(author) && !isOwnAuthor(author));
@@ -211,12 +243,15 @@ watch(currentDisplayName, syncCellLockBadges);
 watch(visibleRowCount, syncCellLockBadges);
 let snapshotTimer;
 let snapshotSequence = 0;
-let snapshotRequestId = 0;
 let lastSnapshotRevision = null;
 let reconnectTimer;
 let reconnectDelay = 1000;
 let roomConnectionSequence = 0;
 let roomEntrySequence = 0;
+let snapshotInFlight = null;
+let snapshotFallbackTimer;
+let roomSnapshotReady = false;
+let renameInFlight = false;
 
 function send(message) {
   if (socket.value?.readyState === WebSocket.OPEN) socket.value.send(JSON.stringify(message));
@@ -234,7 +269,7 @@ function resetRoomState() {
   topics.value = [];
   activeTopicId.value = "";
   columns.value = [];
-  visibleRowCount.value = 50;
+  visibleRowCount.value = 25;
 }
 
 function isOwnAuthor(author) {
@@ -246,6 +281,7 @@ function roomHeaders(roomId, password) {
   return {
     Authorization: "",
     "X-Office-Guest": encodeURIComponent(guestName.value),
+    "X-Office-Client-Id": officeClientId,
     "X-Office-Room": roomId,
     "X-Office-Password": encodeURIComponent(password),
     "X-Office-Password-Encoding": "uri"
@@ -254,7 +290,6 @@ function roomHeaders(roomId, password) {
 
 function notifyOffice(message, body) {
   if (isOwnAuthor(message.user)) return;
-  officeChannel?.postMessage({ user: message.user, body, source: currentDisplayName.value, at: Date.now() });
   ElMessage.info(`${message.user}：${body}`);
   flashDocumentTitle(message.user, body);
   if (document.visibilityState !== "visible" && "Notification" in window && Notification.permission === "granted") {
@@ -280,29 +315,27 @@ function clearOfficeTitleNotice() {
   document.title = defaultDocumentTitle;
 }
 
-function notifyFromOtherTab(event) {
-  const { user: author, body, source } = event.data || {};
-  if (isOwnAuthor(author) || isOwnAuthor(source)) return;
-  if (document.visibilityState !== "visible" && "Notification" in window && Notification.permission === "granted") {
-    new Notification("Office 协作", { body: `${author}：${body}` });
-  } else {
-    ElMessage.info(`${author}：${body}`);
-  }
-  flashDocumentTitle(author, body);
+const notifiedEdits = new Map();
+function rememberEdit(topicId, key, editedAt) {
+  if (editedAt) notifiedEdits.set(`${topicId}:${key}`, editedAt);
 }
 
-function notifySnapshotUpdate(snapshot) {
-  if (lastSnapshotRevision === null) {
-    lastSnapshotRevision = snapshot.revision;
-    return;
+function notifySnapshotUpdate(snapshot, suppress = false) {
+  const baseline = lastSnapshotRevision === null || suppress;
+  if (!baseline && snapshot.revision != null && snapshot.revision === lastSnapshotRevision) return;
+  if (suppress) notifiedEdits.clear();
+  let latest = null;
+  for (const topic of snapshot.topics || []) {
+    for (const [key, editedAt] of Object.entries(topic.cellEditedAt || {})) {
+      const eventKey = `${topic.id}:${key}`;
+      const previous = notifiedEdits.get(eventKey);
+      const author = topic.cellAuthors?.[key];
+      if (!baseline && previous !== editedAt && topic.cellAuthorIds?.[key] !== officeClientId && !isOwnAuthor(author) && (!latest || Number(editedAt) > Number(latest.editedAt))) latest = { author, editedAt };
+      rememberEdit(topic.id, key, editedAt);
+    }
   }
-  if (snapshot.revision === lastSnapshotRevision) return;
-  lastSnapshotRevision = snapshot.revision;
-  const latest = snapshot.topics
-    ?.flatMap((topic) => Object.entries(topic.cellEditedAt || {}).map(([key, editedAt]) => ({ topic, key, editedAt, user: topic.cellAuthors?.[key] })))
-    .filter((entry) => !isOwnAuthor(entry.user))
-    .sort((a, b) => Number(b.editedAt || 0) - Number(a.editedAt || 0))[0];
-  if (latest) notifyOffice({ user: latest.user }, "已完成编辑");
+  lastSnapshotRevision = snapshot.revision ?? 0;
+  if (latest) notifyOffice({ user: latest.author }, "已完成编辑");
 }
 
 function requestOfficeNotifications() {
@@ -371,14 +404,28 @@ function selectTopic(topic) {
 
 async function loadSnapshotForCurrentRoom() {
   if (!activeRoomId.value) return;
+  if (snapshotInFlight?.roomId === activeRoomId.value && snapshotInFlight.sequence === snapshotSequence) return snapshotInFlight.promise;
   const sequence = ++snapshotSequence;
+  const connectionSequence = roomConnectionSequence;
+  const snapshotWasReady = roomSnapshotReady;
   const roomId = activeRoomId.value;
-  const response = await fetch("/api/office/snapshot", {
-    cache: "no-store",
-    headers: roomHeaders(roomId, roomPassword.value)
-  }).catch(() => null);
-  if (!response?.ok || sequence !== snapshotSequence || roomId !== activeRoomId.value) return;
-  const snapshot = await response.json();
+  const promise = (async () => {
+    const response = await fetch("/api/office/snapshot", {
+      cache: "no-store",
+      headers: roomHeaders(roomId, roomPassword.value)
+    }).catch(() => null);
+    if (!response?.ok || sequence !== snapshotSequence || roomId !== activeRoomId.value || connectionSequence !== roomConnectionSequence) return;
+    const snapshot = await response.json().catch(() => null);
+    if (!snapshot || sequence !== snapshotSequence || roomId !== activeRoomId.value || connectionSequence !== roomConnectionSequence || (!snapshotWasReady && roomSnapshotReady)) return;
+    applySnapshot(snapshot);
+  })();
+  snapshotInFlight = { roomId, sequence, promise };
+  try { await promise; } finally {
+    if (snapshotInFlight?.promise === promise) snapshotInFlight = null;
+  }
+}
+
+function applySnapshot(snapshot) {
   notifySnapshotUpdate(snapshot);
    snapshot.topics?.forEach((topic) => {
      topic.cells?.forEach((row, rowIndex) => row?.forEach((value, columnIndex) => {
@@ -396,7 +443,17 @@ async function loadSnapshotForCurrentRoom() {
     ElMessage.error("房间没有可用表格数据");
     return;
   }
-  user.value = snapshot.user;
+  for (const [key, pending] of fixedCellWriteTimers) {
+    const topic = snapshot.topics.find((item) => item.id === pending.topicId);
+    if (topic) {
+      (topic.cellAuthors ||= {})[`${pending.row}:${pending.column}`] = currentDisplayName.value;
+      (topic.cellAuthorIds ||= {})[`${pending.row}:${pending.column}`] = officeClientId;
+    }
+  }
+  const initialSnapshot = !roomSnapshotReady;
+  roomSnapshotReady = true;
+  user.value = { ...snapshot.user, name: currentDisplayName.value };
+  if (snapshot.type === "snapshot" && socket.value?.readyState === WebSocket.OPEN) connectionText.value = "实时";
   const topicsChanged = JSON.stringify(topics.value) !== JSON.stringify(snapshot.topics);
   if (topicsChanged) topics.value = snapshot.topics;
   const locks = snapshot.locks || {};
@@ -405,6 +462,8 @@ async function loadSnapshotForCurrentRoom() {
   if (snapshot.columnWidths && JSON.stringify(columnWidths.value) !== JSON.stringify(snapshot.columnWidths)) columnWidths.value = snapshot.columnWidths;
   const selectedTopic = topics.value.find((topic) => topic.id === activeTopicId.value) || topics.value[0];
   if (topicsChanged && selectedTopic) selectTopic(selectedTopic);
+  if (initialSnapshot && selectedTopic && !selectedTopic.imported) scheduleFitAllColumnWidths(false);
+  if (initialSnapshot) fillVisibleSheet();
 }
 
 function connect() {
@@ -414,11 +473,12 @@ function connect() {
   const connectionSequence = roomConnectionSequence;
   const token = "";
   const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-  socket.value = new WebSocket(`${protocol}//${window.location.host}/api/office/ws?token=${encodeURIComponent(token)}&guest=${encodeURIComponent(guestName.value)}&displayName=${encodeURIComponent(displayName.value)}&roomId=${encodeURIComponent(activeRoomId.value)}&password=${encodeURIComponent(roomPassword.value)}`);
+  socket.value = new WebSocket(`${protocol}//${window.location.host}/api/office/ws?token=${encodeURIComponent(token)}&guest=${encodeURIComponent(guestName.value)}&displayName=${encodeURIComponent(currentDisplayName.value)}&clientId=${encodeURIComponent(officeClientId)}&roomId=${encodeURIComponent(activeRoomId.value)}&password=${encodeURIComponent(roomPassword.value)}`);
   socket.value.onopen = () => { if (connectionSequence === roomConnectionSequence) { reconnectDelay = 1000; connectionText.value = "实时"; } };
   socket.value.onerror = () => { if (connectionSequence === roomConnectionSequence) connectionText.value = "已加载"; };
   socket.value.onclose = (event) => {
     if (connectionSequence !== roomConnectionSequence || connectionRoomId !== activeRoomId.value) return;
+    renameInFlight = false;
     if (event.code === 4003) {
       localStorage.removeItem(`office_room_password:${connectionRoomId}`);
       pendingRoomId.value = connectionRoomId;
@@ -429,6 +489,8 @@ function connect() {
       return;
     }
     connectionText.value = "轮询";
+    window.clearTimeout(snapshotFallbackTimer);
+    loadSnapshotForCurrentRoom();
     window.clearTimeout(reconnectTimer);
     reconnectTimer = window.setTimeout(connect, reconnectDelay);
     reconnectDelay = Math.min(reconnectDelay * 2, 10000);
@@ -436,15 +498,16 @@ function connect() {
   socket.value.onmessage = ({ data }) => {
     if (connectionSequence !== roomConnectionSequence || connectionRoomId !== activeRoomId.value) return;
     const message = JSON.parse(data);
+    if (["cell:updated", "cell:draft", "sheet:initialized", "sheet:replaced", "topic:created", "user:renamed"].includes(message.type)) snapshotSequence += 1;
       if (message.type === "snapshot") {
-        user.value = { ...message.user, name: currentDisplayName.value };
-        topics.value = message.topics;
-        cellLocks.value = message.locks || {};
-        columnWidths.value = message.columnWidths || columnWidths.value;
-         if (topics.value[0]) {
-           selectTopic(topics.value[0]);
-           if (!topics.value[0].imported) fitAllColumnWidths(false);
-         }
+        window.clearTimeout(snapshotFallbackTimer);
+        if (renameInFlight) return;
+        syncPendingRename();
+        if (roomSnapshotReady && Number.isFinite(message.revision) && Number.isFinite(lastSnapshotRevision) && message.revision < lastSnapshotRevision) return;
+        if (roomSnapshotReady) snapshotSequence += 1;
+        applySnapshot(message);
+      } else if (message.type === "cell:unlock") {
+        delete cellLocks.value[message.key];
       } else if (message.type === "column:resized") {
         columnWidths.value[message.index] = message.width;
       } else if (message.type === "cell:editing" || message.type === "cell:editing-end") {
@@ -456,6 +519,11 @@ function connect() {
     } else if (message.type === "cell:update:ack") {
       if (pendingUpdates[message.requestId]) delete pendingUpdates[message.requestId];
       saveState.value = "已同步";
+    } else if (message.type === "user:rename:ack") {
+      const pending = JSON.parse(localStorage.getItem("office_pending_renames") || "[]");
+      if (pending[0]?.oldName === message.oldName && pending[0]?.name === message.name) pending.shift();
+      localStorage.setItem("office_pending_renames", JSON.stringify(pending));
+      renameInFlight = false;
     } else if (message.type === "cell:update:rejected") {
       if (pendingUpdates[message.requestId]) delete pendingUpdates[message.requestId];
       saveState.value = "保存失败";
@@ -483,6 +551,7 @@ function connect() {
         Object.keys(pendingLocalValues).filter((key) => key.startsWith(`${message.topic.id}:`)).forEach((key) => delete pendingLocalValues[key]);
         Object.keys(unreadCells.value).filter((key) => key.startsWith(`${message.topic.id}:`)).forEach((key) => delete unreadCells.value[key]);
         if (message.topic.id === activeTopicId.value) selectTopic(message.topic);
+        notifySnapshotUpdate({ topics: topics.value, revision: message.revision }, true);
         saveState.value = "已同步";
       } else if (message.type === "sheet:replaced") {
         const topicIndex = topics.value.findIndex((item) => item.id === message.topic.id);
@@ -493,28 +562,42 @@ function connect() {
         Object.keys(pendingLocalValues).filter((key) => key.startsWith(`${message.topic.id}:`)).forEach((key) => delete pendingLocalValues[key]);
         Object.keys(unreadCells.value).filter((key) => key.startsWith(`${message.topic.id}:`)).forEach((key) => delete unreadCells.value[key]);
         if (message.topic.id === activeTopicId.value) selectTopic(message.topic);
+        notifySnapshotUpdate({ topics: topics.value, revision: message.revision }, true);
         saveState.value = "已同步";
-      } else if (message.type === "cell:draft") {
-        const topic = topics.value.find((item) => item.id === message.topicId);
-        if (!topic || editingCell.value === `${message.topicId}:${message.row}:${message.column}`) return;
-        topic.cells[message.row] ||= [];
-        topic.cells[message.row][message.column] = message.value;
-        topic.cellAuthors ||= {};
-        topic.cellAuthors[`${message.row}:${message.column}`] = message.user;
+      } else if (message.type === "user:renamed") {
+        for (const topic of topics.value) {
+          for (const [key, author] of Object.entries(topic.cellAuthors || {})) {
+            if ((message.clientId && topic.cellAuthorIds?.[key] === message.clientId) || (!topic.cellAuthorIds?.[key] && author === message.oldName)) {
+              topic.cellAuthors[key] = message.name;
+              if (message.clientId) (topic.cellAuthorIds ||= {})[key] = message.clientId;
+            }
+          }
+        }
       } else if (message.type === "cell:updated") {
-      if (!message.suppressUnread) notifyOffice(message, "已完成编辑");
+      const eventKey = `${message.row}:${message.column}`;
+      const wasNotified = message.editedAt && notifiedEdits.get(`${message.topicId}:${eventKey}`) === message.editedAt;
+      if (message.editedAt) rememberEdit(message.topicId, eventKey, message.editedAt);
+      else notifiedEdits.delete(`${message.topicId}:${eventKey}`);
+      if (!message.suppressUnread && !wasNotified && message.clientId !== officeClientId) notifyOffice(message, "已完成编辑");
       const topic = topics.value.find((item) => item.id === message.topicId);
       if (!topic) return;
       topic.cells[message.row] ||= [];
       topic.cells[message.row][message.column] = message.value;
-      if (!message.suppressUnread && message.user !== currentDisplayName.value) unreadCells.value[`${message.topicId}:${message.row}:${message.column}`] = true;
+      if (!message.suppressUnread && message.clientId !== officeClientId && message.user !== currentDisplayName.value) unreadCells.value[`${message.topicId}:${message.row}:${message.column}`] = true;
       fitColumnWidth(message.column, false);
       topic.cellAuthors ||= {};
+      topic.cellAuthorIds ||= {};
       if (String(message.value || "").trim()) topic.cellAuthors[`${message.row}:${message.column}`] = message.user;
       else delete topic.cellAuthors[`${message.row}:${message.column}`];
+      if (message.clientId && String(message.value || "").trim()) topic.cellAuthorIds[eventKey] = message.clientId;
+      else delete topic.cellAuthorIds[eventKey];
       topic.cellEditedAt ||= {};
       if (message.editedAt) topic.cellEditedAt[`${message.row}:${message.column}`] = message.editedAt;
       else delete topic.cellEditedAt[`${message.row}:${message.column}`];
+      const localKey = `${message.topicId}:${message.row}:${message.column}`;
+      if (message.clientId === officeClientId && !Object.prototype.hasOwnProperty.call(drafts, localKey) && pendingLocalValues[localKey] === message.value) delete pendingLocalValues[localKey];
+      if (Number.isFinite(message.revision) && lastSnapshotRevision !== null && message.revision > lastSnapshotRevision + 1) loadSnapshotForCurrentRoom();
+      else if (Number.isFinite(message.revision)) lastSnapshotRevision = Math.max(lastSnapshotRevision ?? 0, message.revision);
       if (topic.id === activeTopicId.value && editingCell.value !== `${message.topicId}:${message.row}:${message.column}`) selectTopic(topic);
     }
   };
@@ -573,10 +656,14 @@ async function flushEditingCell() {
   const authorKey = `${row}:${column}`;
   if (String(value).trim()) {
     activeTopic.value.cellAuthors[authorKey] = currentDisplayName.value;
+    (activeTopic.value.cellAuthorIds ||= {})[authorKey] = officeClientId;
     activeTopic.value.cellEditedAt[authorKey] = Date.now();
+    rememberEdit(activeTopicId.value, authorKey, activeTopic.value.cellEditedAt[authorKey]);
   } else {
     delete activeTopic.value.cellAuthors[authorKey];
+    if (activeTopic.value.cellAuthorIds) delete activeTopic.value.cellAuthorIds[authorKey];
     delete activeTopic.value.cellEditedAt[authorKey];
+    notifiedEdits.delete(`${activeTopicId.value}:${authorKey}`);
   }
   const requestId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
   pendingUpdates[requestId] = { key: editingKey, topicId: activeTopicId.value, row, column, value };
@@ -606,6 +693,7 @@ function displayCellValue(row, column) {
 function handleFocusOut(event) {
   if (event.target?.tagName === "INPUT") {
     flushEditingCell();
+    if (event.target.closest(".sheet-title-cell, .sheet-header")) flushFixedCellWrites();
     const key = event.target.dataset.officeUnreadKey;
     if (key) {
       delete unreadCells.value[key];
@@ -643,17 +731,39 @@ function handleFocusIn(event) {
   beginCellEdit(rowIndex + 2, column);
 }
 
+const fixedCellWriteTimers = new Map();
+function flushFixedCellWrites() {
+  let changed = false;
+  for (const [key, pending] of fixedCellWriteTimers) {
+    window.clearTimeout(pending.timer);
+    fixedCellWriteTimers.delete(key);
+    if (pending.roomId !== activeRoomId.value) continue;
+    changed = true;
+    send({ type: "cell:update", topicId: pending.topicId, row: pending.row, column: pending.column, value: pending.value });
+    updateCellFallback(pending.topicId, pending.row, pending.column, pending.value);
+  }
+  if (changed) scheduleFitAllColumnWidths(true);
+}
+
+function scheduleFixedCellWrite(row, column, value) {
+  const key = `${activeTopicId.value}:${row}:${column}`;
+  window.clearTimeout(fixedCellWriteTimers.get(key)?.timer);
+  const pending = { roomId: activeRoomId.value, topicId: activeTopicId.value, row, column, value };
+  pendingLocalValues[key] = value;
+  pending.timer = window.setTimeout(flushFixedCellWrites, 300);
+  fixedCellWriteTimers.set(key, pending);
+}
+
 function updateTitle(value) {
   if (activeTopic.value) {
     activeTopic.value.cells[0][0] = value;
     activeTopic.value.cellAuthors ||= {};
     activeTopic.value.cellAuthors["0:0"] = currentDisplayName.value;
+    (activeTopic.value.cellAuthorIds ||= {})["0:0"] = officeClientId;
     activeTopic.value.cellEditedAt ||= {};
     activeTopic.value.cellEditedAt["0:0"] = Date.now();
   }
-  send({ type: "cell:update", topicId: activeTopicId.value, row: 0, column: 0, value });
-  updateCellFallback(activeTopicId.value, 0, 0, value);
-  fitAllColumnWidths();
+  scheduleFixedCellWrite(0, 0, value);
 }
 
 function updateHeader(cellIndex, value) {
@@ -661,13 +771,12 @@ function updateHeader(cellIndex, value) {
     activeTopic.value.cells[1][cellIndex] = value;
     activeTopic.value.cellAuthors ||= {};
     activeTopic.value.cellAuthors[`1:${cellIndex}`] = currentDisplayName.value;
+    (activeTopic.value.cellAuthorIds ||= {})[`1:${cellIndex}`] = officeClientId;
     activeTopic.value.cellEditedAt ||= {};
     activeTopic.value.cellEditedAt[`1:${cellIndex}`] = Date.now();
   }
   columns.value[cellIndex] = value;
-  send({ type: "cell:update", topicId: activeTopicId.value, row: 1, column: cellIndex, value });
-  updateCellFallback(activeTopicId.value, 1, cellIndex, value);
-  fitColumnWidth(cellIndex);
+  scheduleFixedCellWrite(1, cellIndex, value);
 }
 
 function cellAuthor(rowIndex, cellIndex) {
@@ -680,7 +789,7 @@ function cellEditedAt(rowIndex, cellIndex) {
 }
 
 function formatEditedAt(value) {
-  return value ? new Intl.DateTimeFormat("zh-CN", { hour: "2-digit", minute: "2-digit" }).format(new Date(value)) : "";
+  return value ? editedTimeFormatter.format(new Date(value)) : "";
 }
 
 function displayAuthor(rowIndex, cellIndex) {
@@ -795,15 +904,23 @@ async function clearCurrentSheet() {
 }
 
 async function loadRooms() {
-  const response = await fetch("/api/office/rooms", { headers: { Authorization: "", "X-Office-Guest": encodeURIComponent(guestName.value) } });
+  const savedRoomId = localStorage.getItem("office_active_room");
+  const entrySequence = roomEntrySequence;
+  const response = await fetch("/api/office/rooms", { headers: { Authorization: "", "X-Office-Guest": encodeURIComponent(guestName.value) } }).catch(() => null);
+  if (!response) return;
   if (response.ok) {
     rooms.value = (await response.json()).rooms || [];
-    const savedRoomId = localStorage.getItem("office_active_room");
+    if (!savedRoomId || entrySequence !== roomEntrySequence || activeRoomId.value !== savedRoomId) return;
     const savedRoom = rooms.value.find((room) => room.id === savedRoomId);
-    if (savedRoom) {
+    if (savedRoom && !socket.value && !roomActionLoading.value) {
       enterRoom(savedRoom);
-    } else if (savedRoomId) {
+    } else if (!savedRoom && savedRoomId) {
       localStorage.removeItem("office_active_room");
+      roomConnectionSequence += 1;
+      socket.value?.close();
+      socket.value = null;
+      window.clearTimeout(snapshotFallbackTimer);
+      resetRoomState();
       activeRoomId.value = "";
     }
   }
@@ -832,10 +949,19 @@ async function deleteRoom(room) {
   ElMessage.success("房间已删除");
 }
 
-function activateRoom(roomId, password) {
+function activateRoom(roomId, password, snapshot = null) {
+  flushFixedCellWrites();
   roomConnectionSequence += 1;
+  renameInFlight = false;
   window.clearTimeout(reconnectTimer);
+  window.clearTimeout(snapshotFallbackTimer);
+  if (fitColumnsTimer) fitAllColumnWidths(true);
+  window.clearTimeout(fitColumnsTimer);
+  fitColumnsTimer = null;
   lastSnapshotRevision = null;
+  notifiedEdits.clear();
+  roomSnapshotReady = false;
+  connectionText.value = "连接中";
   activeRoomId.value = roomId;
   roomPassword.value = password;
   localStorage.setItem("office_active_room", roomId);
@@ -844,12 +970,16 @@ function activateRoom(roomId, password) {
   resetRoomState();
   socket.value?.close();
   socket.value = null;
+  if (snapshot) applySnapshot(snapshot);
   connect();
-  loadSnapshotForCurrentRoom();
+  if (!snapshot) {
+    // 并行恢复快照和实时连接，先到的数据立即显示。
+    loadSnapshotForCurrentRoom();
+  }
 }
 
 async function enterRoom(room) {
-  if (!room.id) return;
+  if (!room.id || roomActionLoading.value) return;
   const sequence = ++roomEntrySequence;
   pendingRoomId.value = room.id;
   const password = localStorage.getItem(`office_room_password:${room.id}`) || "";
@@ -863,39 +993,62 @@ async function enterRoom(room) {
 }
 
 async function verifyAndEnterRoom(roomId, password, sequence) {
-  const response = await fetch("/api/office/snapshot", {
-    cache: "no-store",
-    headers: roomHeaders(roomId, password)
-  }).catch(() => null);
-  if (sequence !== roomEntrySequence) return;
-  if (!response?.ok) {
-    if (response?.status === 403) {
-      localStorage.removeItem(`office_room_password:${roomId}`);
-      roomPasswordInput.value = "";
-      roomDialogMode.value = "enter";
-      roomDialogVisible.value = true;
-      ElMessage.error("房间密码错误，请重新输入");
-    } else ElMessage.error("无法连接房间，请稍后重试");
-    return;
+  if (roomActionLoading.value) return;
+  roomActionLoading.value = true;
+  try {
+    const response = await fetch("/api/office/snapshot", {
+      cache: "no-store",
+      headers: roomHeaders(roomId, password)
+    });
+    if (sequence !== roomEntrySequence) return;
+    if (!response.ok) {
+      if (response.status === 403) {
+        localStorage.removeItem(`office_room_password:${roomId}`);
+        roomPasswordInput.value = "";
+        roomDialogMode.value = "enter";
+        roomDialogVisible.value = true;
+        ElMessage.error("房间密码错误，请重新输入");
+      } else ElMessage.error("无法连接房间，请稍后重试");
+      return;
+    }
+    const snapshot = await response.json();
+    if (sequence !== roomEntrySequence) return;
+    if (!snapshot.topics?.[0]?.cells?.length) {
+      ElMessage.error("房间没有可用表格数据");
+      return;
+    }
+    roomDialogVisible.value = false;
+    activateRoom(roomId, password, snapshot);
+  } catch {
+    if (sequence === roomEntrySequence) ElMessage.error("无法连接房间，请稍后重试");
+  } finally {
+    roomActionLoading.value = false;
   }
-  roomDialogVisible.value = false;
-  activateRoom(roomId, password);
 }
 
 async function createRoom() {
+  if (roomActionLoading.value) return;
   if (!roomName.value.trim() || roomPasswordInput.value.length < 4) return ElMessage.warning("请输入房间名称和至少 4 位密码");
-  const response = await fetch("/api/office/rooms", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "", "X-Office-Guest": encodeURIComponent(guestName.value) }, body: JSON.stringify({ name: roomName.value.trim(), password: roomPasswordInput.value }) });
-  if (!response.ok) return ElMessage.error("创建房间失败");
-  const { room } = await response.json();
-  rooms.value.push(room);
-  roomDialogVisible.value = false;
-  roomEntrySequence += 1;
-  pendingRoomId.value = room.id;
-  activateRoom(room.id, roomPasswordInput.value);
+  const password = roomPasswordInput.value;
+  roomActionLoading.value = true;
+  try {
+    const response = await fetch("/api/office/rooms", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "", "X-Office-Guest": encodeURIComponent(guestName.value) }, body: JSON.stringify({ name: roomName.value.trim(), password }) });
+    if (!response.ok) return ElMessage.error("创建房间失败");
+    const { room } = await response.json();
+    rooms.value.push(room);
+    roomDialogVisible.value = false;
+    roomEntrySequence += 1;
+    pendingRoomId.value = room.id;
+    activateRoom(room.id, password);
+  } catch {
+    ElMessage.error("创建房间失败，请检查网络后重试");
+  } finally {
+    roomActionLoading.value = false;
+  }
 }
 
 function confirmEnterRoom() {
-  if (!pendingRoomId.value) return;
+  if (!pendingRoomId.value || roomActionLoading.value) return;
   verifyAndEnterRoom(pendingRoomId.value, roomPasswordInput.value, ++roomEntrySequence);
 }
 
@@ -907,11 +1060,24 @@ function logout() {
 
 function renameGuest() {
   const next = window.prompt("修改昵称", currentDisplayName.value)?.trim();
-  if (!next) return;
+  if (!next || next.slice(0, 40) === currentDisplayName.value) return;
+  const oldName = currentDisplayName.value;
   displayName.value = next.slice(0, 40);
   localStorage.setItem("office_display_name", displayName.value);
-  send({ type: "user:rename", name: displayName.value });
+  const pending = JSON.parse(localStorage.getItem("office_pending_renames") || "[]");
+  pending.push({ oldName, name: displayName.value });
+  localStorage.setItem("office_pending_renames", JSON.stringify(pending));
+  syncPendingRename();
   user.value = { ...user.value, name: displayName.value };
+}
+
+function syncPendingRename() {
+  if (socket.value?.readyState !== WebSocket.OPEN || renameInFlight) return;
+  const pending = JSON.parse(localStorage.getItem("office_pending_renames") || "[]");
+  if (pending.length) {
+    renameInFlight = true;
+    send({ type: "user:rename", ...pending[0] });
+  }
 }
 
 function openPasswordDialog() {
@@ -937,9 +1103,12 @@ async function submitPassword() {
 
 onMounted(() => {
   document.addEventListener("scroll", handleOfficeScroll, true);
+  if (activeRoomId.value && roomPassword.value) {
+    pendingRoomId.value = activeRoomId.value;
+    activateRoom(activeRoomId.value, roomPassword.value);
+  }
   loadRooms();
 });
-onMounted(() => officeChannel?.addEventListener("message", notifyFromOtherTab));
 onMounted(() => document.addEventListener("visibilitychange", clearOfficeTitleNotice));
 onMounted(requestOfficeNotifications);
 onMounted(() => {
@@ -952,11 +1121,17 @@ onMounted(() => {
   document.addEventListener("focusin", handleFocusIn, true);
 });
 onUnmounted(() => {
+  flushFixedCellWrites();
+  roomEntrySequence += 1;
+  roomConnectionSequence += 1;
+  snapshotSequence += 1;
+  window.clearTimeout(snapshotFallbackTimer);
+  if (fitColumnsTimer) fitAllColumnWidths(true);
+  window.clearTimeout(fitColumnsTimer);
+  if (scrollFrame !== null) window.cancelAnimationFrame(scrollFrame);
   document.removeEventListener("scroll", handleOfficeScroll, true);
   window.clearInterval(titleFlashTimer);
   document.title = defaultDocumentTitle;
-  officeChannel?.removeEventListener("message", notifyFromOtherTab);
-  officeChannel?.close();
   document.removeEventListener("visibilitychange", clearOfficeTitleNotice);
   socket.value?.close();
   window.clearTimeout(reconnectTimer);
@@ -971,12 +1146,12 @@ onUnmounted(() => {
 
 <template>
   <div class="office-page">
-    <header class="office-titlebar"><span class="office-app-icon">X</span><strong>{{ activeRoomName }}</strong><span class="office-save">{{ title }}</span><span class="office-online"><span class="presence-dot"></span>{{ connectionText }}</span><button type="button" class="office-user" @click="renameGuest">{{ currentDisplayName }}⌄</button></header>
+    <header class="office-titlebar"><span class="office-app-icon">X</span><strong>{{ activeRoomName }}</strong><span class="office-save">{{ title }}</span><span class="office-online"><span class="presence-dot"></span>{{ roomActionLoading ? (roomDialogMode === 'create' ? '创建中…' : '进入中…') : connectionText }}</span><button type="button" class="office-user" @click="renameGuest">{{ currentDisplayName }}⌄</button></header>
     <nav class="office-ribbon"><button>文件</button><button class="is-active">开始</button><button>插入</button><button>布局</button><button>审阅</button><span class="ribbon-separator"></span><span class="ribbon-tool">剪切</span><span class="ribbon-tool">复制</span><span class="ribbon-tool">粘贴</span><span class="ribbon-separator"></span><span class="ribbon-tool">自动换行</span><span class="ribbon-tool">筛选</span></nav>
     <section class="workbench-shell">
-      <aside v-if="!roomListCollapsed" class="office-room-list"><div class="office-room-head"><strong>聊天房间</strong><span><button type="button" title="新建房间" @click="roomDialogMode = 'create'; roomName = ''; roomPasswordInput = ''; roomDialogVisible = true">＋</button><button type="button" class="room-collapse-button" title="收起房间列表" aria-label="收起房间列表" @click="roomListCollapsed = true">‹</button></span></div><div v-for="room in rooms" :key="room.id" class="office-room-row"><button type="button" class="office-room-item" :class="{ 'is-active': room.id === activeRoomId }" @click="room.id === activeRoomId ? null : enterRoom(room)">{{ room.name }}<small>{{ room.protected ? '🔒' : '' }} {{ room.online || 0 }}</small></button><el-dropdown v-if="room.id !== 'main'" trigger="click"><button type="button" class="office-room-more">⋯</button><template #dropdown><el-dropdown-menu><el-dropdown-item @click="changeRoomPassword(room)">修改密码</el-dropdown-item><el-dropdown-item divided @click="deleteRoom(room)">删除房间</el-dropdown-item></el-dropdown-menu></template></el-dropdown></div></aside>
+      <aside v-if="!roomListCollapsed" class="office-room-list"><div class="office-room-head"><strong>聊天房间</strong><span><button type="button" title="新建房间" :disabled="roomActionLoading" @click="roomDialogMode = 'create'; roomName = ''; roomPasswordInput = ''; roomDialogVisible = true">＋</button><button type="button" class="room-collapse-button" title="收起房间列表" aria-label="收起房间列表" @click="roomListCollapsed = true">‹</button></span></div><div v-for="room in rooms" :key="room.id" class="office-room-row"><button type="button" class="office-room-item" :disabled="roomActionLoading" :class="{ 'is-active': room.id === activeRoomId }" @click="room.id === activeRoomId ? null : enterRoom(room)">{{ room.name }}<small>{{ room.protected ? '🔒' : '' }} {{ room.online || 0 }}</small></button><el-dropdown v-if="room.id !== 'main'" trigger="click"><button type="button" class="office-room-more">⋯</button><template #dropdown><el-dropdown-menu><el-dropdown-item @click="changeRoomPassword(room)">修改密码</el-dropdown-item><el-dropdown-item divided @click="deleteRoom(room)">删除房间</el-dropdown-item></el-dropdown-menu></template></el-dropdown></div></aside>
       <button v-else type="button" class="office-room-expand" title="展开房间列表" aria-label="展开房间列表" @click="roomListCollapsed = false">›</button>
-       <div v-if="!activeRoomId" class="office-empty-room"><h2>请创建房间</h2><p>创建一个聊天房间后开始协作编辑。</p><button type="button" @click="roomDialogMode = 'create'; roomName = ''; roomPasswordInput = ''; roomDialogVisible = true">＋ 创建房间</button></div><div v-else class="sheet-panel" :class="{ 'is-imported-sheet': importedSheet }">
+       <div v-if="!activeRoomId" class="office-empty-room"><h2>请创建房间</h2><p>创建一个聊天房间后开始协作编辑。</p><button type="button" :disabled="roomActionLoading" @click="roomDialogMode = 'create'; roomName = ''; roomPasswordInput = ''; roomDialogVisible = true">＋ 创建房间</button></div><div v-else class="sheet-panel" :class="{ 'is-imported-sheet': importedSheet }">
          <div class="sheet-toolbar"><div class="sheet-tab"><span class="sheet-tab-icon">▦</span> 工作表</div><div class="sheet-actions"><button type="button" @click="addRow">＋ 行</button><button type="button" class="sheet-clear-button" @click="clearCurrentSheet">初始化</button><button type="button" @click="importFileInput?.click()">导入 Excel</button><input ref="importFileInput" class="office-hidden-file-input" type="file" accept=".xlsx,.xlsm" @change="importExcel"></div><span class="sheet-save-state">{{ saveState }}</span></div>
         <div class="formula-bar"><span class="name-box">{{ selectedCell }}</span><span class="formula-symbol">fx</span><input value="点击单元格编辑内容" readonly aria-label="公式栏提示"></div>
         <div class="sheet-scroll"><table class="workbench-sheet"><colgroup><col class="col-row-number"><col v-for="(_, index) in sheetColumns" :key="index" :style="{ width: `${columnWidths[index]}px` }"></colgroup><thead><tr class="column-letters" :style="{ height: `${rowHeights.letters || 26}px` }"><th class="row-number"></th><th v-for="(_, index) in sheetColumns" :key="index">{{ String.fromCharCode(65 + index) }}<span class="column-resize-handle" @mousedown="beginResize(index, $event)"></span><span class="row-resize-handle" @mousedown="beginRowResize(0, $event)"></span></th></tr><tr class="sheet-title-row" :style="{ height: `${rowHeights.title || 30}px` }"><th class="row-number">1</th><th :colspan="sheetColumns.length" class="sheet-title-cell"><template v-if="fixedCellAuthor(0, 0)"><span class="cell-author">{{ fixedCellAuthor(0, 0) }}</span><span class="cell-edited-at">{{ formatEditedAt(activeTopic?.cellEditedAt?.['0:0']) }}：</span></template><input :value="title" aria-label="表格标题" @input="updateTitle($event.target.value)"><span class="row-resize-handle" @mousedown="beginRowResize(1, $event)"></span></th></tr><tr class="sheet-header" :style="{ height: `${rowHeights.header || 28}px` }"><th class="row-number">2</th><th v-for="(_, index) in sheetColumns" :key="index"><template v-if="index < 7 && fixedCellAuthor(1, index)"><span class="cell-author">{{ fixedCellAuthor(1, index) }}</span><span class="cell-edited-at">{{ formatEditedAt(activeTopic?.cellEditedAt?.[`1:${index}`]) }}：</span></template><input v-if="index < 7" :value="columns[index]" :aria-label="`第 ${index + 1} 列标题`" @input="updateHeader(index, $event.target.value)"></th></tr></thead><tbody><tr v-for="(row, rowIndex) in rows" :key="rowIndex" :style="{ height: `${rowHeights[rowIndex + 2] || 28}px` }"><td class="row-number">{{ rowIndex + 3 }}</td><td v-for="(_, cellIndex) in sheetColumns" :key="cellIndex" :class="{ 'is-selected': selectedCell === `${String.fromCharCode(65 + cellIndex)}${rowIndex + 3}` }" @click="selectedCell = `${String.fromCharCode(65 + cellIndex)}${rowIndex + 3}`"><template v-if="cellAuthor(rowIndex, cellIndex)"><span class="cell-author">{{ cellAuthor(rowIndex, cellIndex) }}</span><span class="cell-edited-at">{{ formatEditedAt(cellEditedAt(rowIndex, cellIndex)) }}：</span></template><input :value="displayCellValue(rowIndex + 2, cellIndex)" :aria-label="`${sheetColumns[cellIndex]} 第 ${rowIndex + 3} 行`" @input="updateCell(rowIndex, cellIndex, $event.target.value)"><span class="row-resize-handle" @mousedown="beginRowResize(rowIndex + 2, $event)"></span></td></tr></tbody></table></div>
@@ -984,7 +1159,7 @@ onUnmounted(() => {
         <div class="office-sheet-tabs"><button v-for="topic in topics" :key="topic.id" type="button" :class="{ 'is-active': topic.id === activeTopicId }" @click="selectTopic(topic)">▦ {{ topic.name }}</button><button type="button" class="add-sheet" title="新建话题" @click="addTopic">＋</button></div>
       </div>
     </section>
-    <el-dialog v-model="roomDialogVisible" :title="roomDialogMode === 'create' ? '新建聊天房间' : '进入聊天房间'" width="min(92vw, 380px)"><el-form label-position="top"><el-form-item v-if="roomDialogMode === 'create'" label="房间名称"><el-input v-model="roomName" /></el-form-item><el-form-item label="房间密码"><el-input v-model="roomPasswordInput" type="password" show-password /></el-form-item></el-form><template #footer><el-button @click="roomDialogVisible = false; roomEntrySequence++">取消</el-button><el-button type="primary" @click="roomDialogMode === 'create' ? createRoom() : confirmEnterRoom()">{{ roomDialogMode === 'create' ? '创建' : '进入' }}</el-button></template></el-dialog>
+    <el-dialog v-model="roomDialogVisible" :title="roomDialogMode === 'create' ? '新建聊天房间' : '进入聊天房间'" width="min(92vw, 380px)" :show-close="!roomActionLoading" :close-on-click-modal="!roomActionLoading" :close-on-press-escape="!roomActionLoading"><el-form label-position="top"><el-form-item v-if="roomDialogMode === 'create'" label="房间名称"><el-input v-model="roomName" :disabled="roomActionLoading" /></el-form-item><el-form-item label="房间密码"><el-input v-model="roomPasswordInput" type="password" show-password :disabled="roomActionLoading" @keyup.enter="roomDialogMode === 'create' ? createRoom() : confirmEnterRoom()" /></el-form-item></el-form><template #footer><el-button :disabled="roomActionLoading" @click="roomDialogVisible = false; roomEntrySequence++">取消</el-button><el-button type="primary" :loading="roomActionLoading" @click="roomDialogMode === 'create' ? createRoom() : confirmEnterRoom()">{{ roomActionLoading ? (roomDialogMode === 'create' ? '创建中…' : '进入中…') : (roomDialogMode === 'create' ? '创建' : '进入') }}</el-button></template></el-dialog>
     <el-dialog v-model="passwordDialogVisible" title="修改密码" width="min(92vw, 420px)"><el-form label-position="top" @submit.prevent="submitPassword"><el-form-item label="当前密码"><el-input v-model="passwordForm.currentPassword" type="password" show-password /></el-form-item><el-form-item label="新密码"><el-input v-model="passwordForm.newPassword" type="password" show-password /></el-form-item><el-form-item label="确认新密码"><el-input v-model="passwordForm.confirmPassword" type="password" show-password @keyup.enter="submitPassword" /></el-form-item></el-form><template #footer><el-button @click="passwordDialogVisible = false">取消</el-button><el-button type="primary" :loading="passwordLoading" @click="submitPassword">确认修改</el-button></template></el-dialog>
   </div>
 </template>

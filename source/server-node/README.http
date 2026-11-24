@@ -13,6 +13,17 @@ X-Office-Room: {{officeRoomId}}
 X-Office-Password: {{officePasswordEncoded}}
 X-Office-Password-Encoding: uri
 
+### 写入单元格；客户端 ID 在浏览器中持久保存，用于改名时识别作者
+POST {{baseUrl}}/office/cell
+Content-Type: application/json
+X-Office-Room: {{officeRoomId}}
+X-Office-Password: {{officePasswordEncoded}}
+X-Office-Password-Encoding: uri
+X-Office-Client-Id: replace-with-stable-client-id
+X-Office-Display-Name: %E6%B8%B8%E5%AE%A2
+
+{"topicId":"topic-1","row":2,"column":0,"value":"测试"}
+
 ### Register a bookmark test account (run once)
 POST {{baseUrl}}/auth/register
 Content-Type: application/json

@@ -1,7 +1,7 @@
 const jwt = require("jsonwebtoken");
 const { WebSocketServer } = require("ws");
 const config = require("../config");
-const { getRoom, verifyRoom, broadcast, removeClient, initializeTopic, defaultColumnWidths } = require("./room-manager");
+const { verifyRoom, broadcast, removeClient, initializeTopic, defaultColumnWidths, renameClientAuthors } = require("./room-manager");
 const { validCell, createRateLimiter } = require("./write-limits");
 
 function attachOfficeWebSocket(server) {
@@ -35,6 +35,7 @@ function attachOfficeWebSocket(server) {
      const displayName = String(url.searchParams.get("displayName") || request.user.username || "用户").trim().slice(0, 40);
      const user = { id: String(request.user.sub), name: displayName || "用户" };
      client.officeUser = user;
+     client.officeClientId = String(url.searchParams.get("clientId") || "").slice(0, 100);
       client.send(JSON.stringify({ type: "snapshot", user, topics: room.topics, locks: room.locks, columnWidths: room.columnWidths, revision: room.revision }));
     broadcast(room, { type: "presence", name: user.name, count: room.clients.size }, client);
     client.on("message", (raw) => {
@@ -49,18 +50,13 @@ function attachOfficeWebSocket(server) {
        if (message.type === "user:rename") {
          const nextName = String(message.name || "").trim().slice(0, 40);
          if (!nextName) return;
-         const previousName = client.officeUser?.name || "用户";
+         const previousName = String(message.oldName || client.officeUser?.name || "用户").trim().slice(0, 40);
          client.officeUser.name = nextName;
-         for (const topic of room.topics) {
-           for (const key of Object.keys(topic.cellAuthors || {})) {
-             if (topic.cellAuthors[key] === previousName) topic.cellAuthors[key] = nextName;
-           }
-           for (const chat of topic.messages || []) {
-             if (chat.author === previousName) chat.author = nextName;
-           }
+         const updatedRooms = renameClientAuthors(client.officeClientId, previousName, nextName, room);
+         for (const updatedRoom of updatedRooms) {
+           broadcast(updatedRoom, { type: "user:renamed", oldName: previousName, name: nextName, clientId: client.officeClientId, revision: updatedRoom.revision });
          }
-         room.revision += 1;
-         broadcast(room, { type: "user:renamed", oldName: previousName, name: nextName, revision: room.revision });
+         client.send(JSON.stringify({ type: "user:rename:ack", oldName: previousName, name: nextName }));
          client.send(JSON.stringify({ type: "snapshot", user: client.officeUser, topics: room.topics, locks: room.locks, columnWidths: room.columnWidths, revision: room.revision }));
          return;
        }
@@ -100,7 +96,7 @@ function attachOfficeWebSocket(server) {
            if (key.startsWith(`${topic.id}:`)) room.lockClients.delete(key);
          }
          room.columnWidths = [...defaultColumnWidths];
-         room.revision += 1;
+         room.revision = (room.revision || 0) + 1;
          const initialized = { type: "sheet:initialized", topic, columnWidths: room.columnWidths, user: user.name, suppressUnread: true, revision: room.revision };
          broadcast(room, initialized, client);
          client.send(JSON.stringify({ ...initialized, requestId: message.requestId }));
@@ -115,12 +111,13 @@ function attachOfficeWebSocket(server) {
          topic.imported = message.imported === true;
          topic.rowHeights = message.rowHeights && typeof message.rowHeights === "object" ? message.rowHeights : {};
          topic.cellAuthors = {};
+         topic.cellAuthorIds = {};
          topic.cellEditedAt = {};
          topic.messages = [];
          Object.keys(room.locks).filter((key) => key.startsWith(`${topic.id}:`)).forEach((key) => delete room.locks[key]);
          for (const [key] of room.lockClients) if (key.startsWith(`${topic.id}:`)) room.lockClients.delete(key);
          room.columnWidths = Array.isArray(message.columnWidths) ? message.columnWidths.slice(0, 26).map((value) => Math.max(42, Math.min(800, Number(value) || 58))) : [...defaultColumnWidths];
-         room.revision += 1;
+         room.revision = (room.revision || 0) + 1;
          const replaced = { type: "sheet:replaced", topic, columnWidths: room.columnWidths, user: user.name, suppressUnread: true, revision: room.revision };
          broadcast(room, replaced, client);
          client.send(JSON.stringify({ ...replaced, requestId: message.requestId }));
@@ -149,19 +146,22 @@ function attachOfficeWebSocket(server) {
           const previousValue = String(topic.cells[message.row][message.column] || "");
           if (nextValue === previousValue) return;
           topic.cells[message.row][message.column] = nextValue;
-          room.revision += 1;
+           room.revision = (room.revision || 0) + 1;
          topic.cellAuthors ||= {};
          const authorKey = `${message.row}:${message.column}`;
          if (nextValue.trim()) {
-           topic.cellAuthors[authorKey] = user.name;
+            topic.cellAuthors[authorKey] = user.name;
+            if (client.officeClientId) (topic.cellAuthorIds ||= {})[authorKey] = client.officeClientId;
+            else if (topic.cellAuthorIds) delete topic.cellAuthorIds[authorKey];
            topic.cellEditedAt ||= {};
            topic.cellEditedAt[authorKey] = Date.now();
          } else {
-           delete topic.cellAuthors[authorKey];
+            delete topic.cellAuthors[authorKey];
+            if (topic.cellAuthorIds) delete topic.cellAuthorIds[authorKey];
            topic.cellEditedAt ||= {};
            delete topic.cellEditedAt[authorKey];
          }
-          const update = { ...message, type: "cell:updated", value: topic.cells[message.row][message.column], user: user.name, editedAt: topic.cellEditedAt?.[authorKey] || null, revision: room.revision };
+           const update = { ...message, type: "cell:updated", value: topic.cells[message.row][message.column], user: user.name, clientId: client.officeClientId, editedAt: topic.cellEditedAt?.[authorKey] || null, revision: room.revision };
           broadcast(room, update, client);
          client.send(JSON.stringify({ type: "cell:update:ack", requestId: message.requestId, revision: room.revision }));
         } else if (message.type === "cell:draft") {

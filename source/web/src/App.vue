@@ -1,9 +1,10 @@
 <script setup>
-import { computed } from "vue";
+import { computed, defineAsyncComponent } from "vue";
 import { useRoute } from "vue-router";
-import AppLayout from "./layouts/AppLayout.vue";
-import LoginView from "./views/LoginView.vue";
 import ChatWorkbenchView from "./views/ChatWorkbenchView.vue";
+
+const AppLayout = defineAsyncComponent(() => import("./layouts/AppLayout.vue"));
+const LoginView = defineAsyncComponent(() => import("./views/LoginView.vue"));
 
 const route = useRoute();
 const isLoginPage = computed(() => route.name === "login");

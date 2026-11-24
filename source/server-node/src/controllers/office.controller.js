@@ -33,19 +33,23 @@ function updateCell(req, res) {
   const previousValue = String(topic.cells[row][column] || "");
   if (nextValue === previousValue) return res.json({ ok: true, changed: false });
   topic.cells[row][column] = nextValue;
-  room.revision += 1;
+  room.revision = (room.revision || 0) + 1;
   topic.cellAuthors ||= {};
   const displayName = decodeOfficeHeader(req.headers["x-office-display-name"], req.auth.username || "用户");
   const authorKey = `${row}:${column}`;
   topic.cellEditedAt ||= {};
   if (nextValue.trim()) {
     topic.cellAuthors[authorKey] = displayName;
+    const clientId = String(req.headers["x-office-client-id"] || "").slice(0, 100);
+    if (clientId) (topic.cellAuthorIds ||= {})[authorKey] = clientId;
+    else if (topic.cellAuthorIds) delete topic.cellAuthorIds[authorKey];
     topic.cellEditedAt[authorKey] = Date.now();
   } else {
     delete topic.cellAuthors[authorKey];
+    if (topic.cellAuthorIds) delete topic.cellAuthorIds[authorKey];
     delete topic.cellEditedAt[authorKey];
   }
-  broadcast(room, { type: "cell:updated", topicId, row, column, value: topic.cells[row][column], user: displayName, editedAt: topic.cellEditedAt[authorKey] || null, revision: room.revision });
+  broadcast(room, { type: "cell:updated", topicId, row, column, value: topic.cells[row][column], user: displayName, clientId: String(req.headers["x-office-client-id"] || "").slice(0, 100), editedAt: topic.cellEditedAt[authorKey] || null, revision: room.revision });
   return res.json({ ok: true, revision: room.revision });
 }
 

@@ -50,16 +50,17 @@ function createRoom(roomId = "main", name = "默认房间", password = "", owner
     password,
     ownerId,
     ownerName,
+    locks: {},
+    lockClients: new Map(),
+    columnWidths: [...defaultColumnWidths],
+    revision: 0,
     topics: [{
       id: "topic-1",
       name: "今日记录",
       cells: [["System添加新测试站的流程"], ["No", "系统", "步骤", "详细信息", "RD", "时间", "结果"], ...rows.map((row, index) => [index + 1, "TEST", row[0], row[2], "", "", row[1]])],
-    cellAuthors: {},
-    cellEditedAt: {},
-    locks: {},
-    lockClients: new Map(),
-    columnWidths: [58, 58, 180, 380, 58, 58, 58, ...Array(19).fill(58)],
-    revision: 0,
+      cellAuthors: {},
+      cellAuthorIds: {},
+      cellEditedAt: {},
       messages: []
     }],
     clients: new Set()
@@ -73,6 +74,7 @@ function initializeTopic(topic) {
   topic.imported = false;
   delete topic.rowHeights;
   topic.cellAuthors = {};
+  topic.cellAuthorIds = {};
   topic.cellEditedAt = {};
   topic.messages = [];
 }
@@ -107,6 +109,28 @@ function verifyRoom(roomId, password) {
   return room && room.password === password ? room : null;
 }
 
+function renameClientAuthors(clientId, previousName, nextName, currentRoom) {
+  const updatedRooms = [];
+  for (const room of rooms.values()) {
+    let changed = false;
+    for (const topic of room.topics) {
+      for (const [key, author] of Object.entries(topic.cellAuthors || {})) {
+        const owner = topic.cellAuthorIds?.[key];
+        if ((clientId && owner === clientId) || (room === currentRoom && !owner && author === previousName)) {
+          topic.cellAuthors[key] = nextName;
+          if (clientId) (topic.cellAuthorIds ||= {})[key] = clientId;
+          changed = true;
+        }
+      }
+    }
+    if (changed) {
+      room.revision = (room.revision || 0) + 1;
+      updatedRooms.push(room);
+    }
+  }
+  return updatedRooms;
+}
+
 function removeRoom(roomId) {
   if (roomId === "main") return false;
   return rooms.delete(roomId);
@@ -135,4 +159,4 @@ function removeClient(roomId, client) {
   // 房间只在 Node 进程重启时重置，短暂断线和自动重连不能丢失内容。
 }
 
-module.exports = { getRoom, listRooms, createNamedRoom, verifyRoom, removeRoom, broadcast, removeClient, initializeTopic, defaultColumnWidths };
+module.exports = { getRoom, listRooms, createNamedRoom, verifyRoom, removeRoom, broadcast, removeClient, initializeTopic, defaultColumnWidths, renameClientAuthors };
