@@ -2,7 +2,6 @@
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from "vue";
 import { ElMessage } from "element-plus";
 import { changePassword } from "../api/auth";
-import ExcelJS from "exceljs";
 
 const columns = ref([]);
 const topics = ref([]);
@@ -41,16 +40,16 @@ const activeTopic = computed(() => topics.value.find((topic) => topic.id === act
 const importedSheet = computed(() => Boolean(activeTopic.value?.imported));
 const activeRoomName = computed(() => rooms.value.find((room) => room.id === activeRoomId.value)?.name || "未进入房间");
 const title = computed(() => activeTopic.value?.cells[0]?.[0] || "Book1");
-const dataRows = computed(() => (activeTopic.value?.cells.slice(2) || []).map((row, rowIndex) => (Array.isArray(row) ? row : []).map((value, columnIndex) => {
-  const draftKey = `${activeTopicId.value}:${rowIndex + 2}:${columnIndex}`;
-  return Object.prototype.hasOwnProperty.call(drafts, draftKey) ? drafts[draftKey] : value;
-})));
-const emptyRows = ref(100);
-const rows = computed(() => [...dataRows.value, ...Array.from({ length: emptyRows.value }, () => [])]);
-const sheetColumns = computed(() => [
-  ...columns.value,
-  ...Array.from({ length: 19 }, (_, index) => "列" + String.fromCharCode(72 + index))
-]);
+const dataRows = computed(() => activeTopic.value?.cells?.slice(2) || []);
+const visibleRowCount = ref(50);
+const rows = computed(() => {
+  const data = dataRows.value.slice(0, visibleRowCount.value);
+  return [...data, ...Array.from({ length: Math.max(0, visibleRowCount.value - data.length) }, () => [])];
+});
+const sheetColumns = computed(() => Array.from(
+  { length: Math.max(26, columns.value.length) },
+  (_, index) => columns.value[index] || `列${String.fromCharCode(65 + index)}`
+));
 
 function beginResize(index, event) {
   event.preventDefault();
@@ -117,8 +116,8 @@ function endRowResize() {
 const statusText = computed(() => `${dataRows.value.length} 行 · ${columns.value.length} 列 · 实时协作`);
 
 function handleSheetScroll(event) {
-  const element = event.currentTarget;
-  if (element.scrollTop + element.clientHeight >= element.scrollHeight - 240) emptyRows.value += 100;
+  const element = event.target;
+  if (element.scrollTop + element.clientHeight >= element.scrollHeight - 240) visibleRowCount.value += 25;
 }
 
 function handleOfficeScroll(event) {
@@ -220,6 +219,7 @@ function resetRoomState() {
   topics.value = [];
   activeTopicId.value = "";
   columns.value = [];
+  visibleRowCount.value = 50;
 }
 
 function isOwnAuthor(author) {
@@ -384,12 +384,14 @@ async function loadSnapshotForCurrentRoom() {
     return;
   }
   user.value = snapshot.user;
-  topics.value = snapshot.topics;
-  cellLocks.value = snapshot.locks || {};
+  const topicsChanged = JSON.stringify(topics.value) !== JSON.stringify(snapshot.topics);
+  if (topicsChanged) topics.value = snapshot.topics;
+  const locks = snapshot.locks || {};
+  if (JSON.stringify(cellLocks.value) !== JSON.stringify(locks)) cellLocks.value = locks;
   if (editingCell.value) cellLocks.value[editingCell.value] = currentDisplayName.value;
-   columnWidths.value = snapshot.columnWidths || columnWidths.value;
-   selectTopic(snapshot.topics[0]);
-   fitAllColumnWidths(false);
+  if (snapshot.columnWidths && JSON.stringify(columnWidths.value) !== JSON.stringify(snapshot.columnWidths)) columnWidths.value = snapshot.columnWidths;
+  const selectedTopic = topics.value.find((topic) => topic.id === activeTopicId.value) || topics.value[0];
+  if (topicsChanged && selectedTopic) selectTopic(selectedTopic);
 }
 
 function connect() {
@@ -426,7 +428,7 @@ function connect() {
         columnWidths.value = message.columnWidths || columnWidths.value;
          if (topics.value[0]) {
            selectTopic(topics.value[0]);
-           fitAllColumnWidths(false);
+           if (!topics.value[0].imported) fitAllColumnWidths(false);
          }
       } else if (message.type === "column:resized") {
         columnWidths.value[message.index] = message.width;
@@ -443,6 +445,9 @@ function connect() {
       if (pendingUpdates[message.requestId]) delete pendingUpdates[message.requestId];
       saveState.value = "保存失败";
       ElMessage.error(`${message.user || "其他用户"}已占用此单元格，内容未覆盖`);
+    } else if (message.type === "write:rate-limited") {
+      saveState.value = "操作过于频繁";
+      ElMessage.warning(message.message || "操作过于频繁，请稍后重试");
       } else if (message.type === "topic:created") {
         topics.value.push(message.topic);
         selectTopic(message.topic);
@@ -741,6 +746,7 @@ async function importExcel(event) {
   const extension = file.name.split(".").pop()?.toLowerCase();
   if (!['xlsx', 'xlsm'].includes(extension)) return ElMessage.warning("请选择 .xlsx 或 .xlsm 文件");
   try {
+    const { default: ExcelJS } = await import("exceljs");
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(await file.arrayBuffer());
     const worksheet = workbook.worksheets[0];
@@ -904,7 +910,9 @@ onMounted(() => officeChannel?.addEventListener("message", notifyFromOtherTab));
 onMounted(() => document.addEventListener("visibilitychange", clearOfficeTitleNotice));
 onMounted(requestOfficeNotifications);
 onMounted(() => {
-  snapshotTimer = window.setInterval(loadSnapshotForCurrentRoom, 1500);
+  snapshotTimer = window.setInterval(() => {
+    if (socket.value?.readyState !== WebSocket.OPEN || document.visibilityState === "visible") loadSnapshotForCurrentRoom();
+  }, 15000);
 });
 onMounted(() => {
   document.addEventListener("focusout", handleFocusOut, true);

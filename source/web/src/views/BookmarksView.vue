@@ -57,6 +57,7 @@ const folderShares = ref([]);
 const loadingFolderShares = ref(false);
 const loadingFolders = ref(false);
 const loadingItems = ref(false);
+const bookmarkListPanel = ref(null);
 let itemsRequestSequence = 0;
 const selectedIds = ref([]);
 const folderDialogVisible = ref(false);
@@ -316,7 +317,9 @@ async function toggleItemPin(item) {
 }
 
 function changePage(value) {
+  if (value === page.value) return;
   page.value = value;
+  bookmarkListPanel.value?.scrollTo({ top: 0 });
   loadItems();
 }
 
@@ -777,7 +780,7 @@ watch(activeTitle, (title) => window.dispatchEvent(new CustomEvent("wwjing:bookm
         <el-empty v-else :image-size="56" description="还没有目录" />
       </aside>
 
-      <main class="bookmark-list-panel">
+      <main ref="bookmarkListPanel" class="bookmark-list-panel">
         <div class="list-toolbar">
            <div class="list-toolbar-title">
              <el-button class="mobile-folder-toggle" text circle :icon="Folder" title="打开收藏目录" aria-label="打开收藏目录" @click="folderMenuVisible = true" />

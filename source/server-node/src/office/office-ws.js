@@ -2,9 +2,11 @@ const jwt = require("jsonwebtoken");
 const { WebSocketServer } = require("ws");
 const config = require("../config");
 const { getRoom, verifyRoom, broadcast, removeClient, initializeTopic, defaultColumnWidths } = require("./room-manager");
+const { validCell, createRateLimiter } = require("./write-limits");
 
 function attachOfficeWebSocket(server) {
   const wss = new WebSocketServer({ noServer: true });
+  const allowWrites = createRateLimiter({ limit: 300, windowMs: 10000 });
   server.on("upgrade", (request, socket, head) => {
     if (new URL(request.url, "http://localhost").pathname !== "/api/office/ws") return;
     const requestUrl = new URL(request.url, "http://localhost");
@@ -39,6 +41,11 @@ function attachOfficeWebSocket(server) {
       let message;
       try { message = JSON.parse(raw.toString()); } catch { return; }
        if (!message.type) return;
+       if (!allowWrites(request.socket.remoteAddress || "unknown")) {
+         client.send(JSON.stringify({ type: "write:rate-limited", message: "操作过于频繁，请稍后重试" }));
+         client.close(4429, "操作过于频繁");
+         return;
+       }
        if (message.type === "user:rename") {
          const nextName = String(message.name || "").trim().slice(0, 40);
          if (!nextName) return;
@@ -60,12 +67,13 @@ function attachOfficeWebSocket(server) {
        if (message.type === "column:resize") {
          const index = Number(message.index);
          const width = Math.max(42, Math.min(800, Number(message.width)));
-         if (!Number.isInteger(index) || !Number.isFinite(width)) return;
+          if (!Number.isInteger(index) || index < 0 || index > 25 || !Number.isFinite(width)) return;
          room.columnWidths[index] = width;
          broadcast(room, { type: "column:resized", index, width }, client);
          return;
        }
         if (message.type === "cell:lock" || message.type === "cell:unlock") {
+          if (!validCell(message.row, message.column) || !room.topics.some((topic) => topic.id === message.topicId)) return;
          const key = `${message.topicId}:${message.row}:${message.column}`;
          if (message.type === "cell:lock") {
            const owner = room.lockClients.get(key);
@@ -130,7 +138,7 @@ function attachOfficeWebSocket(server) {
         broadcast(room, { type: "topic:created", topic, user: user.name }, client);
       } else if (message.type === "cell:update") {
         const topic = room.topics.find((item) => item.id === message.topicId);
-        if (!topic || !Number.isInteger(message.row) || !Number.isInteger(message.column)) return;
+         if (!topic || !validCell(message.row, message.column)) return;
         topic.cells[message.row] ||= [];
          const key = `${message.topicId}:${message.row}:${message.column}`;
          if (room.lockClients.get(key) && room.lockClients.get(key) !== client) {
@@ -156,7 +164,8 @@ function attachOfficeWebSocket(server) {
           const update = { ...message, type: "cell:updated", value: topic.cells[message.row][message.column], user: user.name, editedAt: topic.cellEditedAt?.[authorKey] || null, revision: room.revision };
           broadcast(room, update, client);
          client.send(JSON.stringify({ type: "cell:update:ack", requestId: message.requestId, revision: room.revision }));
-       } else if (message.type === "cell:draft") {
+        } else if (message.type === "cell:draft") {
+          if (!validCell(message.row, message.column)) return;
          const key = `${message.topicId}:${message.row}:${message.column}`;
          if (room.lockClients.get(key) !== client) return;
          broadcast(room, { type: "cell:draft", ...message, value: String(message.value || "").slice(0, 2000), user: user.name }, client);

@@ -1,8 +1,12 @@
 server/node_modules/
 web/node_modules/
 web/dist/
+source/web/vite.config.js
+source/server-node/.env
+
 node_modules/
 *.log
 # .env
 # .env.*
 # !.env.example
+
