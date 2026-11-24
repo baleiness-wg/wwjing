@@ -456,6 +456,8 @@ function connect() {
         const topicIndex = topics.value.findIndex((item) => item.id === message.topic.id);
         if (topicIndex >= 0) topics.value[topicIndex] = message.topic;
         if (message.columnWidths) columnWidths.value = message.columnWidths;
+        if (message.topic.cellStyles) delete message.topic.cellStyles;
+        if (message.topic.imported) delete message.topic.imported;
         if (message.topic.rowHeights) rowHeights.value = message.topic.rowHeights;
         Object.keys(drafts).filter((key) => key.startsWith(`${message.topic.id}:`)).forEach((key) => delete drafts[key]);
         Object.keys(pendingLocalValues).filter((key) => key.startsWith(`${message.topic.id}:`)).forEach((key) => delete pendingLocalValues[key]);

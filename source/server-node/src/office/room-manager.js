@@ -69,6 +69,9 @@ function createRoom(roomId = "main", name = "默认房间", password = "", owner
 function initializeTopic(topic) {
   const template = createRoom("template").topics[0];
   topic.cells = JSON.parse(JSON.stringify(template.cells));
+  topic.cellStyles = {};
+  topic.imported = false;
+  delete topic.rowHeights;
   topic.cellAuthors = {};
   topic.cellEditedAt = {};
   topic.messages = [];
