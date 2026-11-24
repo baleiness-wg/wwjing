@@ -38,12 +38,15 @@ const resizingRow = ref(null);
 const resizeStartY = ref(0);
 const resizeStartHeight = ref(28);
 const activeTopic = computed(() => topics.value.find((topic) => topic.id === activeTopicId.value));
+const importedSheet = computed(() => Boolean(activeTopic.value?.imported));
 const activeRoomName = computed(() => rooms.value.find((room) => room.id === activeRoomId.value)?.name || "未进入房间");
 const title = computed(() => activeTopic.value?.cells[0]?.[0] || "Book1");
-const rows = computed(() => (activeTopic.value?.cells.slice(2) || []).map((row, rowIndex) => row.map((value, columnIndex) => {
+const dataRows = computed(() => (activeTopic.value?.cells.slice(2) || []).map((row, rowIndex) => row.map((value, columnIndex) => {
   const draftKey = `${activeTopicId.value}:${rowIndex + 2}:${columnIndex}`;
   return Object.prototype.hasOwnProperty.call(drafts, draftKey) ? drafts[draftKey] : value;
 })));
+const emptyRows = ref(100);
+const rows = computed(() => [...dataRows.value, ...Array.from({ length: emptyRows.value }, () => [])]);
 const sheetColumns = computed(() => [
   ...columns.value,
   ...Array.from({ length: 19 }, (_, index) => "列" + String.fromCharCode(72 + index))
@@ -111,7 +114,37 @@ function endRowResize() {
   window.removeEventListener("mousemove", resizeRow);
   window.removeEventListener("mouseup", endRowResize);
 }
-const statusText = computed(() => `${rows.value.length} 行 · ${columns.value.length} 列 · 实时协作`);
+const statusText = computed(() => `${dataRows.value.length} 行 · ${columns.value.length} 列 · 实时协作`);
+
+function handleSheetScroll(event) {
+  const element = event.currentTarget;
+  if (element.scrollTop + element.clientHeight >= element.scrollHeight - 240) emptyRows.value += 100;
+}
+
+function handleOfficeScroll(event) {
+  if (event.target?.classList?.contains("sheet-scroll")) handleSheetScroll(event);
+}
+
+function cellInlineStyle(row, column) {
+  const style = activeTopic.value?.cellStyles?.[`${row}:${column}`];
+  if (!style) return undefined;
+  return {
+    backgroundColor: style.fill,
+    color: style.color,
+    fontFamily: style.fontFamily,
+    fontSize: style.fontSize ? `${style.fontSize}px` : undefined,
+    fontWeight: style.bold ? "700" : undefined,
+    fontStyle: style.italic ? "italic" : undefined,
+    textDecoration: style.underline ? "underline" : undefined,
+    textAlign: style.horizontal,
+    verticalAlign: style.vertical,
+    whiteSpace: style.wrapText ? "normal" : "nowrap",
+    borderTop: style.borderTop,
+    borderRight: style.borderRight,
+    borderBottom: style.borderBottom,
+    borderLeft: style.borderLeft
+  };
+}
 
 function syncCellLockBadges() {
   nextTick(() => {
@@ -413,6 +446,7 @@ function connect() {
         const topicIndex = topics.value.findIndex((item) => item.id === message.topic.id);
         if (topicIndex >= 0) topics.value[topicIndex] = message.topic;
         if (message.columnWidths) columnWidths.value = message.columnWidths;
+        if (message.rowHeights) rowHeights.value = message.rowHeights;
         Object.keys(drafts).filter((key) => key.startsWith(`${message.topic.id}:`)).forEach((key) => delete drafts[key]);
         Object.keys(pendingLocalValues).filter((key) => key.startsWith(`${message.topic.id}:`)).forEach((key) => delete pendingLocalValues[key]);
         Object.keys(unreadCells.value).filter((key) => key.startsWith(`${message.topic.id}:`)).forEach((key) => delete unreadCells.value[key]);
@@ -449,11 +483,21 @@ function currentIdentity() {
   return savedUser?.username || guestName.value;
 }
 
-function addRow() {
+async function addRow() {
   if (!activeTopic.value) return;
-  const row = [activeTopic.value.cells.length - 1, "", "新事项", "", "", "", ""];
+  const rowIndex = activeTopic.value.cells.length;
+  const row = [rowIndex - 1, "", "新事项", "", "", "", ""];
   activeTopic.value.cells.push(row);
-  send({ type: "cell:update", topicId: activeTopicId.value, row: activeTopic.value.cells.length - 1, column: 2, value: row[2] });
+  const localKey = `${activeTopicId.value}:${rowIndex}:2`;
+  pendingLocalValues[localKey] = row[2];
+  saveState.value = "保存中";
+  send({ type: "cell:update", topicId: activeTopicId.value, row: rowIndex, column: 2, value: row[2] });
+  const saved = await updateCellFallback(activeTopicId.value, rowIndex, 2, row[2]);
+  if (!saved) {
+    saveState.value = "保存失败";
+    return;
+  }
+  saveState.value = "已同步";
 }
 
 function updateCell(rowIndex, cellIndex, value, sync = true) {
@@ -631,6 +675,40 @@ function normalizeImportedRows(rows) {
   return normalized.length ? normalized : [["导入工作表"], ["列1"]];
 }
 
+function excelColor(color) {
+  if (!color) return "";
+  if (color.argb?.length === 8) return `#${color.argb.slice(2)}`;
+  if (color.rgb) return color.rgb.startsWith("#") ? color.rgb : `#${color.rgb}`;
+  return "";
+}
+
+function excelBorder(border) {
+  if (!border?.style) return "";
+  const colors = excelColor(border.color);
+  return `${Math.max(1, border.style === "thick" ? 2 : 1)}px solid ${colors || "#999"}`;
+}
+
+function excelCellStyle(cell) {
+  const font = cell.font || {};
+  const fill = cell.fill?.type === "pattern" ? excelColor(cell.fill.fgColor) : "";
+  return {
+    fill,
+    color: excelColor(font.color),
+    fontFamily: font.name,
+    fontSize: font.size,
+    bold: Boolean(font.bold),
+    italic: Boolean(font.italic),
+    underline: Boolean(font.underline),
+    horizontal: cell.alignment?.horizontal,
+    vertical: cell.alignment?.vertical,
+    wrapText: Boolean(cell.alignment?.wrapText),
+    borderTop: excelBorder(cell.border?.top),
+    borderRight: excelBorder(cell.border?.right),
+    borderBottom: excelBorder(cell.border?.bottom),
+    borderLeft: excelBorder(cell.border?.left)
+  };
+}
+
 async function importExcel(event) {
   const file = event.target.files?.[0];
   event.target.value = "";
@@ -643,17 +721,22 @@ async function importExcel(event) {
     const worksheet = workbook.worksheets[0];
     if (!worksheet) return ElMessage.warning("Excel 文件没有可导入的工作表");
     const values = [];
+    const cellStyles = {};
     worksheet.eachRow({ includeEmpty: true }, (row) => {
       const cells = [];
       for (let column = 1; column <= Math.min(26, worksheet.columnCount); column += 1) {
         const value = row.getCell(column).value;
+        cellStyles[`${row.number - 1}:${column - 1}`] = excelCellStyle(row.getCell(column));
         cells.push(value && typeof value === "object" && "text" in value ? value.text : value);
       }
       values.push(cells);
     });
     const cells = normalizeImportedRows(values);
     if (!window.confirm(`导入“${file.name}”将覆盖当前工作表，是否继续？`)) return;
-    send({ type: "sheet:replace", topicId: activeTopicId.value, cells, requestId: `${Date.now()}-${Math.random().toString(36).slice(2)}` });
+    const columnWidths = Array.from({ length: Math.min(26, worksheet.columnCount) }, (_, index) => Math.max(42, Math.min(800, (worksheet.getColumn(index + 1).width || 10) * 8)));
+    const rowHeights = {};
+    worksheet.eachRow({ includeEmpty: true }, (row) => { if (row.height) rowHeights[row.number - 1] = Math.max(22, row.height * 1.35); });
+    send({ type: "sheet:replace", topicId: activeTopicId.value, cells, cellStyles, columnWidths, rowHeights, imported: true, requestId: `${Date.now()}-${Math.random().toString(36).slice(2)}` });
     saveState.value = "导入中";
   } catch (error) {
     ElMessage.error(`Excel 导入失败：${error.message || "文件格式无效"}`);
@@ -788,7 +871,10 @@ async function submitPassword() {
   }
 }
 
-onMounted(() => { loadRooms(); });
+onMounted(() => {
+  document.addEventListener("scroll", handleOfficeScroll, true);
+  loadRooms();
+});
 onMounted(() => officeChannel?.addEventListener("message", notifyFromOtherTab));
 onMounted(() => document.addEventListener("visibilitychange", clearOfficeTitleNotice));
 onMounted(requestOfficeNotifications);
@@ -800,6 +886,7 @@ onMounted(() => {
   document.addEventListener("focusin", handleFocusIn, true);
 });
 onUnmounted(() => {
+  document.removeEventListener("scroll", handleOfficeScroll, true);
   window.clearInterval(titleFlashTimer);
   document.title = defaultDocumentTitle;
   officeChannel?.removeEventListener("message", notifyFromOtherTab);
@@ -823,7 +910,7 @@ onUnmounted(() => {
     <section class="workbench-shell">
       <aside v-if="!roomListCollapsed" class="office-room-list"><div class="office-room-head"><strong>聊天房间</strong><span><button type="button" title="新建房间" @click="roomDialogMode = 'create'; roomName = ''; roomPassword = ''; roomDialogVisible = true">＋</button><button type="button" class="room-collapse-button" title="收起房间列表" aria-label="收起房间列表" @click="roomListCollapsed = true">‹</button></span></div><div v-for="room in rooms" :key="room.id" class="office-room-row"><button type="button" class="office-room-item" :class="{ 'is-active': room.id === activeRoomId }" @click="room.id === activeRoomId ? null : enterRoom(room)">{{ room.name }}<small>{{ room.protected ? '🔒' : '' }} {{ room.online || 0 }}</small></button><el-dropdown v-if="room.id !== 'main'" trigger="click"><button type="button" class="office-room-more">⋯</button><template #dropdown><el-dropdown-menu><el-dropdown-item @click="changeRoomPassword(room)">修改密码</el-dropdown-item><el-dropdown-item divided @click="deleteRoom(room)">删除房间</el-dropdown-item></el-dropdown-menu></template></el-dropdown></div></aside>
       <button v-else type="button" class="office-room-expand" title="展开房间列表" @click="roomListCollapsed = false">＋</button>
-      <div v-if="!activeRoomId" class="office-empty-room"><h2>请创建房间</h2><p>创建一个聊天房间后开始协作编辑。</p><button type="button" @click="roomDialogMode = 'create'; roomName = ''; roomPassword = ''; roomDialogVisible = true">＋ 创建房间</button></div><div v-else class="sheet-panel">
+       <div v-if="!activeRoomId" class="office-empty-room"><h2>请创建房间</h2><p>创建一个聊天房间后开始协作编辑。</p><button type="button" @click="roomDialogMode = 'create'; roomName = ''; roomPassword = ''; roomDialogVisible = true">＋ 创建房间</button></div><div v-else class="sheet-panel" :class="{ 'is-imported-sheet': importedSheet }">
          <div class="sheet-toolbar"><div class="sheet-tab"><span class="sheet-tab-icon">▦</span> 工作表</div><div class="sheet-actions"><button type="button" @click="addRow">＋ 行</button><button type="button" class="sheet-clear-button" @click="clearCurrentSheet">初始化</button><button type="button" @click="importFileInput?.click()">导入 Excel</button><input ref="importFileInput" class="office-hidden-file-input" type="file" accept=".xlsx,.xlsm" @change="importExcel"></div><span class="sheet-save-state">{{ saveState }}</span></div>
         <div class="formula-bar"><span class="name-box">{{ selectedCell }}</span><span class="formula-symbol">fx</span><input value="点击单元格编辑内容" readonly aria-label="公式栏提示"></div>
         <div class="sheet-scroll"><table class="workbench-sheet"><colgroup><col class="col-row-number"><col v-for="(_, index) in sheetColumns" :key="index" :style="{ width: `${columnWidths[index]}px` }"></colgroup><thead><tr class="column-letters" :style="{ height: `${rowHeights.letters || 26}px` }"><th class="row-number"></th><th v-for="(_, index) in sheetColumns" :key="index">{{ String.fromCharCode(65 + index) }}<span class="column-resize-handle" @mousedown="beginResize(index, $event)"></span><span class="row-resize-handle" @mousedown="beginRowResize(0, $event)"></span></th></tr><tr class="sheet-title-row" :style="{ height: `${rowHeights.title || 30}px` }"><th class="row-number">1</th><th :colspan="sheetColumns.length" class="sheet-title-cell"><span v-if="fixedCellAuthor(0, 0)" class="cell-author">{{ fixedCellAuthor(0, 0) }}：</span><input :value="title" aria-label="表格标题" @input="updateTitle($event.target.value)"><span class="row-resize-handle" @mousedown="beginRowResize(1, $event)"></span></th></tr><tr class="sheet-header" :style="{ height: `${rowHeights.header || 28}px` }"><th class="row-number">2</th><th v-for="(_, index) in sheetColumns" :key="index"><span v-if="index < 7 && fixedCellAuthor(1, index)" class="cell-author">{{ fixedCellAuthor(1, index) }}：</span><input v-if="index < 7" :value="columns[index]" :aria-label="`第 ${index + 1} 列标题`" @input="updateHeader(index, $event.target.value)"></th></tr></thead><tbody><tr v-for="(row, rowIndex) in rows" :key="rowIndex" :style="{ height: `${rowHeights[rowIndex + 2] || 28}px` }"><td class="row-number">{{ rowIndex + 3 }}</td><td v-for="(_, cellIndex) in sheetColumns" :key="cellIndex" :class="{ 'is-selected': selectedCell === `${String.fromCharCode(65 + cellIndex)}${rowIndex + 3}` }" @click="selectedCell = `${String.fromCharCode(65 + cellIndex)}${rowIndex + 3}`"><span v-if="cellAuthor(rowIndex, cellIndex)" class="cell-author">{{ cellAuthor(rowIndex, cellIndex) }}：</span><input :value="row[cellIndex] || ''" :aria-label="`${sheetColumns[cellIndex]} 第 ${rowIndex + 3} 行`" @input="updateCell(rowIndex, cellIndex, $event.target.value)"><span class="row-resize-handle" @mousedown="beginRowResize(rowIndex + 2, $event)"></span></td></tr></tbody></table></div>

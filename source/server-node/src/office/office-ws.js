@@ -104,12 +104,14 @@ function attachOfficeWebSocket(server) {
            : []);
          if (!cells.length) return;
          topic.cells = cells;
+         topic.cellStyles = message.cellStyles && typeof message.cellStyles === "object" ? message.cellStyles : {};
+         topic.imported = message.imported === true;
          topic.cellAuthors = {};
          topic.cellEditedAt = {};
          topic.messages = [];
          Object.keys(room.locks).filter((key) => key.startsWith(`${topic.id}:`)).forEach((key) => delete room.locks[key]);
          for (const [key] of room.lockClients) if (key.startsWith(`${topic.id}:`)) room.lockClients.delete(key);
-         room.columnWidths = [...defaultColumnWidths];
+         room.columnWidths = Array.isArray(message.columnWidths) ? message.columnWidths.slice(0, 26).map((value) => Math.max(42, Math.min(800, Number(value) || 58))) : [...defaultColumnWidths];
          room.revision += 1;
          const replaced = { type: "sheet:replaced", topic, columnWidths: room.columnWidths, user: user.name, suppressUnread: true, revision: room.revision };
          broadcast(room, replaced, client);

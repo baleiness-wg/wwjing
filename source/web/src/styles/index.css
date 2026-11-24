@@ -512,6 +512,11 @@ h3 { margin-bottom: 10px; color: #263d40; font-size: 17px; }
 .workbench-sheet td.is-locked { background: #f7f7f7; }
 .workbench-sheet td.is-locked input { cursor: not-allowed; }
 .workbench-sheet td.is-selected { box-shadow: inset 0 0 0 2px #217346; background: #fff; }
+.is-imported-sheet .sheet-title-cell,
+.is-imported-sheet .sheet-header th { background: transparent; color: inherit; }
+.is-imported-sheet .workbench-sheet td,
+.is-imported-sheet .workbench-sheet th { background-color: transparent; }
+.office-hidden-file-input { display: none; }
 .sheet-status { justify-content: space-between; min-height: 26px; border-top: 1px solid #d4d4d4; padding: 0 8px; color: #777; font-size: 10px; }
 .office-sheet-tabs { display: flex; height: 30px; align-items: flex-end; gap: 1px; border-top: 1px solid #cfcfcf; background: #e7e7e7; padding: 0 5px; }
 .office-sheet-tabs button { height: 26px; border: 1px solid transparent; border-bottom: 0; border-radius: 3px 3px 0 0; background: transparent; color: #555; cursor: pointer; font: inherit; font-size: 11px; padding: 0 11px; }
