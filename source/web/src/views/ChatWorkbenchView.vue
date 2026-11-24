@@ -41,7 +41,7 @@ const activeTopic = computed(() => topics.value.find((topic) => topic.id === act
 const importedSheet = computed(() => Boolean(activeTopic.value?.imported));
 const activeRoomName = computed(() => rooms.value.find((room) => room.id === activeRoomId.value)?.name || "未进入房间");
 const title = computed(() => activeTopic.value?.cells[0]?.[0] || "Book1");
-const dataRows = computed(() => (activeTopic.value?.cells.slice(2) || []).map((row, rowIndex) => row.map((value, columnIndex) => {
+const dataRows = computed(() => (activeTopic.value?.cells.slice(2) || []).map((row, rowIndex) => (Array.isArray(row) ? row : []).map((value, columnIndex) => {
   const draftKey = `${activeTopicId.value}:${rowIndex + 2}:${columnIndex}`;
   return Object.prototype.hasOwnProperty.call(drafts, draftKey) ? drafts[draftKey] : value;
 })));

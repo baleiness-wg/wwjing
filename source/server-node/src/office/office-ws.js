@@ -99,9 +99,8 @@ function attachOfficeWebSocket(server) {
        } else if (message.type === "sheet:replace") {
          const topic = room.topics.find((item) => item.id === message.topicId);
          if (!topic || !Array.isArray(message.cells)) return;
-         const cells = message.cells.slice(0, 500).map((row) => Array.isArray(row)
-           ? row.slice(0, 26).map((value) => String(value ?? "").slice(0, 2000))
-           : []);
+         const cells = message.cells.slice(0, 500).map((row) => (Array.isArray(row) ? row : [])
+           .slice(0, 26).map((value) => String(value ?? "").slice(0, 2000)));
          if (!cells.length) return;
          topic.cells = cells;
          topic.cellStyles = message.cellStyles && typeof message.cellStyles === "object" ? message.cellStyles : {};
