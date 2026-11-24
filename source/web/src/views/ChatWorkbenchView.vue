@@ -535,8 +535,9 @@ function updateCell(rowIndex, cellIndex, value, sync = true) {
 
 async function flushEditingCell() {
   if (!editingCell.value || !activeTopic.value) return;
-  const [, row, column] = editingCell.value.split(":").map(Number);
-  const value = drafts[editingCell.value] ?? (activeTopic.value.cells[row]?.[column] || "");
+  const editingKey = editingCell.value;
+  const [, row, column] = editingKey.split(":").map(Number);
+  const value = drafts[editingKey] ?? (activeTopic.value.cells[row]?.[column] || "");
   pendingLocalValues[`${activeTopicId.value}:${row}:${column}`] = value;
   if (!editingLockSent.value && value === editingOriginalValue.value) {
     delete drafts[editingCell.value];
@@ -555,20 +556,21 @@ async function flushEditingCell() {
     delete activeTopic.value.cellEditedAt[authorKey];
   }
   const requestId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  pendingUpdates[requestId] = { key: editingCell.value, topicId: activeTopicId.value, row, column, value };
+  pendingUpdates[requestId] = { key: editingKey, topicId: activeTopicId.value, row, column, value };
   saveState.value = "保存中";
   send({ type: "cell:update", requestId, topicId: activeTopicId.value, row, column, value });
   const saved = await updateCellFallback(activeTopicId.value, row, column, value);
   if (!saved) {
     saveState.value = "保存失败";
+    ElMessage.error("单元格保存失败，请检查房间连接后重试");
     return;
   }
-  delete cellLocks.value[editingCell.value];
-  delete drafts[editingCell.value];
+  delete cellLocks.value[editingKey];
+  delete drafts[editingKey];
   send({ type: "cell:unlock", topicId: activeTopicId.value, row, column });
   updateLockFallback(row, column, false);
   fitColumnWidth(column);
-  editingCell.value = null;
+  if (editingCell.value === editingKey) editingCell.value = null;
   editingLockSent.value = false;
   saveState.value = "已同步";
 }
