@@ -3,6 +3,16 @@
 @password = replace-with-password
 @space = star
 
+### Office：使用创建房间后返回的房间 ID；中文及特殊字符密码需 URI 编码
+@officeRoomId = replace-with-room-id
+@officePasswordEncoded = %E5%AF%86%E7%A0%81%20%25%26%2B%20test
+
+### 获取房间快照，密码错误返回 403
+GET {{baseUrl}}/office/snapshot
+X-Office-Room: {{officeRoomId}}
+X-Office-Password: {{officePasswordEncoded}}
+X-Office-Password-Encoding: uri
+
 ### Register a bookmark test account (run once)
 POST {{baseUrl}}/auth/register
 Content-Type: application/json

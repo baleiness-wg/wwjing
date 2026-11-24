@@ -486,7 +486,7 @@ h3 { margin-bottom: 10px; color: #263d40; font-size: 17px; }
 .workbench-sheet .sheet-title-row th { height: 30px; border-color: #111; }
 .workbench-sheet .sheet-title-cell { background: #f6dada; color: #111; font-family: Georgia, serif; font-size: 16px; font-weight: 700; text-align: center; }
 .workbench-sheet .sheet-title-cell input { width: 100%; border: 0; outline: 0; background: transparent; color: #111; font-family: Georgia, serif; font-size: 16px; font-weight: 700; text-align: center; }
-.workbench-sheet .sheet-header input { width: 100%; border: 0; outline: 0; background: transparent; color: #333; font: inherit; font-size: 11px; font-weight: 600; }
+.workbench-sheet .sheet-header input { width: 100%; border: 0; outline: 0; background: transparent; color: #111; font: inherit; font-size: 11px; font-weight: 600; }
 .workbench-sheet .col-row-number { width: 34px; }
 .workbench-sheet .col-no { width: 58px; }
 .workbench-sheet .col-system { width: 58px; }
@@ -498,6 +498,9 @@ h3 { margin-bottom: 10px; color: #263d40; font-size: 17px; }
 .workbench-sheet td input { width: 100%; border: 0; outline: 0; background: transparent; color: inherit; font: inherit; }
 .workbench-sheet td { white-space: nowrap; }
 .cell-author { display: inline-block; margin-right: 5px; color: #769287; font-size: 10px; font-weight: 600; vertical-align: middle; }
+.workbench-sheet .cell-author { color: #769287; }
+.workbench-sheet .cell-author.is-other-author { color: #7993a3; }
+.workbench-sheet td input { color: #111; }
 .cell-author small { color: #aaa; font-size: 10px; font-weight: 400; }
 .cell-lock-label { position: absolute; top: 2px; left: 3px; z-index: 4; color: #999; font-size: 9px; pointer-events: none; }
 .workbench-sheet td.is-locked { background: #f7f7f7; }
@@ -506,7 +509,7 @@ h3 { margin-bottom: 10px; color: #263d40; font-size: 17px; }
 .workbench-sheet td[data-editor] { background: #fff4e8; box-shadow: inset 0 0 0 2px #e6a15c; }
 .workbench-sheet td[data-unread] { background: #fffbe6; box-shadow: inset 0 0 0 2px #d6ad32; }
 .workbench-sheet td[data-editor]::before { border-radius: 2px; background: #fff; box-shadow: 0 1px 3px rgb(0 0 0 / 12%); color: #a45b19; padding: 1px 3px; }
-.cell-edited-at { margin-left: 3px; color: #aaa; font-size: 10px; vertical-align: middle; }
+.workbench-sheet .cell-edited-at { display: inline-block; margin-right: 5px; color: #aaa; font-size: 10px; font-weight: 400; vertical-align: middle; }
 .cell-editing-label { position: absolute; top: 1px; left: 3px; z-index: 3; color: #999; font-size: 9px; pointer-events: none; }
 .cell-editor-badge { position: absolute; top: 1px; right: 3px; z-index: 4; color: #777; font-size: 9px; pointer-events: none; }
 .workbench-sheet td.is-locked { background: #f7f7f7; }

@@ -6,7 +6,7 @@ function snapshot(req, res) {
   res.set("Pragma", "no-cache");
   res.set("Expires", "0");
   const roomId = req.headers["x-office-room"];
-  const room = roomId ? require("../office/room-manager").verifyRoom(roomId, req.headers["x-office-password"] || "") : null;
+  const room = roomId ? verifyRoom(roomId, roomPassword(req)) : null;
   if (!room) return res.status(403).json({ message: "房间密码错误" });
   res.json({
     user: { id: String(req.auth.sub), name: req.auth.username || "用户" },
@@ -22,7 +22,7 @@ module.exports = { snapshot };
 function updateCell(req, res) {
   const { topicId, row, column, value } = req.body || {};
   const roomId = req.headers["x-office-room"];
-  const room = roomId ? verifyRoom(roomId, req.headers["x-office-password"] || "") : null;
+  const room = roomId ? verifyRoom(roomId, roomPassword(req)) : null;
   if (!room) return res.status(403).json({ message: "房间密码错误" });
   const topic = room.topics.find((item) => item.id === topicId);
   if (!topic || !validCell(row, column)) {
@@ -54,10 +54,10 @@ module.exports.updateCell = updateCell;
 function updateLock(req, res) {
   const { topicId, row, column, locked } = req.body || {};
   const roomId = req.headers["x-office-room"] || "main";
-  const rooms = require("../office/room-manager");
-  const room = roomId ? rooms.verifyRoom(roomId, req.headers["x-office-password"] || "") : null;
+  const room = roomId ? verifyRoom(roomId, roomPassword(req)) : null;
   if (!room) return res.status(403).json({ message: "房间密码错误" });
   if (!validCell(row, column) || !room.topics.some((topic) => topic.id === topicId)) return res.status(400).json({ message: "无效的单元格" });
+  room.locks ||= {};
   const key = `${topicId}:${row}:${column}`;
   const user = decodeOfficeHeader(req.headers["x-office-display-name"], req.auth.username || "用户");
   if (locked) {
@@ -72,4 +72,10 @@ module.exports.updateLock = updateLock;
 
 function decodeOfficeHeader(value, fallback) {
   try { return decodeURIComponent(String(value || fallback)).trim().slice(0, 40) || fallback; } catch { return fallback; }
+}
+
+function roomPassword(req) {
+  const password = String(req.headers["x-office-password"] || "");
+  if (req.headers["x-office-password-encoding"] !== "uri") return password;
+  try { return decodeURIComponent(password); } catch { return null; }
 }
