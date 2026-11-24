@@ -96,6 +96,24 @@ function attachOfficeWebSocket(server) {
          const initialized = { type: "sheet:initialized", topic, columnWidths: room.columnWidths, user: user.name, suppressUnread: true, revision: room.revision };
          broadcast(room, initialized, client);
          client.send(JSON.stringify({ ...initialized, requestId: message.requestId }));
+       } else if (message.type === "sheet:replace") {
+         const topic = room.topics.find((item) => item.id === message.topicId);
+         if (!topic || !Array.isArray(message.cells)) return;
+         const cells = message.cells.slice(0, 500).map((row) => Array.isArray(row)
+           ? row.slice(0, 26).map((value) => String(value ?? "").slice(0, 2000))
+           : []);
+         if (!cells.length) return;
+         topic.cells = cells;
+         topic.cellAuthors = {};
+         topic.cellEditedAt = {};
+         topic.messages = [];
+         Object.keys(room.locks).filter((key) => key.startsWith(`${topic.id}:`)).forEach((key) => delete room.locks[key]);
+         for (const [key] of room.lockClients) if (key.startsWith(`${topic.id}:`)) room.lockClients.delete(key);
+         room.columnWidths = [...defaultColumnWidths];
+         room.revision += 1;
+         const replaced = { type: "sheet:replaced", topic, columnWidths: room.columnWidths, user: user.name, suppressUnread: true, revision: room.revision };
+         broadcast(room, replaced, client);
+         client.send(JSON.stringify({ ...replaced, requestId: message.requestId }));
        } else if (message.type === "topic:create") {
         const template = room.topics[0];
         const topic = {

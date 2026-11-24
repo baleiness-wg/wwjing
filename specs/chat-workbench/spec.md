@@ -1,6 +1,6 @@
 # 表格聊天工作台 模块规格说明
 
-- 版本：202611230300
+- 版本：202611230415
 - 最后更新：2026-11-23
 - 模块名称：chat-workbench（表格与文字聊天工作台）
 
@@ -25,11 +25,12 @@
 - 房间切换时必须清除前一房间的草稿、待确认更新、未读标记和编辑状态；旧房间连接的延迟消息不得更新当前房间。
 - 用户初始化当前工作表时，当前内容替换为标准脱敏演示数据；初始化结果同步给房间成员，但接收方不得为每个单元格生成未读标记或编辑通知。
 - 房间快照加载完成后，表格列宽根据当前表格内容自动撑开；编辑标题、列标题或单元格后同步重新计算对应列宽。
+- 用户可以导入 `.xlsx` 或 `.xlsm` 文件的第一个工作表；确认后直接覆盖当前工作表，导入结果同步给房间成员，不为逐单元格生成未读标记。
 
 ## 接口说明
 
 - WebSocket 路径：`/api/office/ws?token=Bearer%20<token>&roomId=<roomId>&password=<password>`。
-- WebSocket 消息：客户端发送 `cell:lock`、`cell:unlock`、`cell:update`、`sheet:initialize`；服务端发送 `snapshot`、`cell:lock`、`cell:unlock`、`cell:updated`、`sheet:initialized`、`cell:lock:rejected` 和 `cell:update:ack`。
+- WebSocket 消息：客户端发送 `cell:lock`、`cell:unlock`、`cell:update`、`sheet:initialize`、`sheet:replace`；服务端发送 `snapshot`、`cell:lock`、`cell:unlock`、`cell:updated`、`sheet:initialized`、`sheet:replaced`、`cell:lock:rejected` 和 `cell:update:ack`。
 - `cell:lock` 和 `cell:update` 均以服务端返回的结果为准，锁与连接绑定，连接关闭后自动释放。
 - HTTP 快照：`GET /api/office/snapshot`，返回 `user`、`topics` 和 `locks`。
 
@@ -48,3 +49,4 @@
 | 2026-11-23 | 202611230235 | 恢复房间加载和标题编辑后的表格内容自动撑开 |
 | 2026-11-23 | 202611230255 | 将清屏改为标准脱敏数据初始化，并通过专用消息同步完整工作表 |
 | 2026-11-23 | 202611230300 | 初始化时同步清理单元格锁和前端临时编辑状态 |
+| 2026-11-23 | 202611230415 | 增加 ExcelJS 导入并支持确认后覆盖当前工作表 |

@@ -2,6 +2,7 @@
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from "vue";
 import { ElMessage } from "element-plus";
 import { changePassword } from "../api/auth";
+import ExcelJS from "exceljs";
 
 const columns = ref([]);
 const topics = ref([]);
@@ -10,6 +11,7 @@ const activeRoomId = ref(localStorage.getItem("office_active_room") || "");
 const pendingRoomId = ref("");
 const roomListCollapsed = ref(true);
 const roomPassword = ref(localStorage.getItem(`office_room_password:${activeRoomId.value}`) || "");
+const importFileInput = ref(null);
 
 const officeHeaderName = () => encodeURIComponent(currentDisplayName.value);
 const roomDialogVisible = ref(false);
@@ -407,6 +409,15 @@ function connect() {
         Object.keys(unreadCells.value).filter((key) => key.startsWith(`${message.topic.id}:`)).forEach((key) => delete unreadCells.value[key]);
         if (message.topic.id === activeTopicId.value) selectTopic(message.topic);
         saveState.value = "已同步";
+      } else if (message.type === "sheet:replaced") {
+        const topicIndex = topics.value.findIndex((item) => item.id === message.topic.id);
+        if (topicIndex >= 0) topics.value[topicIndex] = message.topic;
+        if (message.columnWidths) columnWidths.value = message.columnWidths;
+        Object.keys(drafts).filter((key) => key.startsWith(`${message.topic.id}:`)).forEach((key) => delete drafts[key]);
+        Object.keys(pendingLocalValues).filter((key) => key.startsWith(`${message.topic.id}:`)).forEach((key) => delete pendingLocalValues[key]);
+        Object.keys(unreadCells.value).filter((key) => key.startsWith(`${message.topic.id}:`)).forEach((key) => delete unreadCells.value[key]);
+        if (message.topic.id === activeTopicId.value) selectTopic(message.topic);
+        saveState.value = "已同步";
       } else if (message.type === "cell:draft") {
         const topic = topics.value.find((item) => item.id === message.topicId);
         if (!topic || editingCell.value === `${message.topicId}:${message.row}:${message.column}`) return;
@@ -614,6 +625,41 @@ function addTopic() {
   if (name?.trim()) send({ type: "topic:create", name: name.trim() });
 }
 
+function normalizeImportedRows(rows) {
+  const normalized = rows.slice(0, 500).map((row) => row.slice(0, 26).map((value) => value == null ? "" : String(value)));
+  while (normalized.length && normalized[normalized.length - 1].every((value) => !value.trim())) normalized.pop();
+  return normalized.length ? normalized : [["导入工作表"], ["列1"]];
+}
+
+async function importExcel(event) {
+  const file = event.target.files?.[0];
+  event.target.value = "";
+  if (!file || !activeTopic.value) return;
+  const extension = file.name.split(".").pop()?.toLowerCase();
+  if (!['xlsx', 'xlsm'].includes(extension)) return ElMessage.warning("请选择 .xlsx 或 .xlsm 文件");
+  try {
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(await file.arrayBuffer());
+    const worksheet = workbook.worksheets[0];
+    if (!worksheet) return ElMessage.warning("Excel 文件没有可导入的工作表");
+    const values = [];
+    worksheet.eachRow({ includeEmpty: true }, (row) => {
+      const cells = [];
+      for (let column = 1; column <= Math.min(26, worksheet.columnCount); column += 1) {
+        const value = row.getCell(column).value;
+        cells.push(value && typeof value === "object" && "text" in value ? value.text : value);
+      }
+      values.push(cells);
+    });
+    const cells = normalizeImportedRows(values);
+    if (!window.confirm(`导入“${file.name}”将覆盖当前工作表，是否继续？`)) return;
+    send({ type: "sheet:replace", topicId: activeTopicId.value, cells, requestId: `${Date.now()}-${Math.random().toString(36).slice(2)}` });
+    saveState.value = "导入中";
+  } catch (error) {
+    ElMessage.error(`Excel 导入失败：${error.message || "文件格式无效"}`);
+  }
+}
+
 async function clearCurrentSheet() {
   if (!activeTopic.value) return;
   if (!window.confirm("确定初始化当前工作表吗？当前内容会被替换为脱敏演示数据。")) return;
@@ -778,7 +824,7 @@ onUnmounted(() => {
       <aside v-if="!roomListCollapsed" class="office-room-list"><div class="office-room-head"><strong>聊天房间</strong><span><button type="button" title="新建房间" @click="roomDialogMode = 'create'; roomName = ''; roomPassword = ''; roomDialogVisible = true">＋</button><button type="button" class="room-collapse-button" title="收起房间列表" aria-label="收起房间列表" @click="roomListCollapsed = true">‹</button></span></div><div v-for="room in rooms" :key="room.id" class="office-room-row"><button type="button" class="office-room-item" :class="{ 'is-active': room.id === activeRoomId }" @click="room.id === activeRoomId ? null : enterRoom(room)">{{ room.name }}<small>{{ room.protected ? '🔒' : '' }} {{ room.online || 0 }}</small></button><el-dropdown v-if="room.id !== 'main'" trigger="click"><button type="button" class="office-room-more">⋯</button><template #dropdown><el-dropdown-menu><el-dropdown-item @click="changeRoomPassword(room)">修改密码</el-dropdown-item><el-dropdown-item divided @click="deleteRoom(room)">删除房间</el-dropdown-item></el-dropdown-menu></template></el-dropdown></div></aside>
       <button v-else type="button" class="office-room-expand" title="展开房间列表" @click="roomListCollapsed = false">＋</button>
       <div v-if="!activeRoomId" class="office-empty-room"><h2>请创建房间</h2><p>创建一个聊天房间后开始协作编辑。</p><button type="button" @click="roomDialogMode = 'create'; roomName = ''; roomPassword = ''; roomDialogVisible = true">＋ 创建房间</button></div><div v-else class="sheet-panel">
-         <div class="sheet-toolbar"><div class="sheet-tab"><span class="sheet-tab-icon">▦</span> 工作表</div><div class="sheet-actions"><button type="button" @click="addRow">＋ 行</button><button type="button" class="sheet-clear-button" @click="clearCurrentSheet">初始化</button><span class="sheet-save-state">{{ saveState }}</span></div></div>
+         <div class="sheet-toolbar"><div class="sheet-tab"><span class="sheet-tab-icon">▦</span> 工作表</div><div class="sheet-actions"><button type="button" @click="addRow">＋ 行</button><button type="button" class="sheet-clear-button" @click="clearCurrentSheet">初始化</button><button type="button" @click="importFileInput?.click()">导入 Excel</button><input ref="importFileInput" class="office-hidden-file-input" type="file" accept=".xlsx,.xlsm" @change="importExcel"></div><span class="sheet-save-state">{{ saveState }}</span></div>
         <div class="formula-bar"><span class="name-box">{{ selectedCell }}</span><span class="formula-symbol">fx</span><input value="点击单元格编辑内容" readonly aria-label="公式栏提示"></div>
         <div class="sheet-scroll"><table class="workbench-sheet"><colgroup><col class="col-row-number"><col v-for="(_, index) in sheetColumns" :key="index" :style="{ width: `${columnWidths[index]}px` }"></colgroup><thead><tr class="column-letters" :style="{ height: `${rowHeights.letters || 26}px` }"><th class="row-number"></th><th v-for="(_, index) in sheetColumns" :key="index">{{ String.fromCharCode(65 + index) }}<span class="column-resize-handle" @mousedown="beginResize(index, $event)"></span><span class="row-resize-handle" @mousedown="beginRowResize(0, $event)"></span></th></tr><tr class="sheet-title-row" :style="{ height: `${rowHeights.title || 30}px` }"><th class="row-number">1</th><th :colspan="sheetColumns.length" class="sheet-title-cell"><span v-if="fixedCellAuthor(0, 0)" class="cell-author">{{ fixedCellAuthor(0, 0) }}：</span><input :value="title" aria-label="表格标题" @input="updateTitle($event.target.value)"><span class="row-resize-handle" @mousedown="beginRowResize(1, $event)"></span></th></tr><tr class="sheet-header" :style="{ height: `${rowHeights.header || 28}px` }"><th class="row-number">2</th><th v-for="(_, index) in sheetColumns" :key="index"><span v-if="index < 7 && fixedCellAuthor(1, index)" class="cell-author">{{ fixedCellAuthor(1, index) }}：</span><input v-if="index < 7" :value="columns[index]" :aria-label="`第 ${index + 1} 列标题`" @input="updateHeader(index, $event.target.value)"></th></tr></thead><tbody><tr v-for="(row, rowIndex) in rows" :key="rowIndex" :style="{ height: `${rowHeights[rowIndex + 2] || 28}px` }"><td class="row-number">{{ rowIndex + 3 }}</td><td v-for="(_, cellIndex) in sheetColumns" :key="cellIndex" :class="{ 'is-selected': selectedCell === `${String.fromCharCode(65 + cellIndex)}${rowIndex + 3}` }" @click="selectedCell = `${String.fromCharCode(65 + cellIndex)}${rowIndex + 3}`"><span v-if="cellAuthor(rowIndex, cellIndex)" class="cell-author">{{ cellAuthor(rowIndex, cellIndex) }}：</span><input :value="row[cellIndex] || ''" :aria-label="`${sheetColumns[cellIndex]} 第 ${rowIndex + 3} 行`" @input="updateCell(rowIndex, cellIndex, $event.target.value)"><span class="row-resize-handle" @mousedown="beginRowResize(rowIndex + 2, $event)"></span></td></tr></tbody></table></div>
         <footer class="sheet-status"><span>{{ statusText }}</span><span>◉ {{ user.name }}</span></footer>
