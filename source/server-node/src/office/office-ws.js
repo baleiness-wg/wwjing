@@ -106,6 +106,7 @@ function attachOfficeWebSocket(server) {
          topic.cells = cells;
          topic.cellStyles = message.cellStyles && typeof message.cellStyles === "object" ? message.cellStyles : {};
          topic.imported = message.imported === true;
+         topic.rowHeights = message.rowHeights && typeof message.rowHeights === "object" ? message.rowHeights : {};
          topic.cellAuthors = {};
          topic.cellEditedAt = {};
          topic.messages = [];

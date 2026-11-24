@@ -146,6 +146,20 @@ function cellInlineStyle(row, column) {
   };
 }
 
+function applyImportedCellStyles() {
+  nextTick(() => {
+    const topic = activeTopic.value;
+    if (!topic?.cellStyles) return;
+    document.querySelectorAll(".workbench-sheet tr").forEach((rowElement, rowIndex) => {
+      rowElement.querySelectorAll("th, td").forEach((cellElement, columnIndex) => {
+        const style = topic.cellStyles[`${rowIndex - 1}:${columnIndex - 1}`];
+        if (!style) return;
+        Object.assign(cellElement.style, cellInlineStyle(rowIndex - 1, columnIndex - 1));
+      });
+    });
+  });
+}
+
 function syncCellLockBadges() {
   nextTick(() => {
     document.querySelectorAll(".workbench-sheet tbody tr").forEach((rowElement, rowIndex) => {
@@ -334,6 +348,8 @@ function selectTopic(topic) {
   if (!topic || !Array.isArray(topic.cells) || topic.cells.length < 3) return;
   activeTopicId.value = topic.id;
   columns.value = topic.cells[1] || [];
+  if (topic.rowHeights) rowHeights.value = topic.rowHeights;
+  applyImportedCellStyles();
 }
 
 async function loadSnapshotForCurrentRoom() {
@@ -351,15 +367,18 @@ async function loadSnapshotForCurrentRoom() {
   if (!response?.ok || sequence !== snapshotSequence || roomId !== activeRoomId.value) return;
   const snapshot = await response.json();
   notifySnapshotUpdate(snapshot);
-  snapshot.topics?.forEach((topic) => {
-    topic.cells?.forEach((row, rowIndex) => row?.forEach((value, columnIndex) => {
-      const localKey = `${topic.id}:${rowIndex}:${columnIndex}`;
-      if (Object.prototype.hasOwnProperty.call(pendingLocalValues, localKey)) {
-        if (String(value ?? "") === pendingLocalValues[localKey]) delete pendingLocalValues[localKey];
-        else topic.cells[rowIndex][columnIndex] = pendingLocalValues[localKey];
-      }
-    }));
-  });
+   snapshot.topics?.forEach((topic) => {
+     topic.cells?.forEach((row, rowIndex) => row?.forEach((value, columnIndex) => {
+       const localKey = `${topic.id}:${rowIndex}:${columnIndex}`;
+       const localValue = Object.prototype.hasOwnProperty.call(drafts, localKey)
+         ? drafts[localKey]
+         : pendingLocalValues[localKey];
+       if (localValue !== undefined) {
+         if (String(value ?? "") === String(localValue) && !Object.prototype.hasOwnProperty.call(drafts, localKey)) delete pendingLocalValues[localKey];
+         else topic.cells[rowIndex][columnIndex] = localValue;
+       }
+     }));
+   });
   if (!snapshot.topics?.[0]?.cells?.length) {
     ElMessage.error("房间没有可用表格数据");
     return;
@@ -437,6 +456,7 @@ function connect() {
         const topicIndex = topics.value.findIndex((item) => item.id === message.topic.id);
         if (topicIndex >= 0) topics.value[topicIndex] = message.topic;
         if (message.columnWidths) columnWidths.value = message.columnWidths;
+        if (message.topic.rowHeights) rowHeights.value = message.topic.rowHeights;
         Object.keys(drafts).filter((key) => key.startsWith(`${message.topic.id}:`)).forEach((key) => delete drafts[key]);
         Object.keys(pendingLocalValues).filter((key) => key.startsWith(`${message.topic.id}:`)).forEach((key) => delete pendingLocalValues[key]);
         Object.keys(unreadCells.value).filter((key) => key.startsWith(`${message.topic.id}:`)).forEach((key) => delete unreadCells.value[key]);
