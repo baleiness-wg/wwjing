@@ -537,6 +537,7 @@ async function flushEditingCell() {
   if (!editingCell.value || !activeTopic.value) return;
   const editingKey = editingCell.value;
   const [, row, column] = editingKey.split(":").map(Number);
+  activeTopic.value.cells[row] ||= [];
   const value = drafts[editingKey] ?? (activeTopic.value.cells[row]?.[column] || "");
   pendingLocalValues[`${activeTopicId.value}:${row}:${column}`] = value;
   if (!editingLockSent.value && value === editingOriginalValue.value) {
