@@ -7,11 +7,25 @@
 @officeRoomId = replace-with-room-id
 @officePasswordEncoded = %E5%AF%86%E7%A0%81%20%25%26%2B%20test
 
-### 获取房间快照，密码错误返回 403
+### 按完整名称搜索房间；未找到返回 404，未提供名称返回 400
+GET {{baseUrl}}/office/rooms?name=%E9%A1%B9%E7%9B%AE%E5%8D%8F%E4%BD%9C
+X-Office-Guest: %E6%B8%B8%E5%AE%A2
+
+### 创建房间；同名房间返回 409
+POST {{baseUrl}}/office/rooms
+Content-Type: application/json
+X-Office-Guest: %E6%B8%B8%E5%AE%A2
+
+{"name":"项目协作","password":"example-password"}
+
+### 获取房间快照（含 room 基本信息），密码错误返回 403
 GET {{baseUrl}}/office/snapshot
 X-Office-Room: {{officeRoomId}}
 X-Office-Password: {{officePasswordEncoded}}
 X-Office-Password-Encoding: uri
+
+### Office WebSocket 连接成功后 snapshot.online 为在线窗口数，presence.count 在进入和离开时更新
+### ws://localhost:3000/api/office/ws?roomId={{officeRoomId}}&password=replace-with-password&guest=guest
 
 ### 写入单元格；客户端 ID 在浏览器中持久保存，用于改名时识别作者
 POST {{baseUrl}}/office/cell

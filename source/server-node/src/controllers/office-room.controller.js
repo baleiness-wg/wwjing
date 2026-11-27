@@ -1,12 +1,19 @@
-const { listRooms, createNamedRoom, getRoom, removeRoom } = require("../office/room-manager");
+const { findRoomByName, createNamedRoom, getRoom, removeRoom } = require("../office/room-manager");
 
-function list(req, res) { res.json({ rooms: listRooms() }); }
+function list(req, res) {
+  const name = typeof req.query.name === "string" ? req.query.name.trim() : "";
+  if (!name || name.length > 80) return res.status(400).json({ message: "请输入完整房间名称" });
+  const room = findRoomByName(name);
+  if (!room) return res.status(404).json({ message: "未找到该房间" });
+  return res.json({ room: { id: room.id, name: room.name, protected: Boolean(room.password), online: room.clients.size } });
+}
 
 function create(req, res) {
   const name = String(req.body?.name || "").trim();
   const password = String(req.body?.password || "");
-  if (!name || password.length < 4) return res.status(400).json({ message: "房间名称不能为空，密码至少 4 位" });
-  const room = createNamedRoom(name.slice(0, 80), password.slice(0, 120), String(req.auth.sub), req.auth.username);
+  if (!name || name.length > 80 || password.length < 4 || password.length > 120) return res.status(400).json({ message: "房间名称须为 1 至 80 个字符，密码须为 4 至 120 个字符" });
+  const room = createNamedRoom(name, password, String(req.auth.sub), req.auth.username);
+  if (!room) return res.status(409).json({ message: "房间名称已存在，请使用其他名称" });
   res.status(201).json({ room: { id: room.id, name: room.name, protected: true, online: 0 } });
 }
 

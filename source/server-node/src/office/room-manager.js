@@ -80,10 +80,11 @@ function initializeTopic(topic) {
 }
 
 function getRoom(roomId = "main") {
-  if (!rooms.has(roomId) || rooms.get(roomId).version !== ROOM_VERSION) {
+  if (roomId === "main" && !rooms.has(roomId)) {
     rooms.set(roomId, createRoom(roomId));
   }
   const room = rooms.get(roomId);
+  if (!room) return null;
   room.locks ||= {};
   if (!(room.lockClients instanceof Map)) room.lockClients = new Map();
   room.revision ||= 0;
@@ -98,10 +99,15 @@ function listRooms() {
 }
 
 function createNamedRoom(name, password, ownerId, ownerName) {
+  if (findRoomByName(name)) return null;
   const id = `room-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
   const room = createRoom(id, name, password, ownerId, ownerName);
   rooms.set(id, room);
   return room;
+}
+
+function findRoomByName(name) {
+  return [...rooms.values()].find((room) => room.name === name) || null;
 }
 
 function verifyRoom(roomId, password) {
@@ -159,4 +165,4 @@ function removeClient(roomId, client) {
   // 房间只在 Node 进程重启时重置，短暂断线和自动重连不能丢失内容。
 }
 
-module.exports = { getRoom, listRooms, createNamedRoom, verifyRoom, removeRoom, broadcast, removeClient, initializeTopic, defaultColumnWidths, renameClientAuthors };
+module.exports = { getRoom, listRooms, findRoomByName, createNamedRoom, verifyRoom, removeRoom, broadcast, removeClient, initializeTopic, defaultColumnWidths, renameClientAuthors };

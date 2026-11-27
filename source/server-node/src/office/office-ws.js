@@ -7,6 +7,20 @@ const { validCell, createRateLimiter } = require("./write-limits");
 function attachOfficeWebSocket(server) {
   const wss = new WebSocketServer({ noServer: true });
   const allowWrites = createRateLimiter({ limit: 300, windowMs: 10000 });
+  // 及时回收断网后无法正常关闭的连接，避免在线人数和编辑锁长期残留。
+  const heartbeat = setInterval(() => {
+    for (const client of wss.clients) {
+      if (client.readyState !== 1) continue;
+      if (client.officeAlive === false) {
+        client.terminate();
+        continue;
+      }
+      client.officeAlive = false;
+      client.ping();
+    }
+  }, 30000);
+  heartbeat.unref();
+  server.on("close", () => clearInterval(heartbeat));
   server.on("upgrade", (request, socket, head) => {
     if (new URL(request.url, "http://localhost").pathname !== "/api/office/ws") return;
     const requestUrl = new URL(request.url, "http://localhost");
@@ -31,12 +45,14 @@ function attachOfficeWebSocket(server) {
     if (!(room.lockClients instanceof Map)) room.lockClients = new Map();
     room.columnWidths ||= [58, 58, 180, 380, 58, 58, 58, ...Array(19).fill(58)];
      room.clients.add(client);
+     client.officeAlive = true;
+     client.on("pong", () => { client.officeAlive = true; });
      room.columnWidths ||= [58, 58, 180, 380, 58, 58, 58, ...Array(19).fill(58)];
      const displayName = String(url.searchParams.get("displayName") || request.user.username || "用户").trim().slice(0, 40);
      const user = { id: String(request.user.sub), name: displayName || "用户" };
      client.officeUser = user;
      client.officeClientId = String(url.searchParams.get("clientId") || "").slice(0, 100);
-      client.send(JSON.stringify({ type: "snapshot", user, topics: room.topics, locks: room.locks, columnWidths: room.columnWidths, revision: room.revision }));
+      client.send(JSON.stringify({ type: "snapshot", user, topics: room.topics, locks: room.locks, columnWidths: room.columnWidths, revision: room.revision, online: room.clients.size }));
     broadcast(room, { type: "presence", name: user.name, count: room.clients.size }, client);
     client.on("message", (raw) => {
       let message;
@@ -57,7 +73,7 @@ function attachOfficeWebSocket(server) {
            broadcast(updatedRoom, { type: "user:renamed", oldName: previousName, name: nextName, clientId: client.officeClientId, revision: updatedRoom.revision });
          }
          client.send(JSON.stringify({ type: "user:rename:ack", oldName: previousName, name: nextName }));
-         client.send(JSON.stringify({ type: "snapshot", user: client.officeUser, topics: room.topics, locks: room.locks, columnWidths: room.columnWidths, revision: room.revision }));
+         client.send(JSON.stringify({ type: "snapshot", user: client.officeUser, topics: room.topics, locks: room.locks, columnWidths: room.columnWidths, revision: room.revision, online: room.clients.size }));
          return;
        }
        if (message.type === "column:resize") {
