@@ -418,6 +418,7 @@ h3 { margin-bottom: 10px; color: #263d40; font-size: 17px; }
 .folder-share-row { display: flex; align-items: center; justify-content: space-between; min-height: 36px; border-bottom: 1px solid #edf0ed; }
 .workbench-page { width: 100%; max-width: 1280px; margin: 0 auto; }
 .office-page { display: flex; width: 100vw; height: 100vh; flex-direction: column; overflow: hidden; background: #f3f3f3; color: #404040; }
+.office-notice { position: fixed; z-index: 3000; top: 16px; left: 50%; max-width: min(90vw, 600px); transform: translateX(-50%); border: 1px solid #d3e6dc; border-radius: 6px; background: #f1f8f4; color: #356a50; padding: 10px 16px; box-shadow: 0 2px 8px rgb(0 0 0 / 12%); overflow-wrap: anywhere; pointer-events: none; }
 .office-titlebar { display: flex; height: 38px; flex: 0 0 auto; align-items: center; gap: 8px; border-bottom: 1px solid #d0d0d0; background: #fff; padding: 0 10px; font-size: 12px; }
 .office-app-icon { display: grid; width: 21px; height: 21px; place-items: center; border-radius: 3px; background: #217346; color: #fff; font-size: 12px; font-weight: 800; }
 .office-save { color: #858585; font-size: 11px; }
@@ -477,7 +478,7 @@ h3 { margin-bottom: 10px; color: #263d40; font-size: 17px; }
 .workbench-sheet th, .workbench-sheet td { height: 28px; border: 1px solid #111; padding: 0 5px; text-align: left; }
 .workbench-sheet th { position: relative; }
 .column-resize-handle { position: absolute; z-index: 2; top: 0; right: -3px; bottom: 0; width: 7px; cursor: col-resize; }
-.row-resize-handle { position: absolute; z-index: 2; right: 0; bottom: -3px; left: 0; height: 7px; cursor: row-resize; }
+.row-resize-handle { position: absolute; z-index: 2; right: 0; bottom: 0; left: 0; height: 4px; cursor: row-resize; }
 .workbench-sheet td, .workbench-sheet th { position: relative; }
 .workbench-sheet th { height: 26px; background: #ededed; color: #666; font-size: 10px; font-weight: 400; }
 .workbench-sheet th span { display: block; color: #333; font-size: 11px; font-weight: 600; }
@@ -496,9 +497,11 @@ h3 { margin-bottom: 10px; color: #263d40; font-size: 17px; }
 .workbench-sheet .col-blank { width: 58px; }
 .workbench-sheet .row-number { width: 34px; background: #f2f2f2; color: #777; text-align: center; }
 .workbench-sheet td input { width: 100%; border: 0; outline: 0; background: transparent; color: inherit; font: inherit; }
-.workbench-sheet td { white-space: nowrap; }
+.workbench-sheet td { overflow: hidden; clip-path: inset(0); white-space: nowrap; }
 .cell-author { display: inline-block; margin-right: 5px; color: #769287; font-size: 10px; font-weight: 600; vertical-align: middle; }
 .workbench-sheet .cell-author { color: #769287; }
+.workbench-sheet td .cell-author, .workbench-sheet td .cell-edited-at { max-width: 25%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.workbench-sheet td:has(.cell-author) input { width: calc(50% - 10px); vertical-align: middle; }
 .workbench-sheet .cell-author.is-other-author { color: #7993a3; }
 .workbench-sheet td input { color: #111; }
 .cell-author small { color: #aaa; font-size: 10px; font-weight: 400; }

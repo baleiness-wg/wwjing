@@ -299,15 +299,30 @@ function officeIsBackground() {
   return document.visibilityState !== "visible" || !document.hasFocus();
 }
 
+const officeMessage = ref("");
+let officeMessageTimer;
+let desktopOfficeMessage;
 function notifyOffice(message, body) {
   if (isOwnAuthor(message.user)) return;
+  window.clearTimeout(officeMessageTimer);
+  officeMessage.value = "";
+  desktopOfficeMessage?.close?.();
+  desktopOfficeMessage = null;
   if (!officeIsBackground()) {
-    ElMessage.info({ message: `${message.user}：${body}`, grouping: false });
+    officeMessage.value = `${message.user}：${body}`;
+    officeMessageTimer = window.setTimeout(() => { officeMessage.value = ""; }, 3000);
     return;
   }
   flashDocumentTitle(message.user, body);
   if ("Notification" in window && Notification.permission === "granted") {
-    try { new Notification("Office 协作", { body: `${message.user}：${body}` }); } catch { /* 浏览器或系统可能禁用通知。 */ }
+    try { desktopOfficeMessage = new Notification("Office 协作", { body: `${message.user}：${body}`, tag: "office-update" }); } catch { /* 浏览器或系统可能禁用通知。 */ }
+    if (desktopOfficeMessage) {
+      const currentNotice = desktopOfficeMessage;
+      officeMessageTimer = window.setTimeout(() => {
+        currentNotice.close();
+        if (desktopOfficeMessage === currentNotice) desktopOfficeMessage = null;
+      }, 5000);
+    }
   }
 }
 
@@ -786,19 +801,28 @@ function handleCellClick(event) {
 
 function handleOfficePointerDown(event) {
   requestOfficeNotifications();
-  if (event.button !== undefined && event.button !== 0) return;
+  if (event.isPrimary === false || (event.button !== undefined && event.button !== 0)) return;
   const position = getOfficeCellPosition(event.target);
   if (position) {
     markOfficeCellRead(position);
-    if (editingCell.value && editingCell.value !== position.key) {
+    const resizeHandle = event.target.closest?.(".row-resize-handle");
+    if (editingCell.value && editingCell.value !== position.key && !resizeHandle) {
       const previousInput = document.activeElement;
-      if (previousInput?.dataset?.officeUnreadKey === editingCell.value) previousInput.blur?.();
+      if (previousInput?.dataset?.officeUnreadKey === editingCell.value) {
+        // 先触发原输入框的 blur，以便输入法结束组合并更新最终草稿。
+        previousInput.blur?.();
+      }
       if (editingCell.value && editingCell.value !== position.key) flushEditingCell();
     }
-    if (!event.target.closest?.(".row-resize-handle") && event.target.tagName !== "INPUT") {
-      // 防止浏览器在指针按下的默认行为中再次移走程序设置的输入焦点。
-      event.preventDefault?.();
-      position.cell.querySelector("input")?.focus();
+    if (!resizeHandle) {
+      const input = position.cell.querySelector("input");
+      if (event.target !== input) {
+        // 防止浏览器在指针按下的默认行为中再次移走程序设置的输入焦点。
+        event.preventDefault?.();
+        input?.focus();
+      } else if (document.activeElement !== input) {
+        input?.focus();
+      }
     }
   } else if (editingCell.value && event.target !== document.activeElement) {
     flushEditingCell();
@@ -1241,6 +1265,8 @@ onMounted(() => {
   document.addEventListener("keydown", requestOfficeNotifications, true);
 });
 onUnmounted(() => {
+  window.clearTimeout(officeMessageTimer);
+  desktopOfficeMessage?.close?.();
   flushEditingCell();
   flushFixedCellWrites();
   roomEntrySequence += 1;
@@ -1272,6 +1298,7 @@ onUnmounted(() => {
 
 <template>
   <div class="office-page">
+    <div v-if="officeMessage" class="office-notice" role="status">{{ officeMessage }}</div>
     <header class="office-titlebar"><span class="office-app-icon">X</span><strong>{{ activeRoomName }}</strong><span class="office-save">{{ title }}</span><span class="office-online"><span class="presence-dot"></span>{{ roomActionLoading ? (roomDialogMode === 'create' ? '创建中…' : '进入中…') : connectionText }}</span><button type="button" class="office-user" @click="renameGuest">{{ currentDisplayName }}⌄</button></header>
     <nav class="office-ribbon"><button>文件</button><button class="is-active">开始</button><button>插入</button><button>布局</button><button>审阅</button><span class="ribbon-separator"></span><span class="ribbon-tool">剪切</span><span class="ribbon-tool">复制</span><span class="ribbon-tool">粘贴</span><span class="ribbon-separator"></span><span class="ribbon-tool">自动换行</span><span class="ribbon-tool">筛选</span></nav>
     <section class="workbench-shell">
