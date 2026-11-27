@@ -295,7 +295,6 @@ function roomHeaders(roomId, password) {
   };
 }
 
-let lastDesktopNoticeAt = 0;
 function officeIsBackground() {
   return document.visibilityState !== "visible" || !document.hasFocus();
 }
@@ -303,13 +302,12 @@ function officeIsBackground() {
 function notifyOffice(message, body) {
   if (isOwnAuthor(message.user)) return;
   if (!officeIsBackground()) {
-    ElMessage.info({ message: `${message.user}：${body}`, grouping: true });
+    ElMessage.info({ message: `${message.user}：${body}`, grouping: false });
     return;
   }
   flashDocumentTitle(message.user, body);
-  if ("Notification" in window && Notification.permission === "granted" && Date.now() - lastDesktopNoticeAt >= 5000) {
-    lastDesktopNoticeAt = Date.now();
-    try { new Notification("Office 协作", { body: `${message.user}：${body}`, tag: "office-update" }); } catch { /* 浏览器或系统可能禁用通知。 */ }
+  if ("Notification" in window && Notification.permission === "granted") {
+    try { new Notification("Office 协作", { body: `${message.user}：${body}` }); } catch { /* 浏览器或系统可能禁用通知。 */ }
   }
 }
 
@@ -751,9 +749,9 @@ function displayCellValue(row, column) {
 
 function handleFocusOut(event) {
   if (event.target?.tagName === "INPUT") {
-    flushEditingCell();
-    if (event.target.closest(".sheet-title-cell, .sheet-header")) flushFixedCellWrites();
     const key = event.target.dataset.officeUnreadKey;
+    if (key && key === editingCell.value) flushEditingCell();
+    if (event.target.closest(".sheet-title-cell, .sheet-header")) flushFixedCellWrites();
     if (key) {
       delete unreadCells.value[key];
       delete event.target.dataset.officeUnreadKey;
@@ -766,19 +764,45 @@ function clearUnreadCell(row, column) {
   delete unreadCells.value[cellKey(row, column)];
 }
 
-function handleCellClick(event) {
-  const cell = event.target?.closest?.(".workbench-sheet tbody td:not(.row-number)");
+function getOfficeCellPosition(target) {
+  const cell = target?.closest?.(".workbench-sheet tbody td:not(.row-number)");
   const row = cell?.closest("tr");
-  if (!row || !activeTopic.value) return;
+  if (!row || !activeTopic.value) return null;
   const rowIndex = [...row.parentElement.children].indexOf(row);
-  if (rowIndex < 0) return;
-  clearUnreadCell(rowIndex + 2, cell.cellIndex - 1);
-  delete cell.dataset.unread;
+  const column = cell.cellIndex - 1;
+  if (rowIndex < 0 || column < 0) return null;
+  return { cell, row: rowIndex + 2, column, key: cellKey(rowIndex + 2, column) };
+}
+
+function markOfficeCellRead(position) {
+  clearUnreadCell(position.row, position.column);
+  delete position.cell.dataset.unread;
+}
+
+function handleCellClick(event) {
+  const position = getOfficeCellPosition(event.target);
+  if (position) markOfficeCellRead(position);
 }
 
 function handleOfficePointerDown(event) {
   requestOfficeNotifications();
-  if (editingCell.value && event.target !== document.activeElement) flushEditingCell();
+  if (event.button !== undefined && event.button !== 0) return;
+  const position = getOfficeCellPosition(event.target);
+  if (position) {
+    markOfficeCellRead(position);
+    if (editingCell.value && editingCell.value !== position.key) {
+      const previousInput = document.activeElement;
+      if (previousInput?.dataset?.officeUnreadKey === editingCell.value) previousInput.blur?.();
+      if (editingCell.value && editingCell.value !== position.key) flushEditingCell();
+    }
+    if (!event.target.closest?.(".row-resize-handle") && event.target.tagName !== "INPUT") {
+      // 防止浏览器在指针按下的默认行为中再次移走程序设置的输入焦点。
+      event.preventDefault?.();
+      position.cell.querySelector("input")?.focus();
+    }
+  } else if (editingCell.value && event.target !== document.activeElement) {
+    flushEditingCell();
+  }
 }
 
 function handleOfficeWindowBlur() {
@@ -798,6 +822,7 @@ function handleFocusIn(event) {
   const key = cellKey(rowIndex + 2, column);
   if (editingCell.value && editingCell.value !== key) {
     delete unreadCells.value[editingCell.value];
+    flushEditingCell();
   }
   delete unreadCells.value[key];
   syncCellLockBadges();
@@ -808,7 +833,7 @@ function handleFocusIn(event) {
     return;
   }
   selectedCell.value = `${String.fromCharCode(65 + column)}${rowIndex + 3}`;
-  beginCellEdit(rowIndex + 2, column);
+  if (editingCell.value !== key) beginCellEdit(rowIndex + 2, column);
 }
 
 const fixedCellWriteTimers = new Map();

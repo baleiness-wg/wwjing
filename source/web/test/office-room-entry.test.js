@@ -173,6 +173,65 @@ test("点击单元格任意位置清除未读边框，重复更新不会重新�
   assert.equal(state.unreadCells["topic-1:2:0"], undefined);
 });
 
+test("点击时间文字立即清除未读并切换输入焦点，延迟失焦不结束新编辑", async (t) => {
+  const firstSave = deferred();
+  const posts = [];
+  const { state, sockets } = setup(t, (url, options) => {
+    if (url.endsWith("/cell")) {
+      posts.push(JSON.parse(options.body));
+      return firstSave.promise;
+    }
+    return Promise.resolve({ ok: true, json: async () => ({ rooms: [] }) });
+  });
+  state.activateRoom("room", "password", snapshot("原值"));
+  const row = { parentElement: { children: [] } };
+  row.parentElement.children.push(row);
+  const oldInput = { tagName: "INPUT", dataset: { officeUnreadKey: "topic-1:2:0" }, closest: () => null };
+  const newCell = { cellIndex: 2, dataset: { unread: "true" }, closest: () => row };
+  const newInput = { tagName: "INPUT", dataset: {}, closest: (selector) => selector === "td" ? newCell : row };
+  oldInput.blur = () => { document.activeElement = null; state.handleFocusOut({ target: oldInput }); };
+  newInput.focus = () => { document.activeElement = newInput; state.handleFocusIn({ target: newInput }); };
+  newCell.querySelector = () => newInput;
+  const timeText = { tagName: "SPAN", closest: (selector) => selector === ".row-resize-handle" ? null : newCell };
+  document.activeElement = oldInput;
+  state.beginCellEdit(2, 0);
+  state.updateCell(0, 0, "第一格");
+  state.unreadCells["topic-1:2:1"] = true;
+  state.handleOfficePointerDown({ button: 0, target: timeText });
+  assert.equal(state.unreadCells["topic-1:2:1"], undefined);
+  assert.equal(newCell.dataset.unread, undefined);
+  assert.equal(state.editingCell, "topic-1:2:1");
+  state.updateCell(0, 1, "第二格草稿");
+  state.handleFocusOut({ target: oldInput });
+  assert.equal(state.editingCell, "topic-1:2:1");
+  assert.equal(state.drafts["topic-1:2:1"], "第二格草稿");
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(posts[0].value, "第一格");
+  firstSave.resolve({ ok: true });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(state.editingCell, "topic-1:2:1");
+  sockets[0].close();
+});
+
+test("直接聚焦另一输入框也先提交原单元格", async (t) => {
+  const posts = [];
+  const { state } = setup(t, async (url, options) => {
+    if (url.endsWith("/cell")) posts.push(JSON.parse(options.body));
+    return { ok: true, json: async () => ({ rooms: [] }) };
+  });
+  state.activateRoom("room", "password", snapshot("原值"));
+  state.beginCellEdit(2, 0);
+  state.updateCell(0, 0, "已修改");
+  const row = { parentElement: { children: [] } };
+  row.parentElement.children.push(row);
+  const cell = { cellIndex: 2 };
+  const input = { tagName: "INPUT", dataset: {}, closest: (selector) => selector === "td" ? cell : row };
+  state.handleFocusIn({ target: input });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(posts[0].value, "已修改");
+  assert.equal(state.editingCell, "topic-1:2:1");
+});
+
 test("删除内容的重复更新使用版本号去重，后续更新仍显示未读", async (t) => {
   const { state, sockets } = setup(t, async (url) => ({ ok: true, json: async () => url.endsWith("/rooms") ? { rooms: [] } : snapshot("初始") }));
   state.activateRoom("room", "password", snapshot("初始"));
@@ -247,7 +306,7 @@ test("同一单元格连续保存按顺序进行，旧请求不会删除新草�
   assert.equal(sockets[0].messages.filter((message) => message.type === "cell:unlock").length, 1);
 });
 
-test("页面可见但窗口未聚焦时使用系统通知并合并频繁提醒", async (t) => {
+test("页面可见但窗口未聚焦时每条消息立即使用系统通知", async (t) => {
   const { state } = setup(t, async () => ({ ok: true, json: async () => ({ rooms: [] }) }));
   const notifications = [];
   globalThis.Notification = class {
@@ -258,7 +317,8 @@ test("页面可见但窗口未聚焦时使用系统通知并合并频繁提醒",
   document.hasFocus = () => false;
   state.notifyOffice({ user: "其他人" }, "已完成编辑");
   state.notifyOffice({ user: "其他人" }, "已完成编辑");
-  assert.equal(notifications.length, 1);
+  assert.equal(notifications.length, 2);
+  assert.equal(notifications[0].options.tag, undefined);
   assert.equal(notices.length, 0);
   assert.equal(notifications[0].title, "Office 协作");
   document.hasFocus = () => true;

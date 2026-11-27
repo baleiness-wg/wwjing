@@ -25,6 +25,9 @@ Thumbs.db
 # Web build output
 source/web/dist/
 
+# Temporary test files and browser profiles
+/.test-tmp/
+
 # Local environment and secrets
 **/.env
 **/.env.*
