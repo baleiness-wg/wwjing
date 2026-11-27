@@ -525,14 +525,20 @@ function connect() {
     if (connectionSequence !== roomConnectionSequence || connectionRoomId !== activeRoomId.value) return;
     onlineCount.value = null;
     renameInFlight = false;
-    if (event.code === 4003) {
+  if (event.code === 4003) {
+      connectionText.value = "连接失败";
       if (cancelledRoomEntries.has(connectionRoomId)) return;
-      localStorage.removeItem(`office_room_password:${connectionRoomId}`);
-      pendingRoomId.value = connectionRoomId;
-      roomPasswordInput.value = "";
-      roomDialogMode.value = "enter";
-      roomDialogVisible.value = true;
-      ElMessage.error("房间密码错误，无法进入");
+      if (!rooms.value.some((room) => room.id === connectionRoomId) && pendingRoom.value?.id !== connectionRoomId) {
+        window.setTimeout(() => {
+          if (connectionSequence !== roomConnectionSequence || connectionRoomId !== activeRoomId.value) return;
+          const knownRoom = rooms.value.find((room) => room.id === connectionRoomId);
+          if (knownRoom) {
+            resolveRoomConnectionFailure(connectionRoomId, connectionSequence);
+          } else resolveRoomConnectionFailure(connectionRoomId, connectionSequence);
+        }, 0);
+        return;
+      }
+      resolveRoomConnectionFailure(connectionRoomId, connectionSequence);
       return;
     }
     connectionText.value = "轮询";
@@ -1065,6 +1071,11 @@ async function loadRooms() {
     const saved = JSON.parse(localStorage.getItem("office_joined_rooms") || "[]");
     rooms.value = Array.isArray(saved) ? saved.filter((room) => typeof room?.id === "string" && typeof room?.name === "string") : [];
   } catch { rooms.value = []; }
+  if (activeRoomId.value && !rooms.value.some((room) => room.id === activeRoomId.value)) {
+    // 旧版本可能只保存了当前房间 ID；先保留入口，供用户手动移除或重新搜索。
+    rooms.value.push({ id: activeRoomId.value, name: "未命名房间", protected: true, unresolved: true });
+  }
+  if (rooms.value.length) reconcileSavedRooms();
   const savedRoomId = localStorage.getItem("office_active_room");
   const savedRoom = rooms.value.find((room) => room.id === savedRoomId);
   if (savedRoomId && !localStorage.getItem(`office_room_password:${savedRoomId}`)) {
@@ -1076,8 +1087,70 @@ async function loadRooms() {
   if (savedRoom && !socket.value && !roomActionLoading.value) enterRoom(savedRoom);
 }
 
+async function lookupRoomStatus(room) {
+  if (!room?.id || !room?.name || room.unresolved) return "unknown";
+  try {
+    const response = await fetch(`/api/office/rooms?name=${encodeURIComponent(room.name)}`, {
+      cache: "no-store",
+      headers: { Authorization: "", "X-Office-Guest": encodeURIComponent(guestName.value) }
+    });
+    if (response.status === 404) return "missing";
+    if (!response.ok) return "unknown";
+    const result = await response.json();
+    if (!result.room?.id || result.room.name !== room.name) return "unknown";
+    return result.room.id === room.id ? "exists" : "missing";
+  } catch { return "unknown"; }
+}
+
+function removeExpiredRoom(room) {
+  if (!room?.id) return;
+  if (pendingRoomId.value === room.id) {
+    roomEntrySequence += 1;
+    roomDialogVisible.value = false;
+    pendingRoomId.value = "";
+    pendingRoom.value = null;
+    roomPasswordInput.value = "";
+  }
+  forgetRoom(room, { discardChanges: true });
+}
+
+async function reconcileSavedRooms() {
+  const savedRooms = [...rooms.value];
+  await Promise.all(savedRooms.map(async (room) => {
+    const status = await lookupRoomStatus(room);
+    if (status !== "missing" || !rooms.value.some((item) => item.id === room.id && item.name === room.name)) return;
+    removeExpiredRoom(room);
+  }));
+}
+
+async function resolveRoomConnectionFailure(roomId, sequence) {
+  const room = rooms.value.find((item) => item.id === roomId) || (pendingRoom.value?.id === roomId ? pendingRoom.value : null);
+  const status = await lookupRoomStatus(room);
+  if (sequence !== roomConnectionSequence || roomId !== activeRoomId.value || cancelledRoomEntries.has(roomId)) return;
+  if (status === "missing") {
+    removeExpiredRoom(room);
+    ElMessage.warning("房间已失效，已从本地列表移除");
+    return;
+  }
+  if (status === "unknown") {
+    connectionText.value = "连接失败";
+    ElMessage.error("无法确认房间状态，请检查网络后重试");
+    window.clearTimeout(reconnectTimer);
+    reconnectTimer = window.setTimeout(connect, reconnectDelay);
+    reconnectDelay = Math.min(reconnectDelay * 2, 10000);
+    return;
+  }
+  localStorage.removeItem(`office_room_password:${roomId}`);
+  pendingRoomId.value = roomId;
+  pendingRoom.value = room;
+  roomPasswordInput.value = "";
+  roomDialogMode.value = "enter";
+  roomDialogVisible.value = true;
+  ElMessage.error("房间密码错误，无法进入");
+}
+
 function saveRooms() {
-  localStorage.setItem("office_joined_rooms", JSON.stringify(rooms.value.map(({ id, name, protected: protectedRoom }) => ({ id, name, protected: protectedRoom }))));
+  localStorage.setItem("office_joined_rooms", JSON.stringify(rooms.value.map(({ id, name, protected: protectedRoom, unresolved }) => ({ id, name, protected: protectedRoom, ...(unresolved ? { unresolved: true } : {}) }))));
 }
 
 function rememberRoom(room) {
@@ -1117,13 +1190,18 @@ async function searchRoom() {
   } finally { roomActionLoading.value = false; }
 }
 
-function forgetRoom(room) {
+function forgetRoom(room, { discardChanges = false } = {}) {
   rooms.value = rooms.value.filter((item) => item.id !== room.id);
   saveRooms();
   localStorage.removeItem(`office_room_password:${room.id}`);
   if (activeRoomId.value !== room.id) return;
-  flushEditingCell();
-  flushFixedCellWrites();
+  if (!discardChanges) {
+    flushEditingCell();
+    flushFixedCellWrites();
+  } else {
+    for (const pending of fixedCellWriteTimers.values()) window.clearTimeout(pending.timer);
+    fixedCellWriteTimers.clear();
+  }
   roomConnectionSequence += 1;
   snapshotSequence += 1;
   window.clearTimeout(reconnectTimer);
@@ -1152,8 +1230,14 @@ async function changeRoomPassword(room) {
 
 async function deleteRoom(room) {
   if (!window.confirm(`确定删除房间“${room.name}”吗？`)) return;
-  const response = await fetch(`/api/office/rooms/${encodeURIComponent(room.id)}`, { method: "DELETE", headers: { Authorization: "", "X-Office-Guest": encodeURIComponent(guestName.value) } });
-  if (!response.ok) return ElMessage.error("删除房间失败");
+  const response = await fetch(`/api/office/rooms/${encodeURIComponent(room.id)}`, { method: "DELETE", headers: { Authorization: "", "X-Office-Guest": encodeURIComponent(guestName.value) } }).catch(() => null);
+  if (!response?.ok) {
+    if (await lookupRoomStatus(room) === "missing") {
+      removeExpiredRoom(room);
+      return ElMessage.success("房间已失效，已从本地列表移除");
+    }
+    return ElMessage.error("删除房间失败，请检查权限或网络");
+  }
   forgetRoom(room);
   ElMessage.success("房间已删除");
 }
@@ -1216,6 +1300,20 @@ async function verifyAndEnterRoom(roomId, password, sequence) {
     if (sequence !== roomEntrySequence) return;
     if (!response.ok) {
       if (response.status === 403) {
+        const room = pendingRoom.value?.id === roomId ? pendingRoom.value : rooms.value.find((item) => item.id === roomId);
+        const status = await lookupRoomStatus(room);
+        if (sequence !== roomEntrySequence) return;
+        if (status === "missing") {
+          removeExpiredRoom(room);
+          ElMessage.warning("房间已失效，已从本地列表移除");
+          return;
+        }
+        if (status === "unknown") {
+          roomDialogMode.value = "enter";
+          roomDialogVisible.value = true;
+          ElMessage.error("无法确认房间状态，请检查网络后重试");
+          return;
+        }
         localStorage.removeItem(`office_room_password:${roomId}`);
         roomPasswordInput.value = "";
         roomDialogMode.value = "enter";
