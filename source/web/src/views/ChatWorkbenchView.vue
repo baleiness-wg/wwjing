@@ -228,9 +228,13 @@ const editingOriginalValue = ref("");
 const editingLockSent = ref(false);
 const cellLocks = ref({});
 const unreadCells = ref({});
+const lastCellUpdateRevisions = new Map();
 const drafts = reactive({});
 const pendingLocalValues = reactive({});
 const pendingUpdates = reactive({});
+const pendingCellSaves = new Map();
+const cellSaveVersions = new Map();
+const failedCellSaves = new Set();
 const saveState = ref("已同步");
 const passwordDialogVisible = ref(false);
 const passwordLoading = ref(false);
@@ -248,6 +252,7 @@ let reconnectTimer;
 let reconnectDelay = 1000;
 let roomConnectionSequence = 0;
 let roomEntrySequence = 0;
+const cancelledRoomEntries = new Set();
 let snapshotInFlight = null;
 let snapshotFallbackTimer;
 let roomSnapshotReady = false;
@@ -262,6 +267,8 @@ function resetRoomState() {
   Object.keys(pendingLocalValues).forEach((key) => delete pendingLocalValues[key]);
   Object.keys(pendingUpdates).forEach((key) => delete pendingUpdates[key]);
   Object.keys(unreadCells.value).forEach((key) => delete unreadCells.value[key]);
+  lastCellUpdateRevisions.clear();
+  failedCellSaves.clear();
   editingCell.value = null;
   editingOriginalValue.value = "";
   editingLockSent.value = false;
@@ -288,17 +295,26 @@ function roomHeaders(roomId, password) {
   };
 }
 
+let lastDesktopNoticeAt = 0;
+function officeIsBackground() {
+  return document.visibilityState !== "visible" || !document.hasFocus();
+}
+
 function notifyOffice(message, body) {
   if (isOwnAuthor(message.user)) return;
-  ElMessage.info(`${message.user}：${body}`);
+  if (!officeIsBackground()) {
+    ElMessage.info({ message: `${message.user}：${body}`, grouping: true });
+    return;
+  }
   flashDocumentTitle(message.user, body);
-  if (document.visibilityState !== "visible" && "Notification" in window && Notification.permission === "granted") {
-    new Notification("Office 协作", { body: `${message.user}：${body}` });
+  if ("Notification" in window && Notification.permission === "granted" && Date.now() - lastDesktopNoticeAt >= 5000) {
+    lastDesktopNoticeAt = Date.now();
+    try { new Notification("Office 协作", { body: `${message.user}：${body}`, tag: "office-update" }); } catch { /* 浏览器或系统可能禁用通知。 */ }
   }
 }
 
 function flashDocumentTitle(author, body) {
-  if (document.visibilityState === "visible") return;
+  if (!officeIsBackground()) return;
   hasUnreadOfficeNotice = true;
   window.clearInterval(titleFlashTimer);
   titleFlashIndex = 0;
@@ -309,7 +325,7 @@ function flashDocumentTitle(author, body) {
 }
 
 function clearOfficeTitleNotice() {
-  if (document.visibilityState !== "visible" || !hasUnreadOfficeNotice) return;
+  if (officeIsBackground() || !hasUnreadOfficeNotice) return;
   hasUnreadOfficeNotice = false;
   window.clearInterval(titleFlashTimer);
   document.title = defaultDocumentTitle;
@@ -322,7 +338,7 @@ function rememberEdit(topicId, key, editedAt) {
 
 function notifySnapshotUpdate(snapshot, suppress = false) {
   const baseline = lastSnapshotRevision === null || suppress;
-  if (!baseline && snapshot.revision != null && snapshot.revision === lastSnapshotRevision) return;
+  if (!baseline && Number.isFinite(snapshot.revision) && snapshot.revision <= lastSnapshotRevision) return;
   if (suppress) notifiedEdits.clear();
   let latest = null;
   for (const topic of snapshot.topics || []) {
@@ -338,19 +354,22 @@ function notifySnapshotUpdate(snapshot, suppress = false) {
   if (latest) notifyOffice({ user: latest.author }, "已完成编辑");
 }
 
+let notificationPermissionRequested = false;
 function requestOfficeNotifications() {
-  if ("Notification" in window && Notification.permission === "default") Notification.requestPermission();
+  if (notificationPermissionRequested || !("Notification" in window) || Notification.permission !== "default") return;
+  notificationPermissionRequested = true;
+  Promise.resolve(Notification.requestPermission()).catch(() => {});
 }
 
-function updateLockFallback(row, column, locked) {
+function updateLockFallback(row, column, locked, topicId = activeTopicId.value, roomId = activeRoomId.value, password = roomPassword.value) {
   return fetch("/api/office/lock", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      ...roomHeaders(activeRoomId.value, roomPassword.value),
+      ...roomHeaders(roomId, password),
       "X-Office-Display-Name": officeHeaderName(),
     },
-    body: JSON.stringify({ topicId: activeTopicId.value, row, column, locked })
+    body: JSON.stringify({ topicId, row, column, locked })
   }).catch(() => {});
 }
 
@@ -381,12 +400,12 @@ function endCellEdit(row, column, value) {
   updateLockFallback(row, column, false);
 }
 
-async function updateCellFallback(topicId, row, column, value) {
+async function updateCellFallback(topicId, row, column, value, roomId = activeRoomId.value, password = roomPassword.value) {
   const response = await fetch("/api/office/cell", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      ...roomHeaders(activeRoomId.value, roomPassword.value),
+      ...roomHeaders(roomId, password),
       "X-Office-Display-Name": officeHeaderName()
     },
     body: JSON.stringify({ topicId, row, column, value })
@@ -480,6 +499,7 @@ function connect() {
     if (connectionSequence !== roomConnectionSequence || connectionRoomId !== activeRoomId.value) return;
     renameInFlight = false;
     if (event.code === 4003) {
+      if (cancelledRoomEntries.has(connectionRoomId)) return;
       localStorage.removeItem(`office_room_password:${connectionRoomId}`);
       pendingRoomId.value = connectionRoomId;
       roomPasswordInput.value = "";
@@ -518,7 +538,7 @@ function connect() {
       ElMessage.warning(`${message.user || "其他用户"}正在编辑此单元格`);
     } else if (message.type === "cell:update:ack") {
       if (pendingUpdates[message.requestId]) delete pendingUpdates[message.requestId];
-      saveState.value = "已同步";
+      if (!pendingCellSaves.size && !failedCellSaves.size) saveState.value = "已同步";
     } else if (message.type === "user:rename:ack") {
       const pending = JSON.parse(localStorage.getItem("office_pending_renames") || "[]");
       if (pending[0]?.oldName === message.oldName && pending[0]?.name === message.name) pending.shift();
@@ -575,15 +595,20 @@ function connect() {
         }
       } else if (message.type === "cell:updated") {
       const eventKey = `${message.row}:${message.column}`;
+      const updateKey = `${message.topicId}:${eventKey}`;
       const wasNotified = message.editedAt && notifiedEdits.get(`${message.topicId}:${eventKey}`) === message.editedAt;
+      const duplicateUpdate = Number.isFinite(message.revision)
+        ? lastCellUpdateRevisions.get(updateKey) === message.revision
+        : Boolean(wasNotified);
+      if (Number.isFinite(message.revision)) lastCellUpdateRevisions.set(updateKey, message.revision);
       if (message.editedAt) rememberEdit(message.topicId, eventKey, message.editedAt);
       else notifiedEdits.delete(`${message.topicId}:${eventKey}`);
-      if (!message.suppressUnread && !wasNotified && message.clientId !== officeClientId) notifyOffice(message, "已完成编辑");
+      if (!message.suppressUnread && !wasNotified && !duplicateUpdate && message.clientId !== officeClientId) notifyOffice(message, "已完成编辑");
       const topic = topics.value.find((item) => item.id === message.topicId);
       if (!topic) return;
       topic.cells[message.row] ||= [];
       topic.cells[message.row][message.column] = message.value;
-      if (!message.suppressUnread && message.clientId !== officeClientId && message.user !== currentDisplayName.value) unreadCells.value[`${message.topicId}:${message.row}:${message.column}`] = true;
+      if (!message.suppressUnread && !duplicateUpdate && message.clientId !== officeClientId && message.user !== currentDisplayName.value) unreadCells.value[updateKey] = true;
       fitColumnWidth(message.column, false);
       topic.cellAuthors ||= {};
       topic.cellAuthorIds ||= {};
@@ -641,48 +666,82 @@ function updateCell(rowIndex, cellIndex, value, sync = true) {
 async function flushEditingCell() {
   if (!editingCell.value || !activeTopic.value) return;
   const editingKey = editingCell.value;
-  const [, row, column] = editingKey.split(":").map(Number);
-  activeTopic.value.cells[row] ||= [];
-  const value = drafts[editingKey] ?? (activeTopic.value.cells[row]?.[column] || "");
-  pendingLocalValues[`${activeTopicId.value}:${row}:${column}`] = value;
-  if (!editingLockSent.value && value === editingOriginalValue.value) {
-    delete drafts[editingCell.value];
+  const topicId = activeTopicId.value;
+  const roomId = activeRoomId.value;
+  const password = roomPassword.value;
+  const connectionSequence = roomConnectionSequence;
+  const [, rowText, columnText] = editingKey.split(":");
+  const row = Number(rowText);
+  const column = Number(columnText);
+  const topic = activeTopic.value;
+  const value = drafts[editingKey] ?? (topic.cells[row]?.[column] || "");
+  if (!editingLockSent.value && value === editingOriginalValue.value && !failedCellSaves.has(editingKey)) {
+    delete drafts[editingKey];
     editingCell.value = null;
     return;
   }
-  activeTopic.value.cells[row][column] = value;
-  activeTopic.value.cellAuthors ||= {};
-  activeTopic.value.cellEditedAt ||= {};
+  // 立即结束本次编辑；保存回调不能操作后来获得焦点的单元格。
+  editingCell.value = null;
+  editingLockSent.value = false;
+  delete drafts[editingKey];
+  pendingLocalValues[editingKey] = value;
+  topic.cells[row] ||= [];
+  topic.cells[row][column] = value;
+  topic.cellAuthors ||= {};
+  topic.cellEditedAt ||= {};
   const authorKey = `${row}:${column}`;
   if (String(value).trim()) {
-    activeTopic.value.cellAuthors[authorKey] = currentDisplayName.value;
-    (activeTopic.value.cellAuthorIds ||= {})[authorKey] = officeClientId;
-    activeTopic.value.cellEditedAt[authorKey] = Date.now();
-    rememberEdit(activeTopicId.value, authorKey, activeTopic.value.cellEditedAt[authorKey]);
+    topic.cellAuthors[authorKey] = currentDisplayName.value;
+    (topic.cellAuthorIds ||= {})[authorKey] = officeClientId;
+    topic.cellEditedAt[authorKey] = Date.now();
+    rememberEdit(topicId, authorKey, topic.cellEditedAt[authorKey]);
   } else {
-    delete activeTopic.value.cellAuthors[authorKey];
-    if (activeTopic.value.cellAuthorIds) delete activeTopic.value.cellAuthorIds[authorKey];
-    delete activeTopic.value.cellEditedAt[authorKey];
-    notifiedEdits.delete(`${activeTopicId.value}:${authorKey}`);
+    delete topic.cellAuthors[authorKey];
+    if (topic.cellAuthorIds) delete topic.cellAuthorIds[authorKey];
+    delete topic.cellEditedAt[authorKey];
+    notifiedEdits.delete(`${topicId}:${authorKey}`);
   }
-  const requestId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  pendingUpdates[requestId] = { key: editingKey, topicId: activeTopicId.value, row, column, value };
   saveState.value = "保存中";
-  send({ type: "cell:update", requestId, topicId: activeTopicId.value, row, column, value });
-  const saved = await updateCellFallback(activeTopicId.value, row, column, value);
-  if (!saved) {
-    saveState.value = "保存失败";
-    ElMessage.error("单元格保存失败，请检查房间连接后重试");
-    return;
-  }
-  delete cellLocks.value[editingKey];
-  delete drafts[editingKey];
-  send({ type: "cell:unlock", topicId: activeTopicId.value, row, column });
-  updateLockFallback(row, column, false);
-  fitColumnWidth(column);
-  if (editingCell.value === editingKey) editingCell.value = null;
-  editingLockSent.value = false;
-  saveState.value = "已同步";
+  const saveKey = `${connectionSequence}:${editingKey}`;
+  const version = (cellSaveVersions.get(saveKey) || 0) + 1;
+  cellSaveVersions.set(saveKey, version);
+  const previous = pendingCellSaves.get(saveKey) || Promise.resolve();
+  const finish = () => {
+    if (pendingCellSaves.get(saveKey) === save) {
+      pendingCellSaves.delete(saveKey);
+      cellSaveVersions.delete(saveKey);
+      if (connectionSequence === roomConnectionSequence && saveState.value === "保存中") {
+        saveState.value = failedCellSaves.size ? "保存失败" : pendingCellSaves.size ? "保存中" : "已同步";
+      }
+    }
+  };
+  const save = previous.catch(() => {}).then(async () => {
+    const sameRoom = connectionSequence === roomConnectionSequence && roomId === activeRoomId.value;
+    const requestId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    if (sameRoom) {
+      pendingUpdates[requestId] = { key: editingKey, topicId, row, column, value };
+      send({ type: "cell:update", requestId, topicId, row, column, value });
+    }
+    const saved = await updateCellFallback(topicId, row, column, value, roomId, password);
+    const currentRoom = connectionSequence === roomConnectionSequence && roomId === activeRoomId.value;
+    const latest = cellSaveVersions.get(saveKey) === version;
+    if (!currentRoom || !latest) return;
+    if (!saved) {
+      failedCellSaves.add(editingKey);
+      saveState.value = "保存失败";
+      ElMessage.error("单元格保存失败，请检查房间连接后重试");
+      return;
+    }
+    failedCellSaves.delete(editingKey);
+    if (editingCell.value !== editingKey || !editingLockSent.value) {
+      delete cellLocks.value[editingKey];
+      send({ type: "cell:unlock", topicId, row, column });
+      updateLockFallback(row, column, false, topicId, roomId, password);
+    }
+    fitColumnWidth(column);
+  });
+  pendingCellSaves.set(saveKey, save);
+  try { await save; } finally { finish(); }
 }
 
 function displayCellValue(row, column) {
@@ -705,6 +764,27 @@ function handleFocusOut(event) {
 
 function clearUnreadCell(row, column) {
   delete unreadCells.value[cellKey(row, column)];
+}
+
+function handleCellClick(event) {
+  const cell = event.target?.closest?.(".workbench-sheet tbody td:not(.row-number)");
+  const row = cell?.closest("tr");
+  if (!row || !activeTopic.value) return;
+  const rowIndex = [...row.parentElement.children].indexOf(row);
+  if (rowIndex < 0) return;
+  clearUnreadCell(rowIndex + 2, cell.cellIndex - 1);
+  delete cell.dataset.unread;
+}
+
+function handleOfficePointerDown(event) {
+  requestOfficeNotifications();
+  if (editingCell.value && event.target !== document.activeElement) flushEditingCell();
+}
+
+function handleOfficeWindowBlur() {
+  flushEditingCell();
+  flushFixedCellWrites();
+  if (document.activeElement?.dataset?.officeUnreadKey) document.activeElement.blur();
 }
 
 function handleFocusIn(event) {
@@ -950,8 +1030,10 @@ async function deleteRoom(room) {
 }
 
 function activateRoom(roomId, password, snapshot = null) {
+  flushEditingCell();
   flushFixedCellWrites();
   roomConnectionSequence += 1;
+  cancelledRoomEntries.delete(roomId);
   renameInFlight = false;
   window.clearTimeout(reconnectTimer);
   window.clearTimeout(snapshotFallbackTimer);
@@ -980,6 +1062,7 @@ function activateRoom(roomId, password, snapshot = null) {
 
 async function enterRoom(room) {
   if (!room.id || roomActionLoading.value) return;
+  cancelledRoomEntries.delete(room.id);
   const sequence = ++roomEntrySequence;
   pendingRoomId.value = room.id;
   const password = localStorage.getItem(`office_room_password:${room.id}`) || "";
@@ -1110,7 +1193,16 @@ onMounted(() => {
   loadRooms();
 });
 onMounted(() => document.addEventListener("visibilitychange", clearOfficeTitleNotice));
-onMounted(requestOfficeNotifications);
+onMounted(() => {
+  window.addEventListener("focus", clearOfficeTitleNotice);
+  window.addEventListener("blur", handleOfficeWindowBlur);
+});
+watch(roomDialogVisible, (visible) => {
+  if (!visible) {
+    roomEntrySequence += 1;
+    if (pendingRoomId.value) cancelledRoomEntries.add(pendingRoomId.value);
+  }
+}, { flush: "sync" });
 onMounted(() => {
   snapshotTimer = window.setInterval(() => {
     if (socket.value?.readyState !== WebSocket.OPEN || document.visibilityState === "visible") loadSnapshotForCurrentRoom();
@@ -1119,8 +1211,12 @@ onMounted(() => {
 onMounted(() => {
   document.addEventListener("focusout", handleFocusOut, true);
   document.addEventListener("focusin", handleFocusIn, true);
+  document.addEventListener("click", handleCellClick, true);
+  document.addEventListener("pointerdown", handleOfficePointerDown, true);
+  document.addEventListener("keydown", requestOfficeNotifications, true);
 });
 onUnmounted(() => {
+  flushEditingCell();
   flushFixedCellWrites();
   roomEntrySequence += 1;
   roomConnectionSequence += 1;
@@ -1133,6 +1229,8 @@ onUnmounted(() => {
   window.clearInterval(titleFlashTimer);
   document.title = defaultDocumentTitle;
   document.removeEventListener("visibilitychange", clearOfficeTitleNotice);
+  window.removeEventListener("focus", clearOfficeTitleNotice);
+  window.removeEventListener("blur", handleOfficeWindowBlur);
   socket.value?.close();
   window.clearTimeout(reconnectTimer);
   window.clearInterval(snapshotTimer);
@@ -1141,6 +1239,9 @@ onUnmounted(() => {
   endRowResize();
   document.removeEventListener("focusout", handleFocusOut, true);
   document.removeEventListener("focusin", handleFocusIn, true);
+  document.removeEventListener("click", handleCellClick, true);
+  document.removeEventListener("pointerdown", handleOfficePointerDown, true);
+  document.removeEventListener("keydown", requestOfficeNotifications, true);
 });
 </script>
 

@@ -1,0 +1,197 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { parse, compileScript } from "@vue/compiler-sfc";
+import * as vue from "vue";
+
+const source = readFileSync(new URL("../src/views/ChatWorkbenchView.vue", import.meta.url), "utf8");
+const compiled = compileScript(parse(source).descriptor, { id: "office-test" }).content
+  .replace(/^import .*;\n/gm, "")
+  .replace("export default", "return");
+const notices = [];
+const component = new Function("computed", "nextTick", "onMounted", "onUnmounted", "reactive", "ref", "watch", "ElMessage", "changePassword", compiled)(
+  vue.computed, vue.nextTick, vue.onMounted, vue.onUnmounted, vue.reactive, vue.ref, vue.watch,
+  { error() {}, warning() {}, info(message) { notices.push(message); }, success() {} }, () => {}
+);
+component.render = () => null;
+
+const renderer = vue.createRenderer({
+  createElement: () => ({}), createText: () => ({}), createComment: () => ({}),
+  insert() {}, remove() {}, setText() {}, setElementText() {}, patchProp() {},
+  parentNode: () => null, nextSibling: () => null
+});
+
+function deferred() {
+  let resolve;
+  const promise = new Promise((done) => { resolve = done; });
+  return { promise, resolve };
+}
+
+function snapshot(value) {
+  return { user: { name: "游客" }, topics: [{ id: "topic-1", cells: [["标题"], ["列"], [value]], cellAuthors: {} }], locks: {}, revision: 1 };
+}
+
+function setup(t, fetchHandler, initial = {}) {
+  const originals = Object.fromEntries(["window", "document", "localStorage", "fetch", "WebSocket", "BroadcastChannel"].map((key) => [key, globalThis[key]]));
+  const storage = new Map(Object.entries(initial));
+  notices.length = 0;
+  globalThis.localStorage = { getItem: (key) => storage.get(key) || null, setItem: (key, value) => storage.set(key, value), removeItem: (key) => storage.delete(key) };
+  globalThis.window = { location: { protocol: "http:", host: "localhost" }, setTimeout, clearTimeout, setInterval: () => 1, clearInterval() {}, addEventListener() {}, removeEventListener() {} };
+  globalThis.document = { title: "test", visibilityState: "visible", addEventListener() {}, removeEventListener() {}, querySelector: () => null, querySelectorAll: () => [], createElement: () => ({ getContext: () => ({ measureText: (value) => ({ width: value.length }) }) }) };
+  globalThis.BroadcastChannel = undefined;
+  globalThis.fetch = fetchHandler;
+  class FakeWebSocket {
+    static OPEN = 1;
+    static CONNECTING = 0;
+    static instances = [];
+    constructor(url) { this.url = url; this.readyState = 0; this.messages = []; FakeWebSocket.instances.push(this); }
+    close() { this.readyState = 3; }
+    send(message) { this.messages.push(JSON.parse(message)); }
+  }
+  globalThis.WebSocket = FakeWebSocket;
+  const app = renderer.createApp(component);
+  const instance = app.mount({});
+  t.after(() => {
+    app.unmount();
+    for (const [key, value] of Object.entries(originals)) {
+      if (value === undefined) delete globalThis[key];
+      else globalThis[key] = value;
+    }
+  });
+  return { state: instance.$.setupState, sockets: FakeWebSocket.instances, storage };
+}
+
+test("快速重复创建只发送一次请求", async (t) => {
+  const request = deferred();
+  let posts = 0;
+  const { state, sockets } = setup(t, (url, options) => {
+    if (options?.method === "POST") { posts += 1; return request.promise; }
+    if (url.endsWith("/snapshot")) return Promise.resolve({ ok: true, json: async () => snapshot("新房间") });
+    return Promise.resolve({ ok: true, json: async () => ({ rooms: [] }) });
+  });
+  state.roomName = "测试房间";
+  state.roomPasswordInput = "test-password";
+  const first = state.createRoom();
+  await state.createRoom();
+  assert.equal(posts, 1);
+  assert.equal(state.roomActionLoading, true);
+  request.resolve({ ok: true, json: async () => ({ room: { id: "room-1", name: "测试房间" } }) });
+  await first;
+  assert.equal(state.activeRoomId, "room-1");
+  assert.equal(state.roomActionLoading, false);
+  assert.equal(sockets.length, 1);
+  sockets[0].onmessage({ data: JSON.stringify({ type: "snapshot", ...snapshot("新房间") }) });
+  assert.equal(state.activeTopic.cells[2][0], "新房间");
+});
+
+test("刷新并行恢复已保存房间并保留游客 ID", async (t) => {
+  const list = deferred();
+  const { state, sockets, storage } = setup(t, (url) => {
+    if (url.endsWith("/rooms")) return list.promise;
+    return Promise.resolve({ ok: true, json: async () => snapshot("立即显示") });
+  }, { office_active_room: "saved", "office_room_password:saved": "password" });
+  const guest = storage.get("office_guest_name");
+  assert.ok(guest);
+  assert.ok(storage.get("office_client_id"));
+  assert.equal(sockets.length, 1);
+  assert.match(sockets[0].url, new RegExp(`guest=${encodeURIComponent(guest)}`));
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(state.activeTopic.cells[2][0], "立即显示");
+  list.resolve({ ok: true, json: async () => ({ rooms: [{ id: "saved", protected: true }] }) });
+});
+
+test("实时编辑和快照只通知一次，自己的更新及历史编辑不弹窗", async (t) => {
+  const { state, sockets, storage } = setup(t, async (url) => ({ ok: true, json: async () => url.endsWith("/rooms") ? { rooms: [] } : snapshot("初始") }));
+  const initial = snapshot("初始");
+  initial.topics[0].cellAuthors = { "2:0": "其他人" };
+  initial.topics[0].cellEditedAt = { "2:0": 100 };
+  state.activateRoom("room", "password", initial);
+  const ws = sockets[0];
+  ws.onmessage({ data: JSON.stringify({ type: "cell:updated", topicId: "topic-1", row: 2, column: 0, value: "修改", user: "其他人", clientId: "other", editedAt: 200, revision: 2 }) });
+  assert.equal(notices.length, 1);
+  const updated = snapshot("修改");
+  updated.revision = 2;
+  updated.topics[0].cellAuthors = { "2:0": "其他人" };
+  updated.topics[0].cellEditedAt = { "2:0": 200 };
+  state.applySnapshot(updated);
+  assert.equal(notices.length, 1);
+  ws.onmessage({ data: JSON.stringify({ type: "cell:updated", topicId: "topic-1", row: 2, column: 0, value: "自己", user: "自己", clientId: storage.get("office_client_id"), editedAt: 300, revision: 3 }) });
+  assert.equal(notices.length, 1);
+});
+
+test("离线改名在连接后补发并等待确认", async (t) => {
+  const { state, sockets, storage } = setup(t, async (url) => ({ ok: true, json: async () => url.endsWith("/rooms") ? { rooms: [] } : snapshot("初始") }), { office_guest_name: "原名" });
+  window.prompt = () => "新名";
+  state.activateRoom("room", "password", snapshot("初始"));
+  state.renameGuest();
+  assert.equal(storage.get("office_display_name"), "新名");
+  assert.equal(JSON.parse(storage.get("office_pending_renames")).length, 1);
+  const ws = sockets[0];
+  ws.readyState = 1;
+  ws.onmessage({ data: JSON.stringify({ type: "snapshot", ...snapshot("初始") }) });
+  assert.deepEqual(ws.messages[0], { type: "user:rename", oldName: "原名", name: "新名" });
+  ws.onmessage({ data: JSON.stringify({ type: "user:rename:ack", oldName: "原名", name: "新名" }) });
+  assert.deepEqual(JSON.parse(storage.get("office_pending_renames")), []);
+});
+
+test("表头连续输入合并为一次最终值写入", async (t) => {
+  const posts = [];
+  const { state } = setup(t, async (url, options) => {
+    if (options?.method === "POST") posts.push(JSON.parse(options.body));
+    return { ok: true, json: async () => url.endsWith("/rooms") ? { rooms: [] } : snapshot("初始") };
+  });
+  state.activateRoom("room", "password", snapshot("初始"));
+  state.updateHeader(0, "甲");
+  state.updateHeader(0, "甲乙");
+  state.updateHeader(0, "甲乙丙");
+  state.flushFixedCellWrites();
+  assert.equal(posts.length, 1);
+  assert.equal(posts[0].value, "甲乙丙");
+});
+
+test("密码验证失败后解除提交锁，允许再次尝试", async (t) => {
+  let snapshots = 0;
+  const { state } = setup(t, async (url) => {
+    if (url.endsWith("/snapshot")) {
+      snapshots += 1;
+      return snapshots === 1 ? { ok: false, status: 403 } : { ok: true, json: async () => snapshot("已进入") };
+    }
+    return { ok: true, json: async () => ({ rooms: [] }) };
+  });
+  state.pendingRoomId = "room-3";
+  state.roomPasswordInput = "错误密码";
+  state.confirmEnterRoom();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(state.roomActionLoading, false);
+  assert.equal(state.roomDialogVisible, true);
+  assert.equal(state.activeRoomId, "");
+  state.roomPasswordInput = "正确密码";
+  state.confirmEnterRoom();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(snapshots, 2);
+  assert.equal(state.activeTopic.cells[2][0], "已进入");
+});
+
+test("进入房间复用验证快照并阻止并发提交，后续实时快照保留本地草稿", async (t) => {
+  const request = deferred();
+  let snapshots = 0;
+  const { state, sockets } = setup(t, (url) => {
+    if (url.endsWith("/snapshot")) { snapshots += 1; return request.promise; }
+    return Promise.resolve({ ok: true, json: async () => ({ rooms: [] }) });
+  });
+  state.pendingRoomId = "room-2";
+  state.roomPasswordInput = "密码1234";
+  state.confirmEnterRoom();
+  state.confirmEnterRoom();
+  assert.equal(snapshots, 1);
+  request.resolve({ ok: true, json: async () => snapshot("验证快照") });
+  await request.promise;
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(state.activeRoomId, "room-2");
+  assert.equal(state.activeTopic.cells[2][0], "验证快照");
+  assert.equal(snapshots, 1);
+  state.drafts["topic-1:2:0"] = "本地草稿";
+  sockets[0].onmessage({ data: JSON.stringify({ type: "snapshot", ...snapshot("实时快照") }) });
+  assert.equal(state.activeTopic.cells[2][0], "本地草稿");
+  assert.equal(state.roomActionLoading, false);
+});

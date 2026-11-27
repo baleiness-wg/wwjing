@@ -32,12 +32,12 @@ function snapshot(value) {
 }
 
 function setup(t, fetchHandler, initial = {}) {
-  const originals = Object.fromEntries(["window", "document", "localStorage", "fetch", "WebSocket", "BroadcastChannel"].map((key) => [key, globalThis[key]]));
+  const originals = Object.fromEntries(["window", "document", "localStorage", "fetch", "WebSocket", "BroadcastChannel", "Notification"].map((key) => [key, globalThis[key]]));
   const storage = new Map(Object.entries(initial));
   notices.length = 0;
   globalThis.localStorage = { getItem: (key) => storage.get(key) || null, setItem: (key, value) => storage.set(key, value), removeItem: (key) => storage.delete(key) };
   globalThis.window = { location: { protocol: "http:", host: "localhost" }, setTimeout, clearTimeout, setInterval: () => 1, clearInterval() {}, addEventListener() {}, removeEventListener() {} };
-  globalThis.document = { title: "test", visibilityState: "visible", addEventListener() {}, removeEventListener() {}, querySelector: () => null, querySelectorAll: () => [], createElement: () => ({ getContext: () => ({ measureText: (value) => ({ width: value.length }) }) }) };
+  globalThis.document = { title: "test", visibilityState: "visible", hasFocus: () => true, addEventListener() {}, removeEventListener() {}, querySelector: () => null, querySelectorAll: () => [], createElement: () => ({ getContext: () => ({ measureText: (value) => ({ width: value.length }) }) }) };
   globalThis.BroadcastChannel = undefined;
   globalThis.fetch = fetchHandler;
   class FakeWebSocket {
@@ -147,6 +147,154 @@ test("表头连续输入合并为一次最终值写入", async (t) => {
   state.flushFixedCellWrites();
   assert.equal(posts.length, 1);
   assert.equal(posts[0].value, "甲乙丙");
+});
+
+test("点击单元格任意位置清除未读边框，重复更新不会重新标记", async (t) => {
+  const { state, sockets } = setup(t, async (url) => ({ ok: true, json: async () => url.endsWith("/rooms") ? { rooms: [] } : snapshot("初始") }));
+  state.activateRoom("room", "password", snapshot("初始"));
+  const ws = sockets[0];
+  const update = { type: "cell:updated", topicId: "topic-1", row: 2, column: 0, value: "更新", user: "其他人", clientId: "other", editedAt: 123, revision: 2 };
+  const receive = (message) => ws.onmessage({ data: JSON.stringify(message) });
+  const row = { parentElement: { children: [] } };
+  row.parentElement.children.push(row);
+  const cell = { cellIndex: 1, dataset: { unread: "true" }, closest: () => row };
+  const click = () => state.handleCellClick({ target: { closest: () => cell } });
+
+  receive(update);
+  assert.equal(state.unreadCells["topic-1:2:0"], true);
+  click();
+  assert.equal(state.unreadCells["topic-1:2:0"], undefined);
+  assert.equal(cell.dataset.unread, undefined);
+  receive(update);
+  assert.equal(state.unreadCells["topic-1:2:0"], undefined);
+  receive({ ...update, value: "再次更新", editedAt: 124, revision: 3 });
+  assert.equal(state.unreadCells["topic-1:2:0"], true);
+  click();
+  assert.equal(state.unreadCells["topic-1:2:0"], undefined);
+});
+
+test("删除内容的重复更新使用版本号去重，后续更新仍显示未读", async (t) => {
+  const { state, sockets } = setup(t, async (url) => ({ ok: true, json: async () => url.endsWith("/rooms") ? { rooms: [] } : snapshot("初始") }));
+  state.activateRoom("room", "password", snapshot("初始"));
+  const receive = (message) => sockets[0].onmessage({ data: JSON.stringify(message) });
+  const update = { type: "cell:updated", topicId: "topic-1", row: 2, column: 0, value: "", user: "其他人", clientId: "other", editedAt: null, revision: 2 };
+  receive(update);
+  assert.equal(notices.length, 1);
+  state.clearUnreadCell(2, 0);
+  receive(update);
+  assert.equal(notices.length, 1);
+  assert.equal(state.unreadCells["topic-1:2:0"], undefined);
+  receive({ ...update, revision: 3 });
+  assert.equal(state.unreadCells["topic-1:2:0"], true);
+  assert.equal(notices.length, 2);
+});
+
+test("切换单元格时立即提交草稿，旧请求完成不影响新编辑", async (t) => {
+  const firstSave = deferred();
+  const posts = [];
+  const { state, sockets } = setup(t, (url, options) => {
+    if (url.endsWith("/cell")) {
+      posts.push(JSON.parse(options.body));
+      return posts.length === 1 ? firstSave.promise : Promise.resolve({ ok: true });
+    }
+    return Promise.resolve({ ok: true, json: async () => ({ rooms: [] }) });
+  });
+  state.activateRoom("room", "password", snapshot("原值"));
+  sockets[0].readyState = 1;
+  state.beginCellEdit(2, 0);
+  state.updateCell(0, 0, "第一格");
+  state.handleOfficePointerDown({ target: {} });
+  state.beginCellEdit(2, 1);
+  state.updateCell(0, 1, "第二格");
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(posts[0].value, "第一格");
+  firstSave.resolve({ ok: true });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(state.editingCell, "topic-1:2:1");
+  assert.equal(state.editingLockSent, true);
+  assert.equal(state.drafts["topic-1:2:1"], "第二格");
+  state.handleOfficeWindowBlur();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(posts[1].value, "第二格");
+  assert.equal(state.editingCell, null);
+});
+
+test("同一单元格连续保存按顺序进行，旧请求不会删除新草稿或解锁", async (t) => {
+  const firstSave = deferred();
+  const posts = [];
+  const { state, sockets } = setup(t, (url, options) => {
+    if (url.endsWith("/cell")) {
+      posts.push(JSON.parse(options.body));
+      return posts.length === 1 ? firstSave.promise : Promise.resolve({ ok: true });
+    }
+    return Promise.resolve({ ok: true, json: async () => ({ rooms: [] }) });
+  });
+  state.activateRoom("room", "password", snapshot("原值"));
+  sockets[0].readyState = 1;
+  state.beginCellEdit(2, 0);
+  state.updateCell(0, 0, "第一次");
+  state.flushEditingCell();
+  await new Promise((resolve) => setImmediate(resolve));
+  state.beginCellEdit(2, 0);
+  state.updateCell(0, 0, "第二次");
+  state.flushEditingCell();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(posts.length, 1);
+  firstSave.resolve({ ok: true });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(posts.map((post) => post.value), ["第一次", "第二次"]);
+  assert.equal(state.activeTopic.cells[2][0], "第二次");
+  assert.equal(sockets[0].messages.filter((message) => message.type === "cell:unlock").length, 1);
+});
+
+test("页面可见但窗口未聚焦时使用系统通知并合并频繁提醒", async (t) => {
+  const { state } = setup(t, async () => ({ ok: true, json: async () => ({ rooms: [] }) }));
+  const notifications = [];
+  globalThis.Notification = class {
+    static permission = "granted";
+    constructor(title, options) { notifications.push({ title, options }); }
+  };
+  window.Notification = globalThis.Notification;
+  document.hasFocus = () => false;
+  state.notifyOffice({ user: "其他人" }, "已完成编辑");
+  state.notifyOffice({ user: "其他人" }, "已完成编辑");
+  assert.equal(notifications.length, 1);
+  assert.equal(notices.length, 0);
+  assert.equal(notifications[0].title, "Office 协作");
+  document.hasFocus = () => true;
+  state.clearOfficeTitleNotice();
+  assert.equal(document.title, "test");
+});
+
+test("保存失败保留本地内容，重新聚焦并失焦可重试", async (t) => {
+  let attempts = 0;
+  const { state } = setup(t, async (url) => {
+    if (url.endsWith("/cell")) return { ok: ++attempts > 1 };
+    return { ok: true, json: async () => ({ rooms: [] }) };
+  });
+  state.activateRoom("room", "password", snapshot("原值"));
+  state.beginCellEdit(2, 0);
+  state.updateCell(0, 0, "保留内容");
+  await state.flushEditingCell();
+  assert.equal(state.saveState, "保存失败");
+  assert.equal(state.displayCellValue(2, 0), "保留内容");
+  state.beginCellEdit(2, 0);
+  await state.flushEditingCell();
+  assert.equal(attempts, 2);
+  assert.equal(state.saveState, "已同步");
+});
+
+test("关闭密码窗口后延迟连接错误不会再次打开，主动进入可重新打开", async (t) => {
+  const { state, sockets } = setup(t, async () => ({ ok: true, json: async () => ({ rooms: [] }) }));
+  state.activateRoom("room", "password", snapshot("初始"));
+  state.pendingRoomId = "room";
+  state.roomDialogVisible = true;
+  state.roomDialogVisible = false;
+  sockets[0].onclose({ code: 4003 });
+  assert.equal(state.roomDialogVisible, false);
+  localStorage.removeItem("office_room_password:room");
+  await state.enterRoom({ id: "room", protected: true });
+  assert.equal(state.roomDialogVisible, true);
 });
 
 test("密码验证失败后解除提交锁，允许再次尝试", async (t) => {
