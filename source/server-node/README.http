@@ -24,7 +24,7 @@ X-Office-Room: {{officeRoomId}}
 X-Office-Password: {{officePasswordEncoded}}
 X-Office-Password-Encoding: uri
 
-### Office WebSocket 连接成功后 snapshot.online 为在线窗口数，presence.count 在进入和离开时更新
+### Office WebSocket 连接成功后 snapshot.online 为按 clientId 去重的人数，presence.count 在进入和离开时更新
 ### ws://localhost:3000/api/office/ws?roomId={{officeRoomId}}&password=replace-with-password&guest=guest
 
 ### 写入单元格；客户端 ID 在浏览器中持久保存，用于改名时识别作者

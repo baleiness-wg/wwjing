@@ -94,8 +94,14 @@ function getRoom(roomId = "main") {
   return room;
 }
 
+function countOnlineUsers(room) {
+  const identities = new Set();
+  for (const client of room.clients) identities.add(client.officeClientId || client);
+  return identities.size;
+}
+
 function listRooms() {
-  return [...rooms.values()].map((room) => ({ id: room.id, name: room.name, online: room.clients.size, protected: Boolean(room.password) }));
+  return [...rooms.values()].map((room) => ({ id: room.id, name: room.name, online: countOnlineUsers(room), protected: Boolean(room.password) }));
 }
 
 function createNamedRoom(name, password, ownerId, ownerName) {
@@ -165,4 +171,4 @@ function removeClient(roomId, client) {
   // 房间只在 Node 进程重启时重置，短暂断线和自动重连不能丢失内容。
 }
 
-module.exports = { getRoom, listRooms, findRoomByName, createNamedRoom, verifyRoom, removeRoom, broadcast, removeClient, initializeTopic, defaultColumnWidths, renameClientAuthors };
+module.exports = { getRoom, listRooms, findRoomByName, createNamedRoom, verifyRoom, removeRoom, countOnlineUsers, broadcast, removeClient, initializeTopic, defaultColumnWidths, renameClientAuthors };

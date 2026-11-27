@@ -1,4 +1,4 @@
-const { verifyRoom, broadcast } = require("../office/room-manager");
+const { verifyRoom, broadcast, countOnlineUsers } = require("../office/room-manager");
 const { validCell } = require("../office/write-limits");
 
 function snapshot(req, res) {
@@ -10,7 +10,7 @@ function snapshot(req, res) {
   if (!room) return res.status(403).json({ message: "房间密码错误" });
   res.json({
     user: { id: String(req.auth.sub), name: req.auth.username || "用户" },
-    room: { id: room.id, name: room.name, protected: Boolean(room.password), online: room.clients.size },
+    room: { id: room.id, name: room.name, protected: Boolean(room.password), online: countOnlineUsers(room) },
     topics: room.topics,
     locks: room.locks,
     columnWidths: room.columnWidths,

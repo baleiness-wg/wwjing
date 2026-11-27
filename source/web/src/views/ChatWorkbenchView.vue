@@ -545,8 +545,10 @@ function connect() {
   socket.value.onmessage = ({ data }) => {
     if (connectionSequence !== roomConnectionSequence || connectionRoomId !== activeRoomId.value) return;
     const message = JSON.parse(data);
-    if ((message.type === "snapshot" && Number.isInteger(message.online) && message.online >= 0) || (message.type === "presence" && Number.isInteger(message.count) && message.count >= 0)) {
-      onlineCount.value = message.type === "snapshot" ? message.online : message.count;
+    if (message.type === "snapshot" || message.type === "presence") {
+      const count = message.type === "snapshot" ? message.online : message.count;
+      if (Number.isInteger(count) && count >= 0) onlineCount.value = Math.max(1, count);
+      else if (message.type === "snapshot" && onlineCount.value === null) onlineCount.value = 1;
     }
     if (["cell:updated", "cell:draft", "sheet:initialized", "sheet:replaced", "topic:created", "user:renamed"].includes(message.type)) snapshotSequence += 1;
       if (message.type === "snapshot") {
@@ -1383,7 +1385,7 @@ onUnmounted(() => {
 <template>
   <div class="office-page">
     <div v-if="officeMessage" class="office-notice" role="status">{{ officeMessage }}</div>
-    <header class="office-titlebar"><span class="office-app-icon">X</span><strong>{{ activeRoomName }}</strong><span class="office-save">{{ title }}</span><span class="office-online"><span class="presence-dot"></span>{{ roomActionLoading ? (roomDialogMode === 'create' ? '创建中…' : '进入中…') : connectionText }}</span><span v-if="activeRoomId" class="office-online-count" :title="onlineCount === null ? '正在连接，人数暂不可用' : '当前房间在线窗口数'">在线 {{ onlineCount === null ? '—' : onlineCount }} 人</span><button type="button" class="office-user" @click="renameGuest">{{ currentDisplayName }}⌄</button></header>
+    <header class="office-titlebar"><span class="office-app-icon">X</span><strong>{{ activeRoomName }}</strong><span class="office-save">{{ title }}</span><span class="office-online"><span class="presence-dot"></span>{{ roomActionLoading ? (roomDialogMode === 'create' ? '创建中…' : '进入中…') : connectionText }}</span><span v-if="activeRoomId" class="office-online-count" :title="onlineCount === null ? '正在连接，人数暂不可用' : '当前房间在线人数（同一浏览器只计算一次）'">在线{{ onlineCount === null ? '—' : onlineCount }}人</span><button type="button" class="office-user" @click="renameGuest">{{ currentDisplayName }}⌄</button></header>
     <nav class="office-ribbon"><button>文件</button><button class="is-active">开始</button><button>插入</button><button>布局</button><button>审阅</button><span class="ribbon-separator"></span><span class="ribbon-tool">剪切</span><span class="ribbon-tool">复制</span><span class="ribbon-tool">粘贴</span><span class="ribbon-separator"></span><span class="ribbon-tool">自动换行</span><span class="ribbon-tool">筛选</span></nav>
     <section class="workbench-shell">
       <aside v-if="!roomListCollapsed" class="office-room-list"><div class="office-room-head"><strong>我的房间</strong><span><button type="button" title="搜索房间" aria-label="搜索房间" :disabled="roomActionLoading" @click="openRoomSearch">⌕</button><button type="button" title="新建房间" :disabled="roomActionLoading" @click="beginCreateRoom">＋</button><button type="button" class="room-collapse-button" title="收起房间列表" aria-label="收起房间列表" @click="roomListCollapsed = true">‹</button></span></div><div v-for="room in rooms" :key="room.id" class="office-room-row"><button type="button" class="office-room-item" :disabled="roomActionLoading" :class="{ 'is-active': room.id === activeRoomId }" @click="room.id === activeRoomId ? null : enterRoom(room)">{{ room.name }}<small>{{ room.protected ? '🔒' : '' }}</small></button><el-dropdown trigger="click"><button type="button" class="office-room-more">⋯</button><template #dropdown><el-dropdown-menu><el-dropdown-item @click="forgetRoom(room)">从列表移除</el-dropdown-item><el-dropdown-item @click="changeRoomPassword(room)">修改密码</el-dropdown-item><el-dropdown-item divided @click="deleteRoom(room)">删除房间</el-dropdown-item></el-dropdown-menu></template></el-dropdown></div></aside>

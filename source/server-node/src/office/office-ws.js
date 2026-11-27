@@ -1,7 +1,7 @@
 const jwt = require("jsonwebtoken");
 const { WebSocketServer } = require("ws");
 const config = require("../config");
-const { verifyRoom, broadcast, removeClient, initializeTopic, defaultColumnWidths, renameClientAuthors } = require("./room-manager");
+const { verifyRoom, broadcast, removeClient, countOnlineUsers, initializeTopic, defaultColumnWidths, renameClientAuthors } = require("./room-manager");
 const { validCell, createRateLimiter } = require("./write-limits");
 
 function attachOfficeWebSocket(server) {
@@ -52,8 +52,8 @@ function attachOfficeWebSocket(server) {
      const user = { id: String(request.user.sub), name: displayName || "用户" };
      client.officeUser = user;
      client.officeClientId = String(url.searchParams.get("clientId") || "").slice(0, 100);
-      client.send(JSON.stringify({ type: "snapshot", user, topics: room.topics, locks: room.locks, columnWidths: room.columnWidths, revision: room.revision, online: room.clients.size }));
-    broadcast(room, { type: "presence", name: user.name, count: room.clients.size }, client);
+      client.send(JSON.stringify({ type: "snapshot", user, topics: room.topics, locks: room.locks, columnWidths: room.columnWidths, revision: room.revision, online: countOnlineUsers(room) }));
+    broadcast(room, { type: "presence", name: user.name, count: countOnlineUsers(room) }, client);
     client.on("message", (raw) => {
       let message;
       try { message = JSON.parse(raw.toString()); } catch { return; }
@@ -73,7 +73,7 @@ function attachOfficeWebSocket(server) {
            broadcast(updatedRoom, { type: "user:renamed", oldName: previousName, name: nextName, clientId: client.officeClientId, revision: updatedRoom.revision });
          }
          client.send(JSON.stringify({ type: "user:rename:ack", oldName: previousName, name: nextName }));
-         client.send(JSON.stringify({ type: "snapshot", user: client.officeUser, topics: room.topics, locks: room.locks, columnWidths: room.columnWidths, revision: room.revision, online: room.clients.size }));
+         client.send(JSON.stringify({ type: "snapshot", user: client.officeUser, topics: room.topics, locks: room.locks, columnWidths: room.columnWidths, revision: room.revision, online: countOnlineUsers(room) }));
          return;
        }
        if (message.type === "column:resize") {
@@ -196,7 +196,7 @@ function attachOfficeWebSocket(server) {
     });
     client.on("close", () => {
       removeClient(roomId, client);
-      if (room.clients.size) broadcast(room, { type: "presence", name: user.name, count: room.clients.size });
+      if (room.clients.size) broadcast(room, { type: "presence", name: user.name, count: countOnlineUsers(room) });
     });
   });
 }

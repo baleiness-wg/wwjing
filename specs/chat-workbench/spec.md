@@ -1,6 +1,6 @@
 # 表格聊天工作台 模块规格说明
 
-- 版本：202611280128
+- 版本：202611280133
 - 最后更新：2026-11-28
 - 模块名称：chat-workbench（表格与文字聊天工作台）
 
@@ -24,9 +24,9 @@
 - Header 仅保留一个聊天图标，位于数据传输图标右侧，点击后在新标签页打开 `/office`，不增加侧边菜单项。
 - 工作台主体由表格区域和聊天区域组成，桌面端左右分栏，移动端上下排列。
 - 表格提供列标题、行号、可编辑单元格、工具栏和状态栏。
-- Office 右上角显示当前房间在线窗口数，包含当前窗口；每个成功建立实时连接的窗口计数一次。关闭窗口或切换房间后，其他窗口即时更新人数。
+- Office 右上角显示当前房间在线人数，包含当前浏览器；使用同一浏览器身份打开多个窗口只计算一人，不同浏览器身份分别计数。最后一个同身份窗口关闭或切换房间后，其他窗口即时更新人数。
 - 在线人数显示为“在线1人”格式；搜索房间后输入密码时，房间名称显示在密码框上方。
-- 实时连接断开或重连时显示人数未知，重新连接后恢复；服务端定期心跳清理异常断线，避免长时间虚增在线人数。
+- 实时连接断开或重连时显示人数未知；房间连接验证成功后至少显示自己一人，并在收到服务端人数后更新。服务端定期心跳清理异常断线，避免长时间虚增在线人数。
 - 聊天区域显示消息列表、输入框和发送按钮。
 - 房间切换时必须清除前一房间的草稿、待确认更新、未读标记和编辑状态；旧房间连接的延迟消息不得更新当前房间。
 - 用户初始化当前工作表时，当前内容替换为标准脱敏演示数据；初始化结果同步给房间成员，但接收方不得为每个单元格生成未读标记或编辑通知。
@@ -95,7 +95,7 @@
 ```
 
 - WebSocket 路径：`/api/office/ws?token=Bearer%20<token>&roomId=<roomId>&password=<password>`。
-- WebSocket 消息：客户端发送 `cell:lock`、`cell:unlock`、`cell:update`、`sheet:initialize`、`sheet:replace`；服务端发送 `snapshot`、`presence`、`cell:lock`、`cell:unlock`、`cell:updated`、`sheet:initialized`、`sheet:replaced`、`cell:lock:rejected` 和 `cell:update:ack`。`snapshot.online` 和 `presence.count` 为当前房间实时连接数。
+- WebSocket 消息：客户端发送 `cell:lock`、`cell:unlock`、`cell:update`、`sheet:initialize`、`sheet:replace`；服务端发送 `snapshot`、`presence`、`cell:lock`、`cell:unlock`、`cell:updated`、`sheet:initialized`、`sheet:replaced`、`cell:lock:rejected` 和 `cell:update:ack`。`snapshot.online`、`presence.count` 及 HTTP 房间信息中的 `online` 为当前房间按浏览器 ID 去重的在线人数，未提供 ID 的连接各自计数。
 
 ```json
 {"type":"presence","count":2}
@@ -149,3 +149,4 @@
 | 2026-11-28 | 202611280057 | 房间列表保存在浏览器，按完整名称搜索加入并禁止服务端重名 |
 | 2026-11-28 | 202611280108 | Office 标题栏显示实时在线窗口数，关闭窗口及异常断线后更新人数 |
 | 2026-11-28 | 202611280128 | 紧凑显示在线人数，并将进入房间名称移至密码框上方 |
+| 2026-11-28 | 202611280133 | 在线人数按浏览器身份去重并计入当前用户 |

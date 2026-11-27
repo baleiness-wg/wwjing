@@ -1,11 +1,11 @@
-const { findRoomByName, createNamedRoom, getRoom, removeRoom } = require("../office/room-manager");
+const { findRoomByName, createNamedRoom, getRoom, removeRoom, countOnlineUsers } = require("../office/room-manager");
 
 function list(req, res) {
   const name = typeof req.query.name === "string" ? req.query.name.trim() : "";
   if (!name || name.length > 80) return res.status(400).json({ message: "请输入完整房间名称" });
   const room = findRoomByName(name);
   if (!room) return res.status(404).json({ message: "未找到该房间" });
-  return res.json({ room: { id: room.id, name: room.name, protected: Boolean(room.password), online: room.clients.size } });
+  return res.json({ room: { id: room.id, name: room.name, protected: Boolean(room.password), online: countOnlineUsers(room) } });
 }
 
 function create(req, res) {
